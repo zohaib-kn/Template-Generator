@@ -16,6 +16,7 @@ export function EuropassPage({ pageNumber, children }: EuropassPageProps) {
     <article
       className={styles.page}
       data-page-number={pageNumber}
+      data-pdf-page="true"
       aria-label={`Document Page ${pageNumber}`}
     >
       <EuropassPageDecoration />
