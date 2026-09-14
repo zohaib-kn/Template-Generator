@@ -1,0 +1,494 @@
+/* ==========================================================================
+   Europass Template Stylesheet (A4 Physical Document Layout)
+   Faithful reconstruction based on the authoritative Cairo-rendered Europass PDF
+   ========================================================================== */
+
+.templateContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 210mm;
+  margin: 0 auto;
+}
+
+/* --- Physical A4 Page ---------------------------------------------------- */
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  height: 297mm;
+  box-sizing: border-box;
+  position: relative;
+  background-color: #ffffff;
+  overflow: hidden;
+  color: #565656;
+  font-family: var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 9.97pt;
+  line-height: 1.4;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+/* When printing, remove shadows and force exact page sizes */
+@media print {
+  .templateContainer {
+    gap: 0;
+  }
+  .page {
+    box-shadow: none;
+    page-break-after: always;
+  }
+}
+
+/* --- Page Decorations (Top & Bottom Light-Blue Accents: #82acd9) -------- */
+.decorationTopBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.decorationTopLeftEar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6mm;
+  height: 24mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.decorationTopRightEar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6mm;
+  height: 24mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.decorationBottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.decorationBottomLeftEar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 6mm;
+  height: 24mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.decorationBottomRightEar {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 6mm;
+  height: 24mm;
+  background-color: #82acd9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* --- Content Wrapper (Exact margins derived from Cairo MediaBox & Rects) -- */
+.pageContent {
+  position: relative;
+  z-index: 1;
+  padding: 8.5mm 9.2mm 8.5mm 9.2mm;
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Header Section (Page 1 Top) ---------------------------------------- */
+.headerContainer {
+  position: relative;
+  width: 100%;
+  margin-top: 0;
+  margin-bottom: 4mm;
+}
+
+/* Europass logo positioned prominently in the top right corner */
+.logoWrapper {
+  position: absolute;
+  top: -1.5mm;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.europassLogo {
+  width: 54mm;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+/* Main header body: Photo on left, Name & Details directly adjacent */
+.headerBody {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 4.5mm;
+  margin-top: 9.5mm;
+}
+
+.photoWrapper {
+  width: 34mm;
+  height: 34mm;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid #c6c6c6;
+  flex-shrink: 0;
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profilePhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photoPlaceholder {
+  font-size: 16pt;
+  color: #9ca3af;
+}
+
+.identityBlock {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.subjectName {
+  font-size: 16pt;
+  font-weight: 700;
+  color: #0c56a5;
+  line-height: 1.15;
+  margin: 0 0 2mm 0;
+  letter-spacing: 0.15px;
+}
+
+.identityLines {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4mm;
+  font-size: 9.97pt;
+  line-height: 1.38;
+  color: #565656;
+}
+
+.identityRow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4mm;
+}
+
+.identityItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.2mm;
+}
+
+.identityLabel {
+  font-weight: 700;
+  color: #565656;
+}
+
+.identityValue {
+  color: #565656;
+}
+
+.identityIcon {
+  width: 11pt;
+  height: 11pt;
+  color: #0c56a5;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.blueLink {
+  color: #0c56a5;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
+.blueLink:hover {
+  color: #09407d;
+}
+
+/* --- Section Headings ---------------------------------------------------- */
+.sectionWrapper {
+  margin-top: 4.2mm;
+  margin-bottom: 0;
+}
+
+.sectionHeadingRow {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-size: 10.97pt;
+  font-weight: 700;
+  color: #0c56a5;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.sectionDivider {
+  height: 0.75pt;
+  background-color: #979797;
+  width: 100%;
+  margin: 1.2mm 0 2.8mm 0;
+}
+
+/* --- About Me ----------------------------------------------------------- */
+.aboutMeText {
+  font-size: 9.97pt;
+  line-height: 1.4;
+  color: #565656;
+  text-align: justify;
+  margin: 0 0 2.5mm 0;
+}
+
+.aboutMeText:last-child {
+  margin-bottom: 0;
+}
+
+.aboutMeHighlight {
+  font-weight: 700;
+  color: #565656;
+}
+
+/* --- Education Entries -------------------------------------------------- */
+.educationEntry {
+  margin-bottom: 3.5mm;
+}
+
+.educationEntry:last-child {
+  margin-bottom: 0;
+}
+
+.qualificationTitle {
+  font-size: 10.97pt;
+  font-weight: 700;
+  color: #0c56a5;
+  margin: 0 0 1mm 0;
+}
+
+.institutionRow {
+  font-size: 10.97pt;
+  color: #565656;
+  margin-bottom: 1mm;
+}
+
+.institutionName {
+  font-weight: 700;
+  font-style: italic;
+  color: #565656;
+}
+
+.datesBadge {
+  color: #757575;
+  font-style: normal;
+  font-size: 9.97pt;
+  margin-left: 1.5mm;
+}
+
+.educationDetails {
+  font-size: 9.97pt;
+  color: #565656;
+  line-height: 1.38;
+}
+
+.pipeDivider {
+  color: #d3d3d3;
+  margin: 0 1.5mm;
+}
+
+/* --- Recommendations ---------------------------------------------------- */
+.recommenderMeta {
+  font-size: 9.97pt;
+  margin-bottom: 2mm;
+  color: #565656;
+}
+
+.recommenderNameLabel {
+  font-weight: 700;
+  color: #6b6b6b;
+}
+
+.recommenderName {
+  font-weight: 700;
+  color: #565656;
+}
+
+.recommenderTitle {
+  color: #565656;
+}
+
+.recommendationParagraph {
+  font-size: 9.97pt;
+  line-height: 1.4;
+  color: #565656;
+  text-align: justify;
+  margin: 0 0 2.2mm 0;
+}
+
+.recommendationParagraph:last-child {
+  margin-bottom: 0;
+}
+
+.recommendationContactRow {
+  font-size: 9.97pt;
+  color: #565656;
+  margin-top: 2.5mm;
+  line-height: 1.4;
+}
+
+/* --- Language Skills (Page 2) ------------------------------------------- */
+.motherTongueRow {
+  font-size: 9.97pt;
+  margin-bottom: 2.2mm;
+  color: #565656;
+}
+
+.otherLanguagesLabel {
+  font-size: 9.97pt;
+  color: #565656;
+  margin-bottom: 1.2mm;
+}
+
+.languageNameTitle {
+  font-size: 10.97pt;
+  font-weight: 700;
+  color: #0c56a5;
+  margin: 0 0 1.5mm 0;
+}
+
+.cefrGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm 6mm;
+  font-size: 9.97pt;
+  color: #6b6b6b;
+  margin-bottom: 1.5mm;
+}
+
+.cefrItem {
+  display: inline-flex;
+  gap: 1.2mm;
+}
+
+.cefrComponent {
+  font-weight: 700;
+  color: #6b6b6b;
+}
+
+.cefrLevel {
+  color: #6b6b6b;
+}
+
+.cefrLegend {
+  font-size: 8.5pt;
+  font-style: italic;
+  color: #757575;
+  margin-top: 1.5mm;
+  margin-bottom: 2.5mm;
+}
+
+/* --- English Language Certificate --------------------------------------- */
+.certificateTitle {
+  font-size: 9.97pt;
+  font-weight: 700;
+  color: #6b6b6b;
+  margin-bottom: 1.8mm;
+}
+
+.certificateScore {
+  font-size: 9.97pt;
+  color: #565656;
+  margin-bottom: 1.5mm;
+}
+
+.certificateBullets {
+  font-size: 9.97pt;
+  color: #565656;
+  line-height: 1.75;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+/* --- Skills, Hobbies, Volunteering, Declaration ------------------------- */
+.subheadingGray {
+  font-size: 9.97pt;
+  font-weight: 700;
+  color: #6b6b6b;
+  margin: 0 0 1.5mm 0;
+}
+
+.simpleList {
+  font-size: 9.97pt;
+  color: #565656;
+  line-height: 1.75;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.numberedList {
+  font-size: 9.97pt;
+  color: #565656;
+  line-height: 1.65;
+  margin: 0;
+  padding-left: 5mm;
+}
+
+.volunteeringInline {
+  font-size: 9.97pt;
+  line-height: 1.45;
+  color: #565656;
+}
+
+.volunteeringRole {
+  font-weight: 700;
+  color: #6b6b6b;
+  margin-right: 1.5mm;
+}
+
+.declarationText {
+  font-size: 9.97pt;
+  line-height: 1.45;
+  color: #565656;
+  margin-top: 5.5mm; /* Clean distinct space between heading and declaration text */
+}
