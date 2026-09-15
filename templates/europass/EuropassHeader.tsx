@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { PersonalDetails } from "@/types";
 import styles from "./europass.module.css";
 
@@ -16,7 +17,9 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
-export function EuropassHeader({ personal }: EuropassHeaderProps) {
+export const EuropassHeader = memo(function EuropassHeader({
+  personal,
+}: EuropassHeaderProps) {
   if (!personal) return null;
 
   const hasIdentityLine1 =
@@ -171,5 +174,5 @@ export function EuropassHeader({ personal }: EuropassHeaderProps) {
       </div>
     </div>
   </header>
-);
-}
+  );
+});

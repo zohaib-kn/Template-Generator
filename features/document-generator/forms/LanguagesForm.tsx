@@ -4,6 +4,7 @@ import { useDocumentState } from "../hooks/useDocumentState";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const LEVEL_OPTIONS = [
   "Native",
@@ -23,9 +24,7 @@ export function LanguagesForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-          No languages yet. Click &ldquo;Add Language&rdquo; below.
-        </p>
+        <EmptyState message='No languages yet. Click "Add Language" below.' />
       )}
 
       {entries.map((entry, idx) => (

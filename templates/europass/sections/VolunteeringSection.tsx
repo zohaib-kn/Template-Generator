@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { VolunteeringEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,7 +7,9 @@ interface VolunteeringSectionProps {
   entries?: VolunteeringEntry[];
 }
 
-export function VolunteeringSection({ entries }: VolunteeringSectionProps) {
+export const VolunteeringSection = memo(function VolunteeringSection({
+  entries,
+}: VolunteeringSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -20,4 +23,4 @@ export function VolunteeringSection({ entries }: VolunteeringSectionProps) {
       ))}
     </section>
   );
-}
+});

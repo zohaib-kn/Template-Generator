@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { EducationEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -48,7 +49,9 @@ function renderDescriptionWithLinks(desc: string) {
   });
 }
 
-export function EducationSection({ entries }: EducationSectionProps) {
+export const EducationSection = memo(function EducationSection({
+  entries,
+}: EducationSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -88,4 +91,4 @@ export function EducationSection({ entries }: EducationSectionProps) {
       })}
     </section>
   );
-}
+});

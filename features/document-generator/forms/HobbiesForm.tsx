@@ -3,6 +3,7 @@
 import { useDocumentState } from "../hooks/useDocumentState";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function HobbiesForm() {
   const { data, addHobby, updateHobby, removeHobby } = useDocumentState();
@@ -11,9 +12,7 @@ export function HobbiesForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-          No hobbies yet. Click &ldquo;Add Hobby&rdquo; below.
-        </p>
+        <EmptyState message='No hobbies yet. Click "Add Hobby" below.' />
       )}
 
       <div className="flex flex-wrap gap-2">

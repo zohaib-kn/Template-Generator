@@ -93,9 +93,7 @@ export async function generateDocumentPdf(data: DocumentData): Promise<void> {
 
   // --- 2. Wait for fonts & images ---------------------------------------------
   await document.fonts.ready;
-  for (const page of pageElements) {
-    await waitForImages(page);
-  }
+  await Promise.all(pageElements.map((page) => waitForImages(page)));
 
   // --- 3. Create PDF ----------------------------------------------------------
   const pdf = new jsPDF({
@@ -105,37 +103,42 @@ export async function generateDocumentPdf(data: DocumentData): Promise<void> {
     compress: true,
   });
 
-  // --- 4. Capture each page ---------------------------------------------------
-  for (let i = 0; i < pageElements.length; i++) {
-    const pageEl = pageElements[i];
+  // --- 4. Capture each page (in parallel — captures are independent DOM
+  // reads/canvas draws per element, only the jsPDF page insertion below
+  // needs to stay in order) ------------------------------------------------
+  const imageDatas = await Promise.all(
+    pageElements.map(async (pageEl) => {
+      // Temporarily remove box-shadow (screen-only decoration)
+      const originalBoxShadow = pageEl.style.boxShadow;
+      pageEl.style.boxShadow = "none";
 
-    // Temporarily remove box-shadow (screen-only decoration)
-    const originalBoxShadow = pageEl.style.boxShadow;
-    pageEl.style.boxShadow = "none";
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await html2canvas(pageEl, {
+          scale: CAPTURE_SCALE,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: "#ffffff",
+          logging: false,
+          // Capture the full element even if clipped by overflow:hidden
+          width: pageEl.offsetWidth,
+          height: pageEl.offsetHeight,
+          windowWidth: pageEl.offsetWidth,
+          windowHeight: pageEl.offsetHeight,
+          x: 0,
+          y: 0,
+        });
+      } finally {
+        // Always restore the box-shadow
+        pageEl.style.boxShadow = originalBoxShadow;
+      }
 
-    let canvas: HTMLCanvasElement;
-    try {
-      canvas = await html2canvas(pageEl, {
-        scale: CAPTURE_SCALE,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#ffffff",
-        logging: false,
-        // Capture the full element even if clipped by overflow:hidden
-        width: pageEl.offsetWidth,
-        height: pageEl.offsetHeight,
-        windowWidth: pageEl.offsetWidth,
-        windowHeight: pageEl.offsetHeight,
-        x: 0,
-        y: 0,
-      });
-    } finally {
-      // Always restore the box-shadow
-      pageEl.style.boxShadow = originalBoxShadow;
-    }
+      return canvas.toDataURL("image/jpeg", 0.97);
+    })
+  );
 
-    const imgData = canvas.toDataURL("image/jpeg", 0.97);
-
+  // --- 5. Assemble the PDF pages in order --------------------------------------
+  imageDatas.forEach((imgData, i) => {
     // Add a new PDF page for every page after the first
     if (i > 0) {
       pdf.addPage("a4", "portrait");
@@ -144,9 +147,9 @@ export async function generateDocumentPdf(data: DocumentData): Promise<void> {
     // Fill the entire A4 PDF page with the captured image (no added margins —
     // the A4 page component already contains its own internal margins)
     pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "FAST");
-  }
+  });
 
-  // --- 5. Download ------------------------------------------------------------
+  // --- 6. Download ------------------------------------------------------------
   const filename = buildFilename(data);
   pdf.save(filename);
 }

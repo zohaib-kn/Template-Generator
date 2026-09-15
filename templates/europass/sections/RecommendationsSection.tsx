@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { RecommendationEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -49,7 +50,7 @@ function renderContactLine(line: string) {
   });
 }
 
-export function RecommendationsSection({
+export const RecommendationsSection = memo(function RecommendationsSection({
   entries,
   part,
 }: RecommendationsSectionProps) {
@@ -172,4 +173,4 @@ export function RecommendationsSection({
       ))}
     </section>
   );
-}
+});
