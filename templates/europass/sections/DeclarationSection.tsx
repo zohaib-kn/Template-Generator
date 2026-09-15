@@ -1,3 +1,4 @@
+import { memo } from "react";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
@@ -5,7 +6,9 @@ interface DeclarationSectionProps {
   text?: string;
 }
 
-export function DeclarationSection({ text }: DeclarationSectionProps) {
+export const DeclarationSection = memo(function DeclarationSection({
+  text,
+}: DeclarationSectionProps) {
   if (!text) return null;
 
   return (
@@ -15,4 +18,4 @@ export function DeclarationSection({ text }: DeclarationSectionProps) {
       <p className={styles.declarationText}>{text}</p>
     </section>
   );
-}
+});

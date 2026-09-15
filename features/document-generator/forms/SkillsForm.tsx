@@ -4,6 +4,7 @@ import { useDocumentState } from "../hooks/useDocumentState";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export function SkillsForm() {
   const { data, addSkill, updateSkill, removeSkill } = useDocumentState();
@@ -12,9 +13,7 @@ export function SkillsForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-          No skills yet. Click &ldquo;Add Skill&rdquo; below.
-        </p>
+        <EmptyState message='No skills yet. Click "Add Skill" below.' />
       )}
 
       {entries.map((entry) => (

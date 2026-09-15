@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   useReducer,
   type Dispatch,
   type ReactNode,
@@ -32,9 +33,10 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
     undefined,
     createEmptyDocumentData
   );
+  const value = useMemo(() => ({ data, dispatch }), [data]);
 
   return (
-    <DocumentContext.Provider value={{ data, dispatch }}>
+    <DocumentContext.Provider value={value}>
       {children}
     </DocumentContext.Provider>
   );

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { LanguageEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,7 +7,9 @@ interface LanguageSkillsSectionProps {
   entries?: LanguageEntry[];
 }
 
-export function LanguageSkillsSection({ entries }: LanguageSkillsSectionProps) {
+export const LanguageSkillsSection = memo(function LanguageSkillsSection({
+  entries,
+}: LanguageSkillsSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   // Distinguish mother tongue vs other languages
@@ -66,4 +69,4 @@ export function LanguageSkillsSection({ entries }: LanguageSkillsSectionProps) {
       )}
     </section>
   );
-}
+});

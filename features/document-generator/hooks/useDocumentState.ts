@@ -12,6 +12,35 @@ import type {
 } from "@/types";
 import { generateId } from "@/lib/generateId";
 import { useDocumentContext } from "../state/DocumentContext";
+import type { Dispatch } from "react";
+import type { DocumentAction } from "../state/documentReducer";
+
+/**
+ * Builds the add/update/remove trio for one repeatable list section, so a
+ * new section only needs one call here instead of three hand-written
+ * dispatchers (mirrors the generic ADD/UPDATE/REMOVE_LIST_ITEM reducer cases).
+ */
+function listFieldActions<K extends string, E extends { id: string }>(
+  dispatch: Dispatch<DocumentAction>,
+  key: K
+) {
+  return {
+    add: (entry: Omit<E, "id"> = {} as Omit<E, "id">) =>
+      dispatch({
+        type: "ADD_LIST_ITEM",
+        key: key as never,
+        payload: { ...entry, id: generateId() } as never,
+      }),
+    update: (id: string, patch: Partial<E>) =>
+      dispatch({
+        type: "UPDATE_LIST_ITEM",
+        key: key as never,
+        payload: { id, patch } as never,
+      }),
+    remove: (id: string) =>
+      dispatch({ type: "REMOVE_LIST_ITEM", key: key as never, payload: id }),
+  };
+}
 
 /**
  * Primary hook for consuming and updating DocumentData.
@@ -22,6 +51,19 @@ import { useDocumentContext } from "../state/DocumentContext";
  */
 export function useDocumentState() {
   const { data, dispatch } = useDocumentContext();
+
+  const education = listFieldActions<"education", EducationEntry>(dispatch, "education");
+  const recommendations = listFieldActions<"recommendations", RecommendationEntry>(
+    dispatch,
+    "recommendations"
+  );
+  const languages = listFieldActions<"languages", LanguageEntry>(dispatch, "languages");
+  const skills = listFieldActions<"skills", SkillEntry>(dispatch, "skills");
+  const hobbies = listFieldActions<"hobbies", HobbyEntry>(dispatch, "hobbies");
+  const volunteering = listFieldActions<"volunteering", VolunteeringEntry>(
+    dispatch,
+    "volunteering"
+  );
 
   return {
     data,
@@ -43,70 +85,38 @@ export function useDocumentState() {
       dispatch({ type: "SET_ENGLISH_CERTIFICATE", payload: patch }),
 
     // --- Education ----------------------------------------------------------
-    addEducation: () =>
-      dispatch({
-        type: "ADD_EDUCATION",
-        payload: { id: generateId() },
-      }),
+    addEducation: () => education.add(),
     updateEducation: (id: string, patch: Partial<EducationEntry>) =>
-      dispatch({ type: "UPDATE_EDUCATION", payload: { id, patch } }),
-    removeEducation: (id: string) =>
-      dispatch({ type: "REMOVE_EDUCATION", payload: id }),
+      education.update(id, patch),
+    removeEducation: (id: string) => education.remove(id),
 
     // --- Recommendations ----------------------------------------------------
-    addRecommendation: () =>
-      dispatch({
-        type: "ADD_RECOMMENDATION",
-        payload: { id: generateId() },
-      }),
+    addRecommendation: () => recommendations.add(),
     updateRecommendation: (id: string, patch: Partial<RecommendationEntry>) =>
-      dispatch({ type: "UPDATE_RECOMMENDATION", payload: { id, patch } }),
-    removeRecommendation: (id: string) =>
-      dispatch({ type: "REMOVE_RECOMMENDATION", payload: id }),
+      recommendations.update(id, patch),
+    removeRecommendation: (id: string) => recommendations.remove(id),
 
     // --- Languages ----------------------------------------------------------
-    addLanguage: () =>
-      dispatch({
-        type: "ADD_LANGUAGE",
-        payload: { id: generateId() },
-      }),
+    addLanguage: () => languages.add(),
     updateLanguage: (id: string, patch: Partial<LanguageEntry>) =>
-      dispatch({ type: "UPDATE_LANGUAGE", payload: { id, patch } }),
-    removeLanguage: (id: string) =>
-      dispatch({ type: "REMOVE_LANGUAGE", payload: id }),
+      languages.update(id, patch),
+    removeLanguage: (id: string) => languages.remove(id),
 
     // --- Skills -------------------------------------------------------------
-    addSkill: () =>
-      dispatch({
-        type: "ADD_SKILL",
-        payload: { id: generateId() },
-      }),
-    updateSkill: (id: string, patch: Partial<SkillEntry>) =>
-      dispatch({ type: "UPDATE_SKILL", payload: { id, patch } }),
-    removeSkill: (id: string) =>
-      dispatch({ type: "REMOVE_SKILL", payload: id }),
+    addSkill: () => skills.add(),
+    updateSkill: (id: string, patch: Partial<SkillEntry>) => skills.update(id, patch),
+    removeSkill: (id: string) => skills.remove(id),
 
     // --- Hobbies ------------------------------------------------------------
-    addHobby: () =>
-      dispatch({
-        type: "ADD_HOBBY",
-        payload: { id: generateId() },
-      }),
-    updateHobby: (id: string, patch: Partial<HobbyEntry>) =>
-      dispatch({ type: "UPDATE_HOBBY", payload: { id, patch } }),
-    removeHobby: (id: string) =>
-      dispatch({ type: "REMOVE_HOBBY", payload: id }),
+    addHobby: () => hobbies.add(),
+    updateHobby: (id: string, patch: Partial<HobbyEntry>) => hobbies.update(id, patch),
+    removeHobby: (id: string) => hobbies.remove(id),
 
     // --- Volunteering -------------------------------------------------------
-    addVolunteering: () =>
-      dispatch({
-        type: "ADD_VOLUNTEERING",
-        payload: { id: generateId() },
-      }),
+    addVolunteering: () => volunteering.add(),
     updateVolunteering: (id: string, patch: Partial<VolunteeringEntry>) =>
-      dispatch({ type: "UPDATE_VOLUNTEERING", payload: { id, patch } }),
-    removeVolunteering: (id: string) =>
-      dispatch({ type: "REMOVE_VOLUNTEERING", payload: id }),
+      volunteering.update(id, patch),
+    removeVolunteering: (id: string) => volunteering.remove(id),
 
     // --- Reset --------------------------------------------------------------
     reset: () => dispatch({ type: "RESET" }),

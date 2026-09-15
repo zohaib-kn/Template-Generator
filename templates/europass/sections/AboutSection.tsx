@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
@@ -49,7 +49,9 @@ function highlightText(text: string): ReactNode[] {
   });
 }
 
-export function AboutSection({ text }: AboutSectionProps) {
+export const AboutSection = memo(function AboutSection({
+  text,
+}: AboutSectionProps) {
   if (!text) return null;
 
   const paragraphs = text.split("\n").filter((p) => p.trim().length > 0);
@@ -64,4 +66,4 @@ export function AboutSection({ text }: AboutSectionProps) {
       ))}
     </section>
   );
-}
+});

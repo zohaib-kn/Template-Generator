@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { EntryCardHeader } from "./shared";
 
 export function VolunteeringForm() {
   const { data, addVolunteering, updateVolunteering, removeVolunteering } =
@@ -14,9 +16,7 @@ export function VolunteeringForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <p className="text-sm text-slate-400 text-center py-6 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-          No volunteering entries yet. Click &ldquo;Add Entry&rdquo; below.
-        </p>
+        <EmptyState message='No volunteering entries yet. Click "Add Entry" below.' />
       )}
 
       {entries.map((entry, idx) => (
@@ -24,18 +24,10 @@ export function VolunteeringForm() {
           key={entry.id}
           className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Entry {idx + 1}
-            </span>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => removeVolunteering(entry.id)}
-            >
-              Remove
-            </Button>
-          </div>
+          <EntryCardHeader
+            index={idx}
+            onRemove={() => removeVolunteering(entry.id)}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div>

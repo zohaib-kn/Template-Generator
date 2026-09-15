@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { SkillEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,7 +7,9 @@ interface SkillsSectionProps {
   entries?: SkillEntry[];
 }
 
-export function SkillsSection({ entries }: SkillsSectionProps) {
+export const SkillsSection = memo(function SkillsSection({
+  entries,
+}: SkillsSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -20,4 +23,4 @@ export function SkillsSection({ entries }: SkillsSectionProps) {
       </ul>
     </section>
   );
-}
+});

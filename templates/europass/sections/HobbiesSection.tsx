@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { HobbyEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,7 +7,9 @@ interface HobbiesSectionProps {
   entries?: HobbyEntry[];
 }
 
-export function HobbiesSection({ entries }: HobbiesSectionProps) {
+export const HobbiesSection = memo(function HobbiesSection({
+  entries,
+}: HobbiesSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -20,4 +23,4 @@ export function HobbiesSection({ entries }: HobbiesSectionProps) {
       </ol>
     </section>
   );
-}
+});

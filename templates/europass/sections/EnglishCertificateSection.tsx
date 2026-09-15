@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { EnglishCertificate } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,7 +7,7 @@ interface EnglishCertificateSectionProps {
   cert?: EnglishCertificate;
 }
 
-export function EnglishCertificateSection({
+export const EnglishCertificateSection = memo(function EnglishCertificateSection({
   cert,
 }: EnglishCertificateSectionProps) {
   if (!cert || (!cert.examName && !cert.score && !cert.issuingBody)) return null;
@@ -48,4 +49,4 @@ export function EnglishCertificateSection({
       )}
     </section>
   );
-}
+});
