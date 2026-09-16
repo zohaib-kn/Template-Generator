@@ -2,7 +2,7 @@ import type { DocumentData } from "@/types";
 
 /**
  * Returns a completely blank DocumentData so the editor starts empty,
- * ready for the editor to fill in a new student's details.
+ * and resetting/clearing returns to a clean slate.
  */
 export function createEmptyDocumentData(): DocumentData {
   return {};

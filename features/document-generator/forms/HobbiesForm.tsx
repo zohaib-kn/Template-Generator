@@ -2,8 +2,11 @@
 
 import { useDocumentState } from "../hooks/useDocumentState";
 import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { EntryCardHeader } from "./shared";
 
 export function HobbiesForm() {
   const { data, addHobby, updateHobby, removeHobby } = useDocumentState();
@@ -12,43 +15,49 @@ export function HobbiesForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <EmptyState message='No hobbies yet. Click "Add Hobby" below.' />
+        <EmptyState message='No interests yet. Click "Add Interest" below.' />
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {entries.map((entry) => (
-          <div
-            key={entry.id}
-            className="flex items-center gap-1.5 bg-slate-50 rounded-lg border border-slate-200 px-2 py-1"
-          >
+      {entries.map((entry, idx) => (
+        <div
+          key={entry.id}
+          className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3"
+        >
+          <EntryCardHeader
+            index={idx}
+            onRemove={() => removeHobby(entry.id)}
+          />
+
+          <div>
+            <Label htmlFor={`hobby-name-${entry.id}`}>Interest / Hobby</Label>
             <Input
+              id={`hobby-name-${entry.id}`}
               value={entry.name ?? ""}
               onChange={(e) => updateHobby(entry.id, { name: e.target.value })}
-              placeholder="e.g. Reading"
-              className="border-none shadow-none p-0 h-auto text-sm w-28 focus:ring-0"
-              aria-label="Hobby name"
+              placeholder="e.g. Cinematography"
             />
-            <button
-              type="button"
-              onClick={() => removeHobby(entry.id)}
-              className="text-slate-400 hover:text-red-500 transition-colors text-xs"
-              aria-label="Remove hobby"
-            >
-              ✕
-            </button>
           </div>
-        ))}
-      </div>
+
+          <div>
+            <Label htmlFor={`hobby-desc-${entry.id}`}>
+              Short Description (optional)
+            </Label>
+            <Textarea
+              id={`hobby-desc-${entry.id}`}
+              rows={2}
+              value={entry.description ?? ""}
+              onChange={(e) =>
+                updateHobby(entry.id, { description: e.target.value })
+              }
+              placeholder="e.g. Creates and edits short films, enjoys visual storytelling."
+            />
+          </div>
+        </div>
+      ))}
 
       <Button variant="outline" size="sm" onClick={addHobby} className="w-full">
-        + Add Hobby
+        + Add Interest
       </Button>
-
-      {entries.length > 0 && (
-        <p className="text-[11px] text-slate-400">
-          Click a hobby name to edit it.
-        </p>
-      )}
     </div>
   );
 }

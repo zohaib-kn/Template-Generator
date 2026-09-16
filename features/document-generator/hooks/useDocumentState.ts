@@ -9,6 +9,12 @@ import type {
   RecommendationEntry,
   SkillEntry,
   VolunteeringEntry,
+  AcademicInterest,
+  AcademicProject,
+  Achievement,
+  LeadershipActivity,
+  Certification,
+  InternshipEntry,
 } from "@/types";
 import { generateId } from "@/lib/generateId";
 import { useDocumentContext } from "../state/DocumentContext";
@@ -64,6 +70,30 @@ export function useDocumentState() {
     dispatch,
     "volunteering"
   );
+  const academicInterests = listFieldActions<"academicInterests", AcademicInterest>(
+    dispatch,
+    "academicInterests"
+  );
+  const academicProjects = listFieldActions<"academicProjects", AcademicProject>(
+    dispatch,
+    "academicProjects"
+  );
+  const achievements = listFieldActions<"achievements", Achievement>(
+    dispatch,
+    "achievements"
+  );
+  const leadershipActivities = listFieldActions<"leadershipActivities", LeadershipActivity>(
+    dispatch,
+    "leadershipActivities"
+  );
+  const certifications = listFieldActions<"certifications", Certification>(
+    dispatch,
+    "certifications"
+  );
+  const internships = listFieldActions<"internships", InternshipEntry>(
+    dispatch,
+    "internships"
+  );
 
   return {
     data,
@@ -90,6 +120,12 @@ export function useDocumentState() {
       education.update(id, patch),
     removeEducation: (id: string) => education.remove(id),
 
+    // --- Internships / Work Experience --------------------------------------
+    addInternship: () => internships.add(),
+    updateInternship: (id: string, patch: Partial<InternshipEntry>) =>
+      internships.update(id, patch),
+    removeInternship: (id: string) => internships.remove(id),
+
     // --- Recommendations ----------------------------------------------------
     addRecommendation: () => recommendations.add(),
     updateRecommendation: (id: string, patch: Partial<RecommendationEntry>) =>
@@ -104,11 +140,15 @@ export function useDocumentState() {
 
     // --- Skills -------------------------------------------------------------
     addSkill: () => skills.add(),
+    /** Add a skill pre-populated with data (used by suggestion builder). */
+    addSkillWithData: (data: Omit<SkillEntry, "id">) => skills.add(data),
     updateSkill: (id: string, patch: Partial<SkillEntry>) => skills.update(id, patch),
     removeSkill: (id: string) => skills.remove(id),
 
     // --- Hobbies ------------------------------------------------------------
     addHobby: () => hobbies.add(),
+    /** Add a hobby pre-populated with data (used by suggestion builder). */
+    addHobbyWithData: (data: Omit<HobbyEntry, "id">) => hobbies.add(data),
     updateHobby: (id: string, patch: Partial<HobbyEntry>) => hobbies.update(id, patch),
     removeHobby: (id: string) => hobbies.remove(id),
 
@@ -118,7 +158,52 @@ export function useDocumentState() {
       volunteering.update(id, patch),
     removeVolunteering: (id: string) => volunteering.remove(id),
 
+    // --- Academic Interests -------------------------------------------------
+    addAcademicInterest: () => academicInterests.add(),
+    /** Add an academic interest pre-populated with data (used by suggestion builder). */
+    addAcademicInterestWithData: (data: Omit<AcademicInterest, "id">) => academicInterests.add(data),
+    updateAcademicInterest: (id: string, patch: Partial<AcademicInterest>) =>
+      academicInterests.update(id, patch),
+    removeAcademicInterest: (id: string) => academicInterests.remove(id),
+
+    // --- Academic Projects --------------------------------------------------
+    addAcademicProject: () => academicProjects.add(),
+    updateAcademicProject: (id: string, patch: Partial<AcademicProject>) =>
+      academicProjects.update(id, patch),
+    removeAcademicProject: (id: string) => academicProjects.remove(id),
+
+    // --- Achievements -------------------------------------------------------
+    addAchievement: () => achievements.add(),
+    updateAchievement: (id: string, patch: Partial<Achievement>) =>
+      achievements.update(id, patch),
+    removeAchievement: (id: string) => achievements.remove(id),
+
+    // --- Leadership Activities ----------------------------------------------
+    addLeadershipActivity: () => leadershipActivities.add(),
+    /** Add a leadership activity pre-populated with data (used by suggestion builder). */
+    addLeadershipActivityWithData: (data: Omit<LeadershipActivity, "id">) => leadershipActivities.add(data),
+    updateLeadershipActivity: (id: string, patch: Partial<LeadershipActivity>) =>
+      leadershipActivities.update(id, patch),
+    removeLeadershipActivity: (id: string) => leadershipActivities.remove(id),
+
+    // --- Certifications -----------------------------------------------------
+    addCertification: () => certifications.add(),
+    updateCertification: (id: string, patch: Partial<Certification>) =>
+      certifications.update(id, patch),
+    removeCertification: (id: string) => certifications.remove(id),
+
     // --- Reset --------------------------------------------------------------
     reset: () => dispatch({ type: "RESET" }),
+
+    // --- Test data (Phase 1 webhook integration only) ----------------------
+    // Loads the static testStudentData fixture into state. After this the
+    // user can freely edit fields; Send to Webhook sends CURRENT state.
+    loadTestStudent: () => dispatch({ type: "LOAD_TEST_STUDENT" }),
+
+    // --- Load student from external source ----------------------------------
+    // Accepts any DocumentData (from mock API, real API, etc.).
+    // Used by "Load Student From Webhook" button.
+    loadStudent: (studentData: import("@/types").DocumentData) =>
+      dispatch({ type: "LOAD_STUDENT", payload: studentData }),
   };
 }

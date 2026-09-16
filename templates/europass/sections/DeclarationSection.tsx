@@ -13,8 +13,7 @@ export const DeclarationSection = memo(function DeclarationSection({
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="DECLERATION" />
-      <div className={styles.subheadingGray}>Declaration</div>
+      <EuropassSectionTitle title="DECLARATION" />
       <p className={styles.declarationText}>{text}</p>
     </section>
   );

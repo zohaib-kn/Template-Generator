@@ -1,12 +1,20 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { DocumentProvider } from "../state/DocumentContext";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SectionAccordion } from "./SectionAccordion";
 import { DocumentPreview } from "../preview/DocumentPreview";
 import { useDocumentState } from "../hooks/useDocumentState";
 
-// Forms
+// Guidance system
+import type { ApplicationTarget } from "../guidance/types";
+import { getAdmissionsGuidance } from "../guidance/getAdmissionsGuidance";
+import { ApplicationTargetForm } from "../forms/ApplicationTargetForm";
+import { GuidanceSummaryPanel } from "./GuidanceSummaryPanel";
+import { ProfileSuggestionsPanel } from "./ProfileSuggestionsPanel";
+
+// Forms — existing
 import { PersonalDetailsForm } from "../forms/PersonalDetailsForm";
 import { AboutMeForm } from "../forms/AboutMeForm";
 import { EducationForm } from "../forms/EducationForm";
@@ -18,23 +26,71 @@ import { HobbiesForm } from "../forms/HobbiesForm";
 import { VolunteeringForm } from "../forms/VolunteeringForm";
 import { DeclarationForm } from "../forms/DeclarationForm";
 
+// Forms — university-admissions sections
+import { AcademicInterestsForm } from "../forms/AcademicInterestsForm";
+import { AcademicProjectsForm } from "../forms/AcademicProjectsForm";
+import { AchievementsForm } from "../forms/AchievementsForm";
+import { LeadershipForm } from "../forms/LeadershipForm";
+import { CertificationsForm } from "../forms/CertificationsForm";
+import { InternshipsForm } from "../forms/InternshipsForm";
+import { WebhookToolbar } from "./WebhookToolbar";
+
+/**
+ * Plain helper — NOT a hook. Looks up section guidance from an already-computed
+ * GuidanceResult so it can safely be called anywhere inside a render function.
+ */
+function getSectionGuidance(
+  guidance: ReturnType<typeof getAdmissionsGuidance>,
+  sectionKey: string
+) {
+  if (!guidance) return undefined;
+  const sg = guidance.sections.find((s) => s.sectionKey === sectionKey);
+  return sg ? { priority: sg.priority, hint: sg.hint } : undefined;
+}
+
 /**
  * Inner shell — rendered inside DocumentProvider so it can read context.
  * Separated from the outer shell to keep the provider boundary clean.
+ *
+ * ApplicationTarget lives here as local state — it is editor metadata only
+ * and must never flow into DocumentData or the PDF template.
  */
 function GeneratorLayout() {
   const { data } = useDocumentState();
 
-  const edCount = (data.education ?? []).length;
-  const recCount = (data.recommendations ?? []).length;
-  const langCount = (data.languages ?? []).length;
-  const skillCount = (data.skills ?? []).length;
-  const hobbyCount = (data.hobbies ?? []).length;
-  const volCount = (data.volunteering ?? []).length;
+  // ── Application Target (editor-only, NOT in DocumentData) ───────────────
+  const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({
+    destinationCountry: "United Kingdom",
+    degreeLevel: "Master's",
+    courseCategory: "Business / Management",
+    intendedCourse: "MSc Business Analytics",
+    universityName: "University of Manchester",
+  });
+  const guidance = useMemo(
+    () => getAdmissionsGuidance(applicationTarget),
+    [applicationTarget]
+  );
+
+  // ── Entry counts for accordion badges ───────────────────────────────────
+  const edCount       = (data.education ?? []).length;
+  const internCount   = (data.internships ?? []).length;
+  const recCount      = (data.recommendations ?? []).length;
+  const langCount     = (data.languages ?? []).length;
+  const skillCount    = (data.skills ?? []).length;
+  const hobbyCount    = (data.hobbies ?? []).length;
+  const volCount      = (data.volunteering ?? []).length;
+  const interestCount = (data.academicInterests ?? []).length;
+  const projectCount  = (data.academicProjects ?? []).length;
+  const achvCount     = (data.achievements ?? []).length;
+  const leadCount     = (data.leadershipActivities ?? []).length;
+  const certCount     = (data.certifications ?? []).length;
+
+  // ── Section guidance resolver (plain function, not a hook) ─────────────
+  const sg = (key: string) => getSectionGuidance(guidance, key);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100">
-      <AppHeader />
+      <AppHeader target={applicationTarget} />
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Editor Panel ──────────────────────────────────────────────── */}
@@ -43,6 +99,7 @@ function GeneratorLayout() {
           aria-label="Document editor"
         >
           <div className="p-4 flex flex-col gap-2.5">
+
             {/* Editor header */}
             <div className="px-1 pb-1">
               <h1 className="text-sm font-bold text-slate-700">
@@ -53,6 +110,31 @@ function GeneratorLayout() {
               </p>
             </div>
 
+            {/* ── Webhook test toolbar (Phase 1) ── */}
+            <WebhookToolbar />
+
+            {/* 0. Application Target (editor-only — never in PDF) */}
+            <SectionAccordion
+              title="Application Target"
+              icon="🎯"
+              defaultOpen={true}
+            >
+              <ApplicationTargetForm
+                value={applicationTarget}
+                onChange={setApplicationTarget}
+              />
+            </SectionAccordion>
+
+            {/* Guidance Summary Panel — appears when target is set */}
+            <GuidanceSummaryPanel
+              target={applicationTarget}
+              guidance={guidance}
+            />
+
+            {/* Profile Suggestions Panel — editor-only suggestion builder */}
+            <ProfileSuggestionsPanel target={applicationTarget} />
+
+            {/* 1. Personal Details */}
             <SectionAccordion
               title="Personal Details"
               icon="👤"
@@ -61,66 +143,145 @@ function GeneratorLayout() {
               <PersonalDetailsForm />
             </SectionAccordion>
 
-            <SectionAccordion title="About Me" icon="📝" defaultOpen={true}>
+            {/* 2. Academic Profile */}
+            <SectionAccordion
+              title="Academic Profile"
+              icon="📝"
+              defaultOpen={true}
+              guidance={sg("aboutMe")}
+            >
               <AboutMeForm />
             </SectionAccordion>
 
+            {/* 3. Education & Training */}
             <SectionAccordion
-              title="Education &amp; Training"
+              title="Education & Training"
               icon="🎓"
               defaultOpen={true}
               badge={edCount > 0 ? String(edCount) : undefined}
+              guidance={sg("education")}
             >
               <EducationForm />
             </SectionAccordion>
 
+            {/* 3.5. Internships & Work Experience */}
             <SectionAccordion
-              title="Recommendations"
-              icon="💬"
-              badge={recCount > 0 ? String(recCount) : undefined}
+              title="Internships & Work Experience"
+              icon="💼"
+              badge={internCount > 0 ? String(internCount) : undefined}
             >
-              <RecommendationsForm />
+              <InternshipsForm />
             </SectionAccordion>
 
+            {/* 4. Academic Interests */}
             <SectionAccordion
-              title="Language Skills"
-              icon="🌍"
-              badge={langCount > 0 ? String(langCount) : undefined}
+              title="Academic Interests"
+              icon="🔬"
+              badge={interestCount > 0 ? String(interestCount) : undefined}
+              guidance={sg("academicInterests")}
             >
-              <LanguagesForm />
+              <AcademicInterestsForm />
             </SectionAccordion>
 
+            {/* 5. Academic Projects */}
             <SectionAccordion
-              title="English Certificate / IELTS"
-              icon="📜"
+              title="Academic Projects"
+              icon="📋"
+              badge={projectCount > 0 ? String(projectCount) : undefined}
+              guidance={sg("academicProjects")}
             >
-              <EnglishCertificateForm />
+              <AcademicProjectsForm />
             </SectionAccordion>
 
+            {/* 6. Achievements & Awards */}
             <SectionAccordion
-              title="Skills"
-              icon="⚡"
-              badge={skillCount > 0 ? String(skillCount) : undefined}
+              title="Achievements & Awards"
+              icon="🏆"
+              badge={achvCount > 0 ? String(achvCount) : undefined}
+              guidance={sg("achievements")}
             >
-              <SkillsForm />
+              <AchievementsForm />
             </SectionAccordion>
 
+            {/* 7. Leadership & Extracurricular */}
             <SectionAccordion
-              title="Hobbies &amp; Interests"
-              icon="🎯"
-              badge={hobbyCount > 0 ? String(hobbyCount) : undefined}
+              title="Leadership & Extracurricular"
+              icon="🌟"
+              badge={leadCount > 0 ? String(leadCount) : undefined}
+              guidance={sg("leadershipActivities")}
             >
-              <HobbiesForm />
+              <LeadershipForm />
             </SectionAccordion>
 
+            {/* 8. Volunteering */}
             <SectionAccordion
               title="Volunteering"
               icon="🤝"
               badge={volCount > 0 ? String(volCount) : undefined}
+              guidance={sg("volunteering")}
             >
               <VolunteeringForm />
             </SectionAccordion>
 
+            {/* 9. Certifications */}
+            <SectionAccordion
+              title="Certifications"
+              icon="📜"
+              badge={certCount > 0 ? String(certCount) : undefined}
+              guidance={sg("certifications")}
+            >
+              <CertificationsForm />
+            </SectionAccordion>
+
+            {/* 10. Language Skills */}
+            <SectionAccordion
+              title="Language Skills"
+              icon="🌍"
+              badge={langCount > 0 ? String(langCount) : undefined}
+              guidance={sg("languages")}
+            >
+              <LanguagesForm />
+            </SectionAccordion>
+
+            {/* 11. English Certificate / IELTS */}
+            <SectionAccordion
+              title="English Certificate / IELTS"
+              icon="🗂️"
+            >
+              <EnglishCertificateForm />
+            </SectionAccordion>
+
+            {/* 12. Academic & Transferable Skills */}
+            <SectionAccordion
+              title="Academic & Transferable Skills"
+              icon="⚡"
+              badge={skillCount > 0 ? String(skillCount) : undefined}
+              guidance={sg("skills")}
+            >
+              <SkillsForm />
+            </SectionAccordion>
+
+            {/* 13. Hobbies & Personal Interests */}
+            <SectionAccordion
+              title="Hobbies & Personal Interests"
+              icon="🎯"
+              badge={hobbyCount > 0 ? String(hobbyCount) : undefined}
+              guidance={sg("hobbies")}
+            >
+              <HobbiesForm />
+            </SectionAccordion>
+
+            {/* 14. Recommendations */}
+            <SectionAccordion
+              title="Recommendations"
+              icon="💬"
+              badge={recCount > 0 ? String(recCount) : undefined}
+              guidance={sg("recommendations")}
+            >
+              <RecommendationsForm />
+            </SectionAccordion>
+
+            {/* 15. Declaration */}
             <SectionAccordion title="Declaration" icon="✍️">
               <DeclarationForm />
             </SectionAccordion>

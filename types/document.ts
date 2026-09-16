@@ -85,12 +85,84 @@ export interface SkillEntry {
 export interface HobbyEntry {
   id: string;
   name?: string;
+  /** Optional one-sentence context, e.g. "Creates short films and enjoys visual storytelling." */
+  description?: string;
+}
+
+// ---------------------------------------------------------------------------
+// University-admissions sections
+// ---------------------------------------------------------------------------
+
+export interface AcademicInterest {
+  id: string;
+  /** The subject or field, e.g. "International Relations", "Molecular Biology". */
+  name?: string;
+}
+
+export interface AcademicProject {
+  id: string;
+  title?: string;
+  description?: string;
+  /** e.g. "Lead researcher", "Team member". */
+  role?: string;
+  /** Year or date range, e.g. "2024" or "Jan 2024". */
+  dateYear?: string;
+  /** Technologies / skills / learning outcomes. */
+  skills?: string;
+  /** Optional URL to project, report, or repository. */
+  link?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title?: string;
+  /** Awarding body or institution. */
+  organisation?: string;
+  /** Year or date, e.g. "2023". */
+  dateYear?: string;
+  description?: string;
+}
+
+export interface LeadershipActivity {
+  id: string;
+  /** Role or activity title, e.g. "Debate Club President". */
+  activity?: string;
+  /** Club, school, or organisation name. */
+  organisation?: string;
+  /** Duration or date range, e.g. "2022–2024". */
+  duration?: string;
+  description?: string;
+  /** Key responsibility or measurable impact (optional). */
+  impact?: string;
+}
+
+export interface Certification {
+  id: string;
+  /** Certificate or course name. */
+  name?: string;
+  /** Issuing body, e.g. "Coursera", "Google", "edX". */
+  provider?: string;
+  /** Month/year of completion, e.g. "March 2024". */
+  completionDate?: string;
+  /** URL to credential or verification link. */
+  credentialLink?: string;
+  description?: string;
 }
 
 export interface VolunteeringEntry {
   id: string;
   organization?: string;
   role?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}
+
+export interface InternshipEntry {
+  id: string;
+  role?: string;
+  company?: string;
+  location?: string;
   startDate?: string;
   endDate?: string;
   description?: string;
@@ -122,6 +194,7 @@ export interface DocumentData {
   personal?: PersonalDetails;
   aboutMe?: string;
   education?: EducationEntry[];
+  internships?: InternshipEntry[];
   recommendations?: RecommendationEntry[];
   languages?: LanguageEntry[];
   englishCertificate?: EnglishCertificate;
@@ -129,7 +202,14 @@ export interface DocumentData {
   hobbies?: HobbyEntry[];
   volunteering?: VolunteeringEntry[];
   declaration?: string;
+  // University-admissions sections (all optional)
+  academicInterests?: AcademicInterest[];
+  academicProjects?: AcademicProject[];
+  achievements?: Achievement[];
+  leadershipActivities?: LeadershipActivity[];
+  certifications?: Certification[];
 }
+
 
 // ---------------------------------------------------------------------------
 // Document envelope (for use before persistence layer is wired up)

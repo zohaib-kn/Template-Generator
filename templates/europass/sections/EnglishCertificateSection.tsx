@@ -7,6 +7,17 @@ interface EnglishCertificateSectionProps {
   cert?: EnglishCertificate;
 }
 
+function formatDateDMY(iso?: string): string {
+  if (!iso) return "";
+  if (iso.includes("/")) return iso;
+  const parts = iso.split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+  }
+  return iso;
+}
+
 export const EnglishCertificateSection = memo(function EnglishCertificateSection({
   cert,
 }: EnglishCertificateSectionProps) {
@@ -28,13 +39,19 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
 
       {cert.score && (
         <div className={styles.certificateScore}>
-          {cert.score.includes(":") ? (
+          {cert.score.includes(":") || cert.score.toLowerCase().includes("overall") ? (
             cert.score
           ) : (
             <>
               <strong>Overall Band:</strong> {cert.score}
             </>
           )}
+        </div>
+      )}
+
+      {cert.dateTaken && (
+        <div className={styles.certificateScore} style={{ color: "#757575", fontSize: "9pt" }}>
+          Date taken: {formatDateDMY(cert.dateTaken)}
         </div>
       )}
 

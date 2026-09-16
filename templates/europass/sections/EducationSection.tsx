@@ -5,6 +5,7 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
 interface EducationSectionProps {
   entries?: EducationEntry[];
+  title?: string;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -51,12 +52,13 @@ function renderDescriptionWithLinks(desc: string) {
 
 export const EducationSection = memo(function EducationSection({
   entries,
+  title,
 }: EducationSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="EDUCATION AND TRAINING" />
+      <EuropassSectionTitle title={title ?? "EDUCATION AND TRAINING"} />
       {entries.map((entry) => {
         const start = formatDateDMY(entry.startDate);
         const end = formatDateDMY(entry.endDate);
@@ -76,7 +78,7 @@ export const EducationSection = memo(function EducationSection({
                 )}
                 {hasDate && (
                   <span className={styles.datesBadge}>
-                    [ {start} {end ? `– ${end}` : ""} ]
+                    [{start}{end ? ` – ${end}` : ""}]
                   </span>
                 )}
               </div>

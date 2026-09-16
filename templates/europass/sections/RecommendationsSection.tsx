@@ -147,30 +147,70 @@ export const RecommendationsSection = memo(function RecommendationsSection({
     );
   }
 
-  // --- Default (Single continuous block if no page part specified) --------
-  const allParagraphs = fullText.split("\n\n").filter(Boolean);
+  // --- Default (Render all recommendation entries) ------------------------
   return (
     <section className={styles.sectionWrapper}>
       <EuropassSectionTitle title="RECOMMENDATIONS" />
-      {(entry.recommenderName || entry.recommenderTitle) && (
-        <div className={styles.recommenderMeta}>
-          <span className={styles.recommenderNameLabel}>Name:</span>{" "}
-          <span className={styles.recommenderName}>{entry.recommenderName}</span>
-          {entry.recommenderTitle && (
-            <>
-              <span className={styles.pipeDivider}>|</span>
-              <span className={styles.recommenderTitle}>
-                {entry.recommenderTitle}
-              </span>
-            </>
-          )}
-        </div>
-      )}
-      {allParagraphs.map((p, idx) => (
-        <p key={idx} className={styles.recommendationParagraph}>
-          {p}
-        </p>
-      ))}
+      {entries.map((recEntry, recIdx) => {
+        const lines = (recEntry.text ?? "")
+          .split("\n")
+          .filter((l) => l.trim().length > 0);
+        const regularParagraphs: string[] = [];
+        const contactLines: string[] = [];
+
+        lines.forEach((line) => {
+          if (
+            line.startsWith("Email:") ||
+            line.startsWith("Link:") ||
+            line.startsWith("Phone number:")
+          ) {
+            contactLines.push(line);
+          } else {
+            regularParagraphs.push(line);
+          }
+        });
+
+        return (
+          <div
+            key={recEntry.id || recIdx}
+            style={{ marginBottom: recIdx < entries.length - 1 ? "4mm" : "0" }}
+          >
+            {(recEntry.recommenderName || recEntry.recommenderTitle) && (
+              <div className={styles.recommenderMeta}>
+                {recEntry.recommenderName && (
+                  <>
+                    <span className={styles.recommenderNameLabel}>Name:</span>{" "}
+                    <span className={styles.recommenderName}>
+                      {recEntry.recommenderName}
+                    </span>
+                  </>
+                )}
+                {recEntry.recommenderTitle && (
+                  <>
+                    {recEntry.recommenderName && (
+                      <span className={styles.pipeDivider}>|</span>
+                    )}
+                    <span className={styles.recommenderTitle}>
+                      {recEntry.recommenderTitle}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+            {regularParagraphs.map((p, idx) => (
+              <p key={idx} className={styles.recommendationParagraph}>
+                {p}
+              </p>
+            ))}
+            {contactLines.map((cl, idx) => (
+              <div key={idx} className={styles.recommendationContactRow}>
+                {renderContactLine(cl)}
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </section>
   );
 });
+

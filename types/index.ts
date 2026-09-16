@@ -14,6 +14,7 @@ export type {
   DocumentStatus,
   PersonalDetails,
   EducationEntry,
+  InternshipEntry,
   RecommendationEntry,
   LanguageEntry,
   SkillEntry,
@@ -22,7 +23,14 @@ export type {
   EnglishCertificate,
   DocumentData,
   Document,
+  // University-admissions sections
+  AcademicInterest,
+  AcademicProject,
+  Achievement,
+  LeadershipActivity,
+  Certification,
 } from "./document";
+
 
 export type {
   TemplateId,
