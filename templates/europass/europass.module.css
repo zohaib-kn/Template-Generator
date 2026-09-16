@@ -26,6 +26,10 @@
   font-family: var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 9.97pt;
   line-height: 1.4;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+  letter-spacing: 0.02px;
+  word-spacing: normal;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
@@ -48,6 +52,8 @@
   top: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  box-sizing: border-box;
   height: 6mm;
   background-color: #82acd9;
   z-index: 0;
@@ -81,6 +87,8 @@
   bottom: 0;
   left: 0;
   right: 0;
+  width: 100%;
+  box-sizing: border-box;
   height: 6mm;
   background-color: #82acd9;
   z-index: 0;
@@ -113,7 +121,7 @@
 .pageContent {
   position: relative;
   z-index: 1;
-  padding: 8.5mm 9.2mm 8.5mm 9.2mm;
+  padding: 8.5mm 9.2mm 26mm 9.2mm;
   box-sizing: border-box;
   height: 100%;
   display: flex;
@@ -125,7 +133,7 @@
   position: relative;
   width: 100%;
   margin-top: 0;
-  margin-bottom: 4mm;
+  margin-bottom: 3.5mm;
 }
 
 /* Europass logo positioned prominently in the top right corner */
@@ -139,7 +147,7 @@
 }
 
 .europassLogo {
-  width: 54mm;
+  width: 48mm;
   height: auto;
   display: block;
   object-fit: contain;
@@ -211,19 +219,34 @@
   gap: 4mm;
 }
 
+.identityRow > * + * {
+  margin-left: 4mm;
+}
+
 .identityItem {
   display: inline-flex;
   align-items: center;
   gap: 1.2mm;
+  min-width: 0;
+}
+
+.identityItem > * + * {
+  margin-left: 1.2mm;
 }
 
 .identityLabel {
   font-weight: 700;
   color: #565656;
+  white-space: nowrap;
 }
 
 .identityValue {
   color: #565656;
+}
+
+.identityValueNoWrap {
+  color: #565656;
+  white-space: nowrap;
 }
 
 .identityIcon {
@@ -237,7 +260,8 @@
 .blueLink {
   color: #0c56a5;
   text-decoration: underline;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .blueLink:hover {
@@ -246,12 +270,14 @@
 
 /* --- Section Headings ---------------------------------------------------- */
 .sectionWrapper {
-  margin-top: 4.2mm;
+  margin-top: 3.8mm;
   margin-bottom: 0;
 }
 
 .sectionHeadingRow {
   margin-bottom: 0;
+  display: block;
+  width: 100%;
 }
 
 .sectionTitle {
@@ -261,14 +287,14 @@
   text-transform: uppercase;
   letter-spacing: 0.2px;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .sectionDivider {
   height: 0.75pt;
   background-color: #979797;
   width: 100%;
-  margin: 1.2mm 0 2.8mm 0;
+  margin: 2.2mm 0 2.6mm 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
@@ -360,7 +386,7 @@
   font-size: 9.97pt;
   line-height: 1.4;
   color: #565656;
-  text-align: justify;
+  text-align: left;
   margin: 0 0 2.2mm 0;
 }
 
@@ -404,9 +430,19 @@
   margin-bottom: 1.5mm;
 }
 
+.cefrGrid > * {
+  margin-right: 6mm;
+  margin-bottom: 1.5mm;
+}
+
 .cefrItem {
   display: inline-flex;
-  gap: 1.2mm;
+  align-items: center;
+  gap: 1.5mm;
+}
+
+.cefrItem > * + * {
+  margin-left: 1.5mm;
 }
 
 .cefrComponent {

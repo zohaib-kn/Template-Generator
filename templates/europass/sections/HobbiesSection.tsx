@@ -12,13 +12,23 @@ export const HobbiesSection = memo(function HobbiesSection({
 }: HobbiesSectionProps) {
   if (!entries || entries.length === 0) return null;
 
+  const visible = entries.filter((e) => e.name);
+  if (visible.length === 0) return null;
+
   return (
     <section className={styles.sectionWrapper}>
       <EuropassSectionTitle title="HOBBIES AND INTERESTS" />
-      <div className={styles.subheadingGray}>Hobbies</div>
       <ol className={styles.numberedList}>
-        {entries.map((hobby) => (
-          <li key={hobby.id}>{hobby.name}</li>
+        {visible.map((hobby) => (
+          <li key={hobby.id}>
+            <span>{hobby.name}</span>
+            {hobby.description && (
+              <span className={styles.educationDetails}>
+                {" — "}
+                {hobby.description}
+              </span>
+            )}
+          </li>
         ))}
       </ol>
     </section>

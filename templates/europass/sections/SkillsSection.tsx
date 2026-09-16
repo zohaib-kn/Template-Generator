@@ -14,11 +14,15 @@ export const SkillsSection = memo(function SkillsSection({
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="SKILLS" />
-      <div className={styles.subheadingGray}>Skills</div>
+      <EuropassSectionTitle title="ACADEMIC & TRANSFERABLE SKILLS" />
       <ul className={styles.simpleList}>
         {entries.map((skill) => (
-          <li key={skill.id}>{skill.name}</li>
+          <li key={skill.id}>
+            {skill.name}
+            {skill.proficiency && (
+              <span className={styles.datesBadge}> — {skill.proficiency}</span>
+            )}
+          </li>
         ))}
       </ul>
     </section>

@@ -27,7 +27,8 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
       {/* Mother tongue */}
       {motherTongue && (
         <div className={styles.motherTongueRow}>
-          <strong>Mother tongue(s):</strong> {motherTongue.language}
+          <span className={styles.identityLabel}>Mother tongue(s):</span>{" "}
+          <span className={styles.identityValue}>{motherTongue.language}</span>
         </div>
       )}
 
@@ -36,7 +37,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
         <div>
           <div className={styles.otherLanguagesLabel}>Other language(s):</div>
           {otherLanguages.map((lang) => (
-            <div key={lang.id} style={{ marginBottom: "2mm" }}>
+            <div key={lang.id} style={{ marginBottom: "2.5mm" }}>
               <h3 className={styles.languageNameTitle}>{lang.language}</h3>
               <div className={styles.cefrGrid}>
                 <div className={styles.cefrItem}>
@@ -54,6 +55,12 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                 <div className={styles.cefrItem}>
                   <span className={styles.cefrComponent}>
                     SPOKEN PRODUCTION
+                  </span>
+                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
+                </div>
+                <div className={styles.cefrItem}>
+                  <span className={styles.cefrComponent}>
+                    SPOKEN INTERACTION
                   </span>
                   <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
                 </div>

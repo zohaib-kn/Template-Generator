@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import type { SectionPriority } from "../guidance/types";
 
 interface SectionAccordionProps {
   title: string;
@@ -10,6 +11,37 @@ interface SectionAccordionProps {
   children: ReactNode;
   /** Hint shown next to title when collapsed, e.g. entry count */
   badge?: string;
+  /**
+   * Optional guidance priority for this section — renders a small coloured
+   * label next to the title when the Application Target is set.
+   * Does not affect any PDF rendering.
+   */
+  guidance?: {
+    priority: SectionPriority;
+    hint?: string;
+  };
+}
+
+function GuidancePriorityBadge({ priority }: { priority: SectionPriority }) {
+  if (priority === "highly-relevant") {
+    return (
+      <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide flex-shrink-0">
+        ★ Key
+      </span>
+    );
+  }
+  if (priority === "recommended") {
+    return (
+      <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-600 uppercase tracking-wide flex-shrink-0">
+        ✓ Good
+      </span>
+    );
+  }
+  return (
+    <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold bg-slate-100 text-slate-400 uppercase tracking-wide flex-shrink-0">
+      Optional
+    </span>
+  );
 }
 
 export function SectionAccordion({
@@ -18,6 +50,7 @@ export function SectionAccordion({
   defaultOpen = false,
   children,
   badge,
+  guidance,
 }: SectionAccordionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -40,6 +73,8 @@ export function SectionAccordion({
         <span className="flex-1 text-sm font-semibold text-slate-700">
           {title}
         </span>
+        {/* Guidance priority badge (editor-only, never in PDF) */}
+        {guidance && <GuidancePriorityBadge priority={guidance.priority} />}
         {badge && (
           <span className="px-2 py-0.5 rounded-full bg-navy/10 text-navy text-[10px] font-semibold">
             {badge}
@@ -68,6 +103,12 @@ export function SectionAccordion({
       {/* Body */}
       {isOpen && (
         <div className="px-4 pb-4 pt-1 border-t border-slate-100">
+          {/* Per-section contextual guidance hint (editor-only, never in PDF) */}
+          {guidance?.hint && (
+            <p className="text-[10px] text-blue-600 bg-blue-50 rounded px-2 py-1.5 mb-2 leading-snug">
+              💡 {guidance.hint}
+            </p>
+          )}
           {children}
         </div>
       )}

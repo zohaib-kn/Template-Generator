@@ -6,42 +6,19 @@ interface AboutSectionProps {
   text?: string;
 }
 
-const DEFAULT_HIGHLIGHTS = [
-  "Class 12 education",
-  "History, Economics, and Political Science",
-  "social sciences",
-  "Bhopal, Madhya Pradesh",
-  "Avi",
-];
-
+/**
+ * Parses user-supplied **bold** markdown into <strong> elements.
+ * No hardcoded highlights — only text the student explicitly marks.
+ */
 function highlightText(text: string): ReactNode[] {
-  // If text already has markdown **bold**, parse that
-  if (text.includes("**")) {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={i} className={styles.aboutMeHighlight}>
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      return part;
-    });
-  }
+  if (!text.includes("**")) return [text];
 
-  // Otherwise, automatically bold the reference highlights
-  const escaped = DEFAULT_HIGHLIGHTS.map((h) =>
-    h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  );
-  const regex = new RegExp(`(${escaped.join("|")})`, "g");
-  const parts = text.split(regex);
-
+  const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
-    if (DEFAULT_HIGHLIGHTS.includes(part)) {
+    if (part.startsWith("**") && part.endsWith("**")) {
       return (
         <strong key={i} className={styles.aboutMeHighlight}>
-          {part}
+          {part.slice(2, -2)}
         </strong>
       );
     }
@@ -58,7 +35,7 @@ export const AboutSection = memo(function AboutSection({
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="ABOUT ME" />
+      <EuropassSectionTitle title="ACADEMIC PROFILE" />
       {paragraphs.map((p, idx) => (
         <p key={idx} className={styles.aboutMeText}>
           {highlightText(p)}

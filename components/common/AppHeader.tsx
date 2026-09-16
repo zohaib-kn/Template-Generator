@@ -3,8 +3,13 @@
 import { Button } from "@/components/ui";
 import { useDocumentContext } from "@/features/document-generator/state/DocumentContext";
 import { usePdfGenerator } from "@/features/document-generator/hooks/usePdfGenerator";
+import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
 
-export function AppHeader() {
+interface AppHeaderProps {
+  target?: ApplicationTarget;
+}
+
+export function AppHeader({ target }: AppHeaderProps = {}) {
   const { data } = useDocumentContext();
   const { status, errorMessage, generate } = usePdfGenerator();
 
@@ -47,7 +52,11 @@ export function AppHeader() {
             variant="outline"
             size="sm"
             disabled={isGenerating}
-            onClick={() => generate(data)}
+            onClick={() =>
+              generate(data, {
+                country: target?.destinationCountry,
+              })
+            }
             className="border-white/25 text-white bg-white/10 hover:bg-white/20 hover:border-white/40 disabled:opacity-60"
             aria-label="Generate and download PDF"
             id="generate-pdf-btn"

@@ -1,5 +1,6 @@
 import type { DocumentData, EnglishCertificate, PersonalDetails } from "@/types";
 import { createEmptyDocumentData } from "../utils/documentDefaults";
+import { testStudentData } from "../utils/testStudentData";
 
 // ---------------------------------------------------------------------------
 // Generic list-section machinery
@@ -13,11 +14,17 @@ import { createEmptyDocumentData } from "../utils/documentDefaults";
 
 type ListKey =
   | "education"
+  | "internships"
   | "recommendations"
   | "languages"
   | "skills"
   | "hobbies"
-  | "volunteering";
+  | "volunteering"
+  | "academicInterests"
+  | "academicProjects"
+  | "achievements"
+  | "leadershipActivities"
+  | "certifications";
 
 type ListEntry<K extends ListKey> = NonNullable<DocumentData[K]>[number];
 
@@ -46,7 +53,11 @@ export type DocumentAction =
   // hobbies, volunteering, …)
   | ListAction
   // Reset
-  | { type: "RESET" };
+  | { type: "RESET" }
+  // Load static test student into state (hardcoded fixture)
+  | { type: "LOAD_TEST_STUDENT" }
+  // Load any student data from external source (mock API, real API, etc.)
+  | { type: "LOAD_STUDENT"; payload: import("@/types").DocumentData };
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -98,6 +109,16 @@ export function documentReducer(
         [action.key]: list.filter((entry) => entry.id !== action.payload),
       };
     }
+
+    // --- Load test student (hardcoded fixture) --------------------------------
+    case "LOAD_TEST_STUDENT":
+      return { ...testStudentData };
+
+    // --- Load student from external source ------------------------------------
+    // Used by "Load Student From Webhook" — accepts any DocumentData payload.
+    // This means when a real API URL replaces the mock, no reducer change needed.
+    case "LOAD_STUDENT":
+      return { ...action.payload };
 
     // --- Reset ------------------------------------------------------------------
     case "RESET":

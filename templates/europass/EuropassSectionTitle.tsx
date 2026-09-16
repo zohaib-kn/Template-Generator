@@ -9,6 +9,7 @@ interface EuropassSectionTitleProps {
  * Matches uppercase blue typography with a 0.75pt gray divider line.
  */
 export function EuropassSectionTitle({ title }: EuropassSectionTitleProps) {
+  if (!title) return null;
   return (
     <div className={styles.sectionHeadingRow}>
       <h2 className={styles.sectionTitle}>{title}</h2>
