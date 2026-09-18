@@ -1,0 +1,501 @@
+{
+  "student": {
+    "_id": "6a508a96af13bb33e9fc07ce",
+    "tenant_id": "vyxel_main",
+    "createdBy": "68e76efbd2dd38266697aa53",
+    "personalDetails": {
+      "firstName": "Kaavya Girish",
+      "middleName": "",
+      "lastName": "Nair",
+      "email": "kaavyanaair@gmail.com",
+      "personalEmail": "kaavyanaair@gmail.com",
+      "alternateEmail": "",
+      "mobile": "+916264507122",
+      "dob": "2001-05-14T00:00:00.000Z",
+      "gender": "female",
+      "maritalStatus": "single"
+    },
+    "nationality": {
+      "nationality": "IN",
+      "citizenship": "IN",
+      "dualCitizenship": false,
+      "extraCitizenships": [],
+      "livingInOtherCountry": false,
+      "livingCountry": ""
+    },
+    "backgroundInfo": {
+      "immigrationApplied": false,
+      "immigrationCountry": "",
+      "medicalCondition": false,
+      "medicalDetails": "",
+      "visaRefusal": false,
+      "refusalCountry": "",
+      "refusalVisaType": "",
+      "criminalOffence": false,
+      "offenceDetails": ""
+    },
+    "courseDetails": {
+      "preferenceCountry": "68b973a69d62861835ce7e23",
+      "preferredCourseType": "Master"
+    },
+    "consultancyFee": {
+      "amount": 20000,
+      "baseAmount": 20000,
+      "installments": 1,
+      "installmentAmounts": {
+        "installment_1": 20000
+      },
+      "country": "68b973a69d62861835ce7e23",
+      "discountEnabled": false,
+      "discountType": "fixed",
+      "discountValue": 0,
+      "gstEnabled": false,
+      "gstType": "exclusive",
+      "gstRate": 18
+    },
+    "paymentPlan": {
+      "totalAmt": 0,
+      "paidAmt": 0,
+      "dueAmt": 0,
+      "installments": []
+    },
+    "loan": {
+      "overview": {
+        "status": "Pending",
+        "type": "Education Loan"
+      },
+      "disbursement": {
+        "mode": "Bank Transfer",
+        "finalStatus": "Pending"
+      }
+    },
+    "mou": {
+      "status": "Pending",
+      "activityLog": [],
+      "signers": [],
+      "updatedAt": "2026-08-22T04:47:38.943Z"
+    },
+    "agentId": null,
+    "academicQualifications": [
+      {
+        "levelOfStudy": "Undergraduate",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MH",
+        "boardOrUniversity": "Mumbai University",
+        "qualification": "",
+        "institution": "Rizvi Law College",
+        "cityOfStudy": "Mumbai",
+        "gradingSystem": "100",
+        "score": "66",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2020-05-12T00:00:00.000Z",
+        "endDate": "2025-05-30T00:00:00.000Z",
+        "duration": "5",
+        "_id": "6a508bf6af13bb33e9fc1a99"
+      },
+      {
+        "levelOfStudy": "Grade 12th",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "Central Board Of Secondary Education (Cbse)",
+        "qualification": "",
+        "institution": "Bal Bhawan School",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "100",
+        "score": "94",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2018-04-01T00:00:00.000Z",
+        "endDate": "2019-05-20T00:00:00.000Z",
+        "_id": "6a508c32af13bb33e9fc1b81"
+      },
+      {
+        "levelOfStudy": "Grade 10th",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "Central Board Of Secondary Education (Cbse)",
+        "qualification": "",
+        "institution": "Bal Bhawan School",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "10",
+        "score": "9.8",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2017-05-01T00:00:00.000Z",
+        "endDate": "2018-05-30T00:00:00.000Z",
+        "_id": "6a508c87af13bb33e9fc1cda"
+      }
+    ],
+    "workExperience": [],
+    "loans": [],
+    "tests": [
+      {
+        "type": "IELTS",
+        "overallScore": "",
+        "testDate": null,
+        "validity": null,
+        "yetToReceive": true,
+        "yetToReceiveDate": "2026-07-30T00:00:00.000Z",
+        "waiver": false,
+        "waiver12thEnglishMarkCheck": false,
+        "waiver12thEnglishMark": "",
+        "mediumOfInstructionCheck": false,
+        "_id": "6a508c9caf13bb33e9fc1d5a"
+      }
+    ],
+    "documents": [
+      {
+        "name": "Passport Size Photo",
+        "category": "Personal Documents",
+        "institutions": [],
+        "uploadedOn": "2026-07-21T09:30:16.622Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Kaavya_Girish_Nair_Passport_Size_Photo_2026-07-21_1784626216563.jpg",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_Passport_Size_Photo_2026-07-21_1784626216563.jpg",
+            "public_id": "private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_Passport_Size_Photo_2026-07-21_1784626216563.jpg",
+            "mimeType": "image/jpeg",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-07-21T09:30:16.622Z",
+            "status": "Active",
+            "approvalStatus": "Verified",
+            "_id": "6a5f3c28354e5dc02749fee3",
+            "approvedAt": "2026-07-21T09:30:52.427Z",
+            "approvedBy": "6864bafa2f8c29e21a9285f2",
+            "remark": "ok"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Verified",
+        "approvedAt": "2026-07-21T09:30:29.139Z",
+        "approvedBy": "6864bafa2f8c29e21a9285f2",
+        "remark": "ok"
+      },
+      {
+        "name": "10th Grade Certificate",
+        "category": "Academic Documents",
+        "institutions": [],
+        "uploadedOn": "2026-07-21T09:31:21.749Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Kaavya_Girish_Nair_10th_Grade_Certificate_2026-07-21_1784626281676.jpeg",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_10th_Grade_Certificate_2026-07-21_1784626281676.jpeg",
+            "public_id": "private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_10th_Grade_Certificate_2026-07-21_1784626281676.jpeg",
+            "mimeType": "image/jpeg",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-07-21T09:31:21.749Z",
+            "status": "Active",
+            "approvalStatus": "Unverified",
+            "_id": "6a5f3c69354e5dc0274a00a6"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Unverified"
+      },
+      {
+        "name": "12th Grade Certificate",
+        "category": "Academic Documents",
+        "institutions": [],
+        "uploadedOn": "2026-07-22T08:31:24.777Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Kaavya_Girish_Nair_12th_Grade_Certificate_2026-07-22_1784709084709.pdf",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_12th_Grade_Certificate_2026-07-22_1784709084709.pdf",
+            "public_id": "private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_12th_Grade_Certificate_2026-07-22_1784709084709.pdf",
+            "mimeType": "application/pdf",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-07-22T08:31:24.776Z",
+            "status": "Active",
+            "approvalStatus": "Unverified",
+            "_id": "6a607fdc354e5dc02756f192"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Verified",
+        "approvedAt": "2026-07-22T08:31:58.687Z",
+        "approvedBy": "6864bafa2f8c29e21a9285f2",
+        "remark": "ok"
+      }
+    ],
+    "appliedCourses": [
+      {
+        "course": {
+          "_id": "6a5f1efb354e5dc02747759b",
+          "title": "LLM in International Commercial Law"
+        },
+        "university": {
+          "_id": "6a5f1ec2354e5dc027476ea3",
+          "name": "Brunel University of London"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7e23",
+          "name": "United Kingdom"
+        },
+        "referenceNo": "APP/106-691/26-27",
+        "createdAt": "2026-07-21T07:26:37.300Z",
+        "_id": "6a5f1f2d354e5dc02747784e"
+      },
+      {
+        "course": {
+          "_id": "6a5f1e31354e5dc0274768bd",
+          "title": "LLM International and Commercial Dispute Resolution Law"
+        },
+        "university": {
+          "_id": "6a5f1e04354e5dc02747673c",
+          "name": "University of Westminster"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7e23",
+          "name": "United Kingdom"
+        },
+        "referenceNo": "APP/878-879/26-27",
+        "createdAt": "2026-07-21T07:26:51.689Z",
+        "_id": "6a5f1f3b354e5dc02747791f"
+      },
+      {
+        "course": {
+          "_id": "6a5f1e90354e5dc027476c4f",
+          "title": "LLM Comparative and International Dispute Resolution"
+        },
+        "university": {
+          "_id": "6a5f1e69354e5dc027476aec",
+          "name": "Queen Mary University of London, UK"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7e23",
+          "name": "United Kingdom"
+        },
+        "referenceNo": "APP/978-806/26-27",
+        "createdAt": "2026-07-21T07:27:00.447Z",
+        "_id": "6a5f1f44354e5dc027477983"
+      },
+      {
+        "course": {
+          "_id": "69255d9ef0a9f9f4fd376f48",
+          "title": "LLB (Hons) Law"
+        },
+        "university": {
+          "_id": "69255d6df0a9f9f4fd376f29",
+          "name": "University of East London"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7e23",
+          "name": "United Kingdom"
+        },
+        "referenceNo": "APP/514-417/26-27",
+        "createdAt": "2026-07-24T07:35:16.913Z",
+        "_id": "6a6315b4c220a212479554c6"
+      },
+      {
+        "course": {
+          "_id": "6a8929d23d4187469c7d1da4",
+          "title": "LLM International Commercial Law"
+        },
+        "university": {
+          "_id": "6a8929a43d4187469c7d19c3",
+          "name": "University of Reading"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7e23",
+          "name": "United Kingdom"
+        },
+        "referenceNo": "APP/869-252/26-27",
+        "createdAt": "2026-08-22T04:47:38.983Z",
+        "_id": "6a8929ea3d4187469c7d1f51"
+      }
+    ],
+    "interestedPrograms": [],
+    "convertedAt": "2026-07-10T06:00:54.136Z",
+    "createdAt": "2026-07-10T06:00:54.138Z",
+    "updatedAt": "2026-08-22T04:47:38.988Z",
+    "__v": 9,
+    "emergencyContact": {
+      "name": "Girish Nair",
+      "phone": "+919826014528",
+      "email": "girish123@gmail.com",
+      "relation": "Father"
+    },
+    "mailingAddress": {
+      "address1": " House No 17 18 A 3 Sainath Nagar Kolar Road",
+      "address2": "",
+      "country": "IN",
+      "state": "MP",
+      "city": "Bhopal",
+      "pincode": "462042"
+    },
+    "parents": {
+      "mother": {
+        "name": "",
+        "phone": "",
+        "email": ""
+      },
+      "father": {
+        "name": "",
+        "phone": "",
+        "email": ""
+      }
+    },
+    "passportInfo": {
+      "passportNumber": "U4710267",
+      "issueDate": "2020-08-24T00:00:00.000Z",
+      "expiryDate": "2030-08-23T00:00:00.000Z",
+      "issueCountry": "IN",
+      "cityOfBirth": "BHopal",
+      "countryOfBirth": "IN"
+    },
+    "permanentAddress": {
+      "address1": " House No 17 18 A 3 Sainath Nagar Kolar Road",
+      "address2": "",
+      "country": "IN",
+      "state": "MP",
+      "city": "Bhopal",
+      "pincode": "462042"
+    }
+  },
+  "documents": [
+    {
+      "name": "Passport Size Photo",
+      "category": "Personal Documents",
+      "required": false,
+      "approvalStatus": "Verified",
+      "files": [
+        {
+          "name": "Kaavya_Girish_Nair_Passport_Size_Photo_2026-07-21_1784626216563.jpg",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_Passport_Size_Photo_2026-07-21_1784626216563.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T122239Z&X-Amz-Expires=3600&X-Amz-Signature=7df4f5a7c7098e16a40505465f181fdf1becda9889b4699cfbc65909a1493449&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "image/jpeg",
+          "uploadedOn": "2026-07-21T09:30:16.622Z",
+          "approvalStatus": "Verified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    },
+    {
+      "name": "10th Grade Certificate",
+      "category": "Academic Documents",
+      "required": false,
+      "approvalStatus": "Unverified",
+      "files": [
+        {
+          "name": "Kaavya_Girish_Nair_10th_Grade_Certificate_2026-07-21_1784626281676.jpeg",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_10th_Grade_Certificate_2026-07-21_1784626281676.jpeg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T122239Z&X-Amz-Expires=3600&X-Amz-Signature=092fe198a145fb0b2730299a7e2ec3bbd80c9d202d685011cf4d5622209bd188&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "image/jpeg",
+          "uploadedOn": "2026-07-21T09:31:21.749Z",
+          "approvalStatus": "Unverified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    },
+    {
+      "name": "12th Grade Certificate",
+      "category": "Academic Documents",
+      "required": false,
+      "approvalStatus": "Verified",
+      "files": [
+        {
+          "name": "Kaavya_Girish_Nair_12th_Grade_Certificate_2026-07-22_1784709084709.pdf",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/6a508a96af13bb33e9fc07ce_Kaavya_Girish_Nair/Kaavya_Girish_Nair_12th_Grade_Certificate_2026-07-22_1784709084709.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T122239Z&X-Amz-Expires=3600&X-Amz-Signature=30e35f07c23be41eadcfbc8b9efe4e3513845e3bdbe3334fc651e519d59150dc&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "application/pdf",
+          "uploadedOn": "2026-07-22T08:31:24.776Z",
+          "approvalStatus": "Unverified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    }
+  ],
+  "documentExtractions": [],
+  "shortlistedPrograms": [],
+  "appliedPrograms": [
+    {
+      "course": {
+        "_id": "6a5f1efb354e5dc02747759b",
+        "title": "LLM in International Commercial Law"
+      },
+      "university": {
+        "_id": "6a5f1ec2354e5dc027476ea3",
+        "name": "Brunel University of London"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7e23",
+        "name": "United Kingdom"
+      },
+      "referenceNo": "APP/106-691/26-27",
+      "createdAt": "2026-07-21T07:26:37.300Z",
+      "_id": "6a5f1f2d354e5dc02747784e"
+    },
+    {
+      "course": {
+        "_id": "6a5f1e31354e5dc0274768bd",
+        "title": "LLM International and Commercial Dispute Resolution Law"
+      },
+      "university": {
+        "_id": "6a5f1e04354e5dc02747673c",
+        "name": "University of Westminster"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7e23",
+        "name": "United Kingdom"
+      },
+      "referenceNo": "APP/878-879/26-27",
+      "createdAt": "2026-07-21T07:26:51.689Z",
+      "_id": "6a5f1f3b354e5dc02747791f"
+    },
+    {
+      "course": {
+        "_id": "6a5f1e90354e5dc027476c4f",
+        "title": "LLM Comparative and International Dispute Resolution"
+      },
+      "university": {
+        "_id": "6a5f1e69354e5dc027476aec",
+        "name": "Queen Mary University of London, UK"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7e23",
+        "name": "United Kingdom"
+      },
+      "referenceNo": "APP/978-806/26-27",
+      "createdAt": "2026-07-21T07:27:00.447Z",
+      "_id": "6a5f1f44354e5dc027477983"
+    },
+    {
+      "course": {
+        "_id": "69255d9ef0a9f9f4fd376f48",
+        "title": "LLB (Hons) Law"
+      },
+      "university": {
+        "_id": "69255d6df0a9f9f4fd376f29",
+        "name": "University of East London"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7e23",
+        "name": "United Kingdom"
+      },
+      "referenceNo": "APP/514-417/26-27",
+      "createdAt": "2026-07-24T07:35:16.913Z",
+      "_id": "6a6315b4c220a212479554c6"
+    },
+    {
+      "course": {
+        "_id": "6a8929d23d4187469c7d1da4",
+        "title": "LLM International Commercial Law"
+      },
+      "university": {
+        "_id": "6a8929a43d4187469c7d19c3",
+        "name": "University of Reading"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7e23",
+        "name": "United Kingdom"
+      },
+      "referenceNo": "APP/869-252/26-27",
+      "createdAt": "2026-08-22T04:47:38.983Z",
+      "_id": "6a8929ea3d4187469c7d1f51"
+    }
+  ]
+}

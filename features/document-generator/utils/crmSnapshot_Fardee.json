@@ -1,0 +1,825 @@
+{
+  "student": {
+    "_id": "69e600e750f7c6e4051f547e",
+    "tenant_id": "vyxel_main",
+    "lead": "69e600a5133d7486a9aa5bb0",
+    "branch": "69805e016eb54876e59b862a",
+    "assignedCounsellor": "69805f70f19152387f7d4281",
+    "createdBy": "6864bafa2f8c29e21a9285f2",
+    "personalDetails": {
+      "firstName": "Fardee",
+      "middleName": "kumar",
+      "lastName": "nznznsns",
+      "email": "pranshugupta641@gmail.com",
+      "personalEmail": "pranshugupta641@gmail.com",
+      "alternateEmail": "pran@gmail.com",
+      "mobile": "+919174037761",
+      "dob": "2003-11-06T00:00:00.000Z",
+      "gender": "male",
+      "maritalStatus": "single"
+    },
+    "mailingAddress": {
+      "address1": "Bhopal",
+      "address2": "",
+      "country": "IN",
+      "state": "MP",
+      "city": "Bhopal",
+      "pincode": "7485858"
+    },
+    "nationality": {
+      "nationality": "IN",
+      "citizenship": "IN",
+      "dualCitizenship": false,
+      "extraCitizenships": [],
+      "livingInOtherCountry": true,
+      "livingCountry": "BT"
+    },
+    "backgroundInfo": {
+      "immigrationApplied": true,
+      "immigrationCountry": "BT",
+      "medicalCondition": false,
+      "medicalDetails": "",
+      "visaRefusal": true,
+      "refusalCountry": "IR",
+      "refusalVisaType": "",
+      "criminalOffence": false,
+      "offenceDetails": ""
+    },
+    "courseDetails": {
+      "preferenceCountry": "68b973a69d62861835ce7da6",
+      "preferredCourseType": "Master"
+    },
+    "consultancyFee": {
+      "amount": 200000,
+      "baseAmount": 200000,
+      "discountValue": 0,
+      "gstType": "inclusive",
+      "discountEnabled": false,
+      "discountType": "fixed",
+      "gstEnabled": false,
+      "gstRate": 18
+    },
+    "paymentPlan": {
+      "totalAmt": 200000,
+      "paidAmt": 0,
+      "dueAmt": 200000,
+      "installments": [
+        {
+          "id": "69f891dbd4b3fa9461e41d98",
+          "installmentNo": 1,
+          "title": "First Installment",
+          "amount": 80000,
+          "paid": 0,
+          "due": 80000,
+          "status": "Pending",
+          "_id": "6aaa3952c3a0396182da2971"
+        },
+        {
+          "id": "69f891dbd4b3fa9461e41d99",
+          "installmentNo": 2,
+          "title": "Second Installment",
+          "amount": 80000,
+          "paid": 0,
+          "due": 80000,
+          "status": "Pending",
+          "_id": "6aaa3952c3a0396182da2972"
+        },
+        {
+          "id": "69f891dbd4b3fa9461e41d9a",
+          "installmentNo": 3,
+          "title": "Third Installment",
+          "amount": 40000,
+          "paid": 0,
+          "due": 40000,
+          "status": "Pending",
+          "_id": "6aaa3952c3a0396182da2973"
+        }
+      ]
+    },
+    "academicQualifications": [
+      {
+        "levelOfStudy": "Postgraduate",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "Lnct",
+        "qualification": "Computer Science",
+        "institution": "Lnct",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "7",
+        "score": "6",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2024-04-16T00:00:00.000Z",
+        "endDate": "2026-04-25T00:00:00.000Z",
+        "_id": "69ec4fca3df12676accb0220"
+      },
+      {
+        "levelOfStudy": "Undergraduate",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "LNCT",
+        "qualification": "AI ML",
+        "institution": "LNCT",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "10",
+        "score": "8",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2017-04-15T00:00:00.000Z",
+        "endDate": "2020-04-20T00:00:00.000Z",
+        "_id": "69ec5ae83df12676accb4681"
+      },
+      {
+        "levelOfStudy": "Grade 12th",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "MP Board",
+        "qualification": "BIOLOGY",
+        "institution": "Nehru School",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "10",
+        "score": "7",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2016-04-25T00:00:00.000Z",
+        "endDate": "2018-04-25T00:00:00.000Z",
+        "_id": "69ec5bbf3df12676accb4a2d"
+      },
+      {
+        "levelOfStudy": "Grade 10th",
+        "countryOfStudy": "IN",
+        "stateOfStudy": "MP",
+        "boardOrUniversity": "Mp board",
+        "qualification": "",
+        "institution": "Nehru School",
+        "cityOfStudy": "Bhopal",
+        "gradingSystem": "100",
+        "score": "70",
+        "primaryLanguage": "English",
+        "backlogs": "",
+        "startDate": "2015-04-25T00:00:00.000Z",
+        "endDate": "2016-04-25T00:00:00.000Z",
+        "_id": "69ec5c263df12676accb4afb"
+      }
+    ],
+    "workExperience": [
+      {
+        "organisation": "Infosys Ltd",
+        "position": "Software Engineer",
+        "jobProfile": "Worked on frontend development using React.js, API integration, and UI optimization.",
+        "modeOfSalary": "Bank Transfer",
+        "workingFrom": "2023-04-25T00:00:00.000Z",
+        "workingUpto": "2026-02-25T00:00:00.000Z",
+        "currentlyWorking": false,
+        "_id": "69ec52723df12676accb16a6"
+      },
+      {
+        "organisation": "TCS",
+        "position": "Frontend Developer",
+        "jobProfile": "Built responsive web pages, fixed UI bugs, and collaborated with backend developers.",
+        "modeOfSalary": "Bank Transfer",
+        "workingFrom": "2022-01-01T00:00:00.000Z",
+        "workingUpto": "2023-05-30T00:00:00.000Z",
+        "currentlyWorking": false,
+        "_id": "69ec5cdf3df12676accb4c42"
+      }
+    ],
+    "loan": {
+      "overview": {
+        "status": "Sanctioned",
+        "type": "Education Loan",
+        "bankName": "HDFC Credila",
+        "referenceId": "",
+        "officerName": "",
+        "officerContact": "",
+        "amountApplied": "",
+        "amountSanctioned": "",
+        "sanctionDate": null,
+        "interestRate": "",
+        "tenureMonths": "",
+        "emiStartDate": null,
+        "emiAmount": "",
+        "remarks": ""
+      },
+      "disbursement": {
+        "totalSanctioned": "",
+        "firstAmount": "",
+        "firstDate": null,
+        "secondAmount": "",
+        "secondDate": null,
+        "thirdAmount": "",
+        "thirdDate": null,
+        "mode": "Bank Transfer",
+        "txnRef": "",
+        "finalStatus": "Pending"
+      },
+      "audit": {
+        "updatedBy": "69e600e750f7c6e4051f547e",
+        "updatedAt": "2026-04-25T06:16:54.115Z",
+        "statusUpdatedAt": "2026-04-25T06:16:54.115Z"
+      }
+    },
+    "tests": [
+      {
+        "overallScore": "7.5",
+        "testDate": "2025-04-25T00:00:00.000Z",
+        "yetToReceive": true,
+        "yetToReceiveDate": "2027-04-23T00:00:00.000Z",
+        "waiver": true,
+        "waiver12thEnglishMarkCheck": true,
+        "waiver12thEnglishMark": "8",
+        "_id": "69ec53043df12676accb1928"
+      }
+    ],
+    "documents": [
+      {
+        "name": "12th Grade Certificate",
+        "category": "Academic Documents",
+        "institutions": [],
+        "uploadedOn": "2026-07-24T07:31:46.975Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Pranshu_kumar_Gupta_12th_Grade_Certificate_2026-07-24_1784878306920.jpg",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_12th_Grade_Certificate_2026-07-24_1784878306920.jpg",
+            "public_id": "private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_12th_Grade_Certificate_2026-07-24_1784878306920.jpg",
+            "mimeType": "image/jpeg",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-07-24T07:31:46.975Z",
+            "status": "Active",
+            "approvalStatus": "Verified",
+            "approvedBy": "6864bafa2f8c29e21a9285f2",
+            "approvedAt": "2026-07-24T07:32:25.727Z",
+            "remark": "ok",
+            "_id": "6a6314e2c220a21247953cf1"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Verified"
+      },
+      {
+        "name": "Diploma Certificate",
+        "category": "Academic Documents",
+        "institutions": [],
+        "uploadedOn": "2026-09-10T11:14:42.743Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Pranshu_kumar_Gupta_Diploma_Certificate_2026-09-10_1789038882672.pdf",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Diploma_Certificate_2026-09-10_1789038882672.pdf",
+            "public_id": "private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Diploma_Certificate_2026-09-10_1789038882672.pdf",
+            "mimeType": "application/pdf",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-09-10T11:14:42.743Z",
+            "status": "Active",
+            "approvalStatus": "Unverified",
+            "_id": "6aa29122c975d038581c0f75"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Unverified"
+      },
+      {
+        "name": "Transcripts",
+        "category": "Academic Documents",
+        "institutions": [],
+        "uploadedOn": "2026-09-10T11:17:15.791Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Pranshu_kumar_Gupta_Transcripts_2026-09-10_1789039035669.pdf",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Transcripts_2026-09-10_1789039035669.pdf",
+            "public_id": "private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Transcripts_2026-09-10_1789039035669.pdf",
+            "mimeType": "application/pdf",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-09-10T11:17:15.791Z",
+            "status": "Active",
+            "approvalStatus": "Unverified",
+            "_id": "6aa291bbc975d038581c262b"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Unverified"
+      },
+      {
+        "name": "Passport",
+        "category": "Personal Documents",
+        "institutions": [],
+        "uploadedOn": "2026-09-12T09:46:34.354Z",
+        "uploadedBy": "Athar Khan",
+        "files": [
+          {
+            "name": "Pranshu_kumar_Gupta_Passport_2026-09-12_1789206394048.pdf",
+            "url": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Passport_2026-09-12_1789206394048.pdf",
+            "public_id": "private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Passport_2026-09-12_1789206394048.pdf",
+            "mimeType": "application/pdf",
+            "uploadedBy": "Athar Khan",
+            "uploadedOn": "2026-09-12T09:46:34.354Z",
+            "status": "Active",
+            "approvalStatus": "Unverified",
+            "extractionId": "6aa51f80a3a8f1b291caeb69",
+            "extractionStatus": "completed",
+            "_id": "6aa51f7aa3a8f1b291caeace"
+          }
+        ],
+        "required": false,
+        "approvalStatus": "Unverified"
+      }
+    ],
+    "appliedCourses": [
+      {
+        "course": {
+          "_id": "699bf9315f5d6061f5f866c8",
+          "title": "Heritage Innovation Engineering"
+        },
+        "university": {
+          "_id": "68c800b91731f40c58f6276b",
+          "name": "University of Messina"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7da6",
+          "name": "Italy"
+        },
+        "referenceNo": "APP/876-735/26-27",
+        "createdAt": "2026-04-24T14:50:34.811Z",
+        "_id": "69eb833a3df12676accaa3e1"
+      },
+      {
+        "course": {
+          "_id": "690c5d06498b9acda59648af",
+          "title": "MSc in Artificial Intelligence (ILEP: 0041/0233)"
+        },
+        "university": {
+          "_id": "690c59fe498b9acda596453b",
+          "name": "Dublin Business School"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7da3",
+          "name": "Ireland"
+        },
+        "referenceNo": "APP/675-652/26-27",
+        "createdAt": "2026-04-25T05:42:06.542Z",
+        "_id": "69ec542e3df12676accb2124"
+      },
+      {
+        "course": {
+          "_id": "68f360fc2746f13987907b8c",
+          "title": "Cognitive Science and Theory of Communication"
+        },
+        "university": {
+          "_id": "68c800b91731f40c58f6276b",
+          "name": "University of Messina"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7da6",
+          "name": "Italy"
+        },
+        "referenceNo": "APP/751-254/26-27",
+        "createdAt": "2026-04-27T12:13:32.447Z",
+        "_id": "69ef52ecbfdae3bace3326b0"
+      },
+      {
+        "course": {
+          "_id": "69538d5ec08fe05eeea0e975",
+          "title": "Global economy and business"
+        },
+        "university": {
+          "_id": "68c800b81731f40c58f62733",
+          "name": "University of Cassino"
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7da6",
+          "name": "Italy"
+        },
+        "referenceNo": "APP/446-938/26-27",
+        "createdAt": "2026-05-01T05:52:11.158Z",
+        "_id": "69f43f8bad47dc08d8269ce1"
+      },
+      {
+        "course": {
+          "_id": "694f7ad8b5e1fad02e454074",
+          "title": "Biotechnology "
+        },
+        "university": {
+          "_id": "694f7a7147bbdd63fb88a896",
+          "name": "University of Teramo "
+        },
+        "country": {
+          "_id": "68b973a69d62861835ce7da6",
+          "name": "Italy"
+        },
+        "referenceNo": "APP/135-822/26-27",
+        "createdAt": "2026-05-01T05:53:18.080Z",
+        "_id": "69f43fcead47dc08d826a63e"
+      }
+    ],
+    "convertedBy": "6864bafa2f8c29e21a9285f2",
+    "convertedAt": "2026-04-20T10:33:11.837Z",
+    "mou": {
+      "status": "Pending",
+      "activityLog": [],
+      "signers": [],
+      "updatedAt": "2026-09-11T12:07:33.224Z"
+    },
+    "agentId": null,
+    "loans": [],
+    "interestedPrograms": [],
+    "createdAt": "2026-04-20T10:33:11.902Z",
+    "updatedAt": "2026-09-16T06:38:10.237Z",
+    "__v": 30,
+    "emergencyContact": {
+      "name": "Santosh kumar gupta",
+      "phone": "+913453453535",
+      "email": "santoshkumar03@gmail.com",
+      "relation": "Father"
+    },
+    "parents": {
+      "mother": {
+        "name": "Maya gupta",
+        "phone": "+91858558585",
+        "email": "maya@gmail.com"
+      },
+      "father": {
+        "name": "santosh kumar gupta",
+        "phone": "+918285854758",
+        "email": "santoshkumar03@gmail.com"
+      }
+    },
+    "passportInfo": {
+      "passportNumber": "B8337464",
+      "issueDate": "2023-12-04T00:00:00.000Z",
+      "expiryDate": "2033-12-03T00:00:00.000Z",
+      "issueCountry": "IN",
+      "cityOfBirth": "Bhopal Madhya Pradesh",
+      "countryOfBirth": "IN"
+    },
+    "permanentAddress": {
+      "address1": "bhopal",
+      "address2": "",
+      "country": "IN",
+      "state": "MP",
+      "city": "Bhopal",
+      "pincode": "874858"
+    },
+    "masterInfo": {
+      "targetProgram": {
+        "intendedUniversityProgram": "",
+        "degreeLevel": "",
+        "intendedCountryIntake": "",
+        "whyThisProgram": "",
+        "careerGoal": "",
+        "specificProfessorOrModule": ""
+      },
+      "motivationFit": {
+        "whyThisField": "",
+        "relevantProjects": "",
+        "challengesOvercome": ""
+      },
+      "academicAchievements": "",
+      "backlogsOrGaps": "",
+      "lastSubmittedFrom": "6aa8f59e3e18f2f94dea20d3"
+    }
+  },
+  "documents": [
+    {
+      "name": "12th Grade Certificate",
+      "category": "Academic Documents",
+      "required": false,
+      "approvalStatus": "Verified",
+      "files": [
+        {
+          "name": "Pranshu_kumar_Gupta_12th_Grade_Certificate_2026-07-24_1784878306920.jpg",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_12th_Grade_Certificate_2026-07-24_1784878306920.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T112506Z&X-Amz-Expires=3600&X-Amz-Signature=ece2a7d6a6ecd638ca4f279535052a661578ab0a51038c493fcdc7b9e09c11ff&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "image/jpeg",
+          "uploadedOn": "2026-07-24T07:31:46.975Z",
+          "approvalStatus": "Verified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    },
+    {
+      "name": "Diploma Certificate",
+      "category": "Academic Documents",
+      "required": false,
+      "approvalStatus": "Unverified",
+      "files": [
+        {
+          "name": "Pranshu_kumar_Gupta_Diploma_Certificate_2026-09-10_1789038882672.pdf",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Diploma_Certificate_2026-09-10_1789038882672.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T112506Z&X-Amz-Expires=3600&X-Amz-Signature=29e0f83fa2541dc0475c48a99c8bb95a0696bec08df3c29e1a1a0a31b8804937&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "application/pdf",
+          "uploadedOn": "2026-09-10T11:14:42.743Z",
+          "approvalStatus": "Unverified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    },
+    {
+      "name": "Transcripts",
+      "category": "Academic Documents",
+      "required": false,
+      "approvalStatus": "Unverified",
+      "files": [
+        {
+          "name": "Pranshu_kumar_Gupta_Transcripts_2026-09-10_1789039035669.pdf",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Transcripts_2026-09-10_1789039035669.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T112506Z&X-Amz-Expires=3600&X-Amz-Signature=3fdeae75d10e354860138ef724d20ee41038b85231e1b5942abc090cf9340561&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "application/pdf",
+          "uploadedOn": "2026-09-10T11:17:15.791Z",
+          "approvalStatus": "Unverified",
+          "extractionId": null,
+          "extractionStatus": null
+        }
+      ]
+    },
+    {
+      "name": "Passport",
+      "category": "Personal Documents",
+      "required": false,
+      "approvalStatus": "Unverified",
+      "files": [
+        {
+          "name": "Pranshu_kumar_Gupta_Passport_2026-09-12_1789206394048.pdf",
+          "fileUrl": "https://crm-eduwire-bucket-copy.s3.ap-south-1.amazonaws.com/private/students/69e600e750f7c6e4051f547e_Pranshu_kumar_Gupta/Pranshu_kumar_Gupta_Passport_2026-09-12_1789206394048.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIAVHFS5XC2WSQVCOCX%2F20260916%2Fap-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260916T112506Z&X-Amz-Expires=3600&X-Amz-Signature=a0ea0f35098dc154567ea5a109dd73f314a85853836467b38d12daaa1ab9d334&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject",
+          "mimeType": "application/pdf",
+          "uploadedOn": "2026-09-12T09:46:34.354Z",
+          "approvalStatus": "Unverified",
+          "extractionId": "6aa51f80a3a8f1b291caeb69",
+          "extractionStatus": "completed"
+        }
+      ]
+    }
+  ],
+  "documentExtractions": [
+    {
+      "extractionId": "6aa51f80a3a8f1b291caeb69",
+      "docName": "Passport",
+      "docType": "passport",
+      "reviewStatus": "pending",
+      "extractedFields": [
+        {
+          "field": "dob",
+          "targetPath": "personalDetails.dob",
+          "value": "2004-11-02",
+          "charSpan": null
+        }
+      ],
+      "createdAt": "2026-09-12T09:46:40.816Z"
+    },
+    {
+      "extractionId": "6aa4e62beff8e1e84e70c030",
+      "docName": "10th Grade Certificate",
+      "docType": "marksheet_10th",
+      "reviewStatus": "pending",
+      "extractedFields": [
+        {
+          "field": "levelOfStudy",
+          "targetPath": "academicQualifications[].levelOfStudy",
+          "value": "Grade 10th",
+          "charSpan": null
+        },
+        {
+          "field": "boardOrUniversity",
+          "targetPath": "academicQualifications[].boardOrUniversity",
+          "value": "CENTRAL BOARD OF SECONDARY EDUCATION",
+          "charSpan": {
+            "start": 44,
+            "end": 80
+          }
+        },
+        {
+          "field": "institution",
+          "targetPath": "academicQualifications[].institution",
+          "value": "MAHARISHI VIDYA MANDIR NOIDA G B NAGAR UP",
+          "charSpan": {
+            "start": 390,
+            "end": 431
+          }
+        },
+        {
+          "field": "dob",
+          "targetPath": "personalDetails.dob",
+          "value": "2004-11-02",
+          "charSpan": null
+        },
+        {
+          "field": "endDate",
+          "targetPath": "academicQualifications[].endDate",
+          "value": "2021-08-03",
+          "charSpan": null
+        }
+      ],
+      "createdAt": "2026-09-12T05:42:03.143Z"
+    },
+    {
+      "extractionId": "6aa4e5e9eff8e1e84e70bdeb",
+      "docName": "Passport",
+      "docType": "passport",
+      "reviewStatus": "partial",
+      "extractedFields": [
+        {
+          "field": "passportNumber",
+          "targetPath": "passportInfo.passportNumber",
+          "value": "B8337464",
+          "charSpan": {
+            "start": 98,
+            "end": 106
+          }
+        },
+        {
+          "field": "givenName",
+          "targetPath": "personalDetails.firstName",
+          "value": "JAMALUDHEEN",
+          "charSpan": {
+            "start": 153,
+            "end": 164
+          }
+        },
+        {
+          "field": "surname",
+          "targetPath": "personalDetails.lastName",
+          "value": "POWER KURIKKALAKATH",
+          "charSpan": {
+            "start": 117,
+            "end": 136
+          }
+        },
+        {
+          "field": "dob",
+          "targetPath": "personalDetails.dob",
+          "value": "2003-11-06",
+          "charSpan": null
+        },
+        {
+          "field": "issueDate",
+          "targetPath": "passportInfo.issueDate",
+          "value": "2023-12-04",
+          "charSpan": null
+        },
+        {
+          "field": "expiryDate",
+          "targetPath": "passportInfo.expiryDate",
+          "value": "2033-12-03",
+          "charSpan": null
+        }
+      ],
+      "reviewedBy": "Athar Khan",
+      "reviewedAt": "2026-09-12T05:41:19.069Z",
+      "createdAt": "2026-09-12T05:40:57.709Z"
+    },
+    {
+      "extractionId": "6aa4e3f083fb12f05db6e707",
+      "docName": "Passport",
+      "docType": "passport",
+      "reviewStatus": "pending",
+      "extractedFields": [
+        {
+          "field": "surname",
+          "targetPath": "personalDetails.lastName",
+          "value": "POWER KURIKKALAKATH",
+          "charSpan": {
+            "start": 117,
+            "end": 136
+          }
+        },
+        {
+          "field": "dob",
+          "targetPath": "personalDetails.dob",
+          "value": "2003-11-06",
+          "charSpan": null
+        },
+        {
+          "field": "issueDate",
+          "targetPath": "passportInfo.issueDate",
+          "value": "2023-12-04",
+          "charSpan": null
+        },
+        {
+          "field": "expiryDate",
+          "targetPath": "passportInfo.expiryDate",
+          "value": "2023-12-04",
+          "charSpan": null
+        }
+      ],
+      "createdAt": "2026-09-12T05:32:32.889Z"
+    },
+    {
+      "extractionId": "6aa3ef3ca8db449480c75f9a",
+      "docName": "10th Grade Certificate",
+      "docType": "marksheet_10th",
+      "reviewStatus": "pending",
+      "extractedFields": [
+        {
+          "field": "levelOfStudy",
+          "targetPath": "academicQualifications[].levelOfStudy",
+          "value": "10th",
+          "charSpan": null
+        },
+        {
+          "field": "boardOrUniversity",
+          "targetPath": "academicQualifications[].boardOrUniversity",
+          "value": "CENTRAL BOARD OF SECONDARY EDUCATION",
+          "charSpan": {
+            "start": 44,
+            "end": 80
+          }
+        },
+        {
+          "field": "dob",
+          "targetPath": "dob",
+          "value": "2004-11-02",
+          "charSpan": null
+        }
+      ],
+      "createdAt": "2026-09-11T12:08:28.873Z"
+    }
+  ],
+  "shortlistedPrograms": [],
+  "appliedPrograms": [
+    {
+      "course": {
+        "_id": "699bf9315f5d6061f5f866c8",
+        "title": "Heritage Innovation Engineering"
+      },
+      "university": {
+        "_id": "68c800b91731f40c58f6276b",
+        "name": "University of Messina"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7da6",
+        "name": "Italy"
+      },
+      "referenceNo": "APP/876-735/26-27",
+      "createdAt": "2026-04-24T14:50:34.811Z",
+      "_id": "69eb833a3df12676accaa3e1"
+    },
+    {
+      "course": {
+        "_id": "690c5d06498b9acda59648af",
+        "title": "MSc in Artificial Intelligence (ILEP: 0041/0233)"
+      },
+      "university": {
+        "_id": "690c59fe498b9acda596453b",
+        "name": "Dublin Business School"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7da3",
+        "name": "Ireland"
+      },
+      "referenceNo": "APP/675-652/26-27",
+      "createdAt": "2026-04-25T05:42:06.542Z",
+      "_id": "69ec542e3df12676accb2124"
+    },
+    {
+      "course": {
+        "_id": "68f360fc2746f13987907b8c",
+        "title": "Cognitive Science and Theory of Communication"
+      },
+      "university": {
+        "_id": "68c800b91731f40c58f6276b",
+        "name": "University of Messina"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7da6",
+        "name": "Italy"
+      },
+      "referenceNo": "APP/751-254/26-27",
+      "createdAt": "2026-04-27T12:13:32.447Z",
+      "_id": "69ef52ecbfdae3bace3326b0"
+    },
+    {
+      "course": {
+        "_id": "69538d5ec08fe05eeea0e975",
+        "title": "Global economy and business"
+      },
+      "university": {
+        "_id": "68c800b81731f40c58f62733",
+        "name": "University of Cassino"
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7da6",
+        "name": "Italy"
+      },
+      "referenceNo": "APP/446-938/26-27",
+      "createdAt": "2026-05-01T05:52:11.158Z",
+      "_id": "69f43f8bad47dc08d8269ce1"
+    },
+    {
+      "course": {
+        "_id": "694f7ad8b5e1fad02e454074",
+        "title": "Biotechnology "
+      },
+      "university": {
+        "_id": "694f7a7147bbdd63fb88a896",
+        "name": "University of Teramo "
+      },
+      "country": {
+        "_id": "68b973a69d62861835ce7da6",
+        "name": "Italy"
+      },
+      "referenceNo": "APP/135-822/26-27",
+      "createdAt": "2026-05-01T05:53:18.080Z",
+      "_id": "69f43fcead47dc08d826a63e"
+    }
+  ]
+}
