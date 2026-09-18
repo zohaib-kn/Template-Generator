@@ -37,3 +37,11 @@ export type {
   TemplateVersion,
   TemplateDefinition,
 } from "./template";
+
+export type {
+  NormalizedStudentProfile,
+  NormalizedQualification,
+  NormalizedWorkExperience,
+  NormalizedEnglishTest,
+  NormalizedAppliedProgram,
+} from "./normalizedStudent";

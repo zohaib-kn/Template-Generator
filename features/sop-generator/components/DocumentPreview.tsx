@@ -13,7 +13,8 @@ interface DocumentPreviewProps {
 }
 
 /**
- * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
+ * Parses markdown bold (**text**) into <strong> elements with safe inline styling.
+ * Avoids any Tailwind v4 color classes so html2canvas never crashes on lab/oklch.
  */
 function renderFormatted(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -32,11 +33,11 @@ function renderFormatted(text: string) {
 /**
  * Full A4 single-page letter preview modal.
  *
- * Designed to strictly match embassy standards (Images 3 & 4):
- * - Top-centered "COVER LETTER" header
+ * Strict single-page embassy format (matching Images 3 & 4):
+ * - Centered COVER LETTER title
  * - Recipient & bold subject line
- * - Seamless flowing paragraphs with bold factual highlights
- * - Single-page compact layout without awkward page breaks or form headers
+ * - Natural human student prose with bold factual highlights
+ * - Calibrated density (line-height 1.23, 13px serif font) fitting easily within 1 A4 page
  */
 export function DocumentPreview({
   sections,
@@ -68,7 +69,7 @@ export function DocumentPreview({
                 Document Preview (Single-Page Embassy Standard)
               </span>
               <p className="text-[11px] text-white/60">
-                Official A4 Letter · Compact On-Point Format
+                Official A4 Letter · Compact On-Point Format · Zero Overflow
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -142,10 +143,10 @@ export function DocumentPreview({
             style={{
               width: "794px",
               minHeight: "1123px",
-              padding: "40px 52px",
+              padding: "36px 48px",
               fontFamily: "'Times New Roman', Times, Georgia, serif",
               fontSize: "13px",
-              lineHeight: "1.30",
+              lineHeight: "1.23",
               color: "#111827",
               backgroundColor: "#ffffff",
               textAlign: "justify",
@@ -154,7 +155,7 @@ export function DocumentPreview({
             }}
           >
             {/* Centered Document Header */}
-            <div style={{ textAlign: "center", marginBottom: "14px" }}>
+            <div style={{ textAlign: "center", marginBottom: "12px" }}>
               <span
                 style={{
                   fontSize: "14px",
@@ -177,9 +178,9 @@ export function DocumentPreview({
                   <div
                     key={section.id}
                     style={{
-                      marginBottom: "12px",
+                      marginBottom: "10px",
                       whiteSpace: "pre-line",
-                      lineHeight: "1.25",
+                      lineHeight: "1.22",
                       textAlign: "left",
                     }}
                   >
@@ -194,9 +195,9 @@ export function DocumentPreview({
                     key={section.id}
                     style={{
                       fontWeight: "bold",
-                      marginBottom: "12px",
+                      marginBottom: "10px",
                       textAlign: "left",
-                      lineHeight: "1.25",
+                      lineHeight: "1.22",
                     }}
                   >
                     {renderFormatted(rendered)}
@@ -209,9 +210,9 @@ export function DocumentPreview({
                   <div
                     key={section.id}
                     style={{
-                      marginTop: "16px",
+                      marginTop: "12px",
                       whiteSpace: "pre-line",
-                      lineHeight: "1.25",
+                      lineHeight: "1.22",
                       textAlign: "left",
                     }}
                   >
@@ -225,7 +226,7 @@ export function DocumentPreview({
                 <div
                   key={section.id}
                   style={{
-                    marginBottom: "7px",
+                    marginBottom: "5.5px",
                     textIndent: "0",
                   }}
                 >
@@ -238,7 +239,7 @@ export function DocumentPreview({
           </div>
 
           <p className="text-center text-[11px] text-white/50 mt-2.5">
-            Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.30 line-height)
+            Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.23 line-height)
           </p>
         </div>
       </div>

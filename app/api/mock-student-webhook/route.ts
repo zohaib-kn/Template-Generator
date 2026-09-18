@@ -13,8 +13,8 @@ import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fard
 
 interface StudentWebhookResponse {
   success: true;
-  /** "crm-api" when fetched from senior's live API or cached CRM snapshot, "mock" when using static fixture. */
-  source: "crm-api" | "mock";
+  /** "crm-api" when fetched from senior's live API, "cached-snapshot" for dev fixtures, "mock" for static mock data. */
+  source: "crm-api" | "cached-snapshot" | "mock";
   student: DocumentData;
   /** Auto-detected target for the Suggestions Panel. Null when using mock data. */
   target: Partial<ApplicationTarget> | null;
@@ -46,7 +46,7 @@ async function buildResponse(customInput?: string): Promise<NextResponse<Student
 
   const trimmedInput = customInput?.trim();
   let targetUrl: string | null = null;
-  let effectiveStudentId: string | undefined = extractStudentId(trimmedInput) || defaultStudentId;
+  const effectiveStudentId: string | undefined = extractStudentId(trimmedInput) || defaultStudentId;
 
   if (trimmedInput && (trimmedInput.startsWith("http://") || trimmedInput.startsWith("https://"))) {
     // Direct full URL provided
@@ -87,7 +87,9 @@ async function buildResponse(customInput?: string): Promise<NextResponse<Student
         rawSnapshot: snapshot,
       });
     } catch (err) {
-      console.warn("[mock-student-webhook] Failed to reach CRM API:", err);
+      // Sanitize: only log err.name to avoid leaking upstream URL + API key from TypeError messages.
+      const errName = err instanceof Error ? err.name : typeof err;
+      console.warn(`[mock-student-webhook] Failed to reach CRM API (${errName}) — using cached/mock fallback.`);
       return cachedOrFallbackResponse(effectiveStudentId);
     }
   }
@@ -102,7 +104,8 @@ function cachedOrFallbackResponse(studentId?: string): NextResponse<StudentWebho
     const { student, target } = mapCrmSnapshot(snapshot);
     return NextResponse.json({
       success: true,
-      source: "crm-api",
+      // Correctly reports as cached fixture — not live CRM.
+      source: "cached-snapshot",
       student,
       target,
       rawSnapshot: snapshot,
@@ -114,7 +117,7 @@ function cachedOrFallbackResponse(studentId?: string): NextResponse<StudentWebho
     const { student, target } = mapCrmSnapshot(snapshot);
     return NextResponse.json({
       success: true,
-      source: "crm-api",
+      source: "cached-snapshot",
       student,
       target,
       rawSnapshot: snapshot,

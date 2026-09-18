@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import type { ReviewStatus } from "../types/sop-generator";
+import { useState, useMemo, useCallback } from "react";
+import type { ReviewStatus, StudentDocumentContext } from "../types/sop-generator";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { SectionSidebar } from "./SectionSidebar";
 import { SectionEditor } from "./SectionEditor";
 import { ContextPanel } from "./ContextPanel";
 import { DocumentPreview } from "./DocumentPreview";
+import { SopStudentLoader } from "./SopStudentLoader";
+import type { SopStudentLoadedPayload, DataSource } from "./SopStudentLoader";
 import { getApplication, getTemplate, getStudentDocumentContext } from "../lib/applicationService";
 import { validateDocumentContext, hasErrors } from "../lib/validateDocumentContext";
 import { interpolate } from "../lib/interpolateTemplate";
@@ -39,6 +41,13 @@ function renderFormatted(text: string) {
  *   sectionStatuses    — counsellor review status per section
  *   previewOpen        — A4 preview modal
  *
+ * Phase 2.6 additions:
+ *   - SopStudentLoader bar: load real CRM data via /api/student/[id]
+ *   - ctx becomes mutable state (starts from test data, replaceable by CRM)
+ *   - Overwrite confirmation modal
+ *   - Section review-state reset on new student load
+ *   - Data source badge
+ *
  * Provides:
  *   - Live section review & editing
  *   - Auto-revert APPROVED -> NEEDS_REVIEW on edit
@@ -46,20 +55,38 @@ function renderFormatted(text: string) {
  *   - Official Embassy PDF Generation & Download
  */
 export function SopWorkspace() {
-  // ── Load data (all via service — no direct mock imports here) ────────────
+  // ── Static fixtures (template & initial test ctx) ────────────────────────
   const application = useMemo(() => getApplication(), []);
   const template    = useMemo(() => getTemplate(application.templateId), [application]);
-  const ctx         = useMemo(() => getStudentDocumentContext(), []);
-  const validation  = useMemo(() => validateDocumentContext(ctx), [ctx]);
+  const testCtx     = useMemo(() => getStudentDocumentContext(), []);
 
   const sections = template.sections;
-  const firstSectionId = sections.sort((a, b) => a.order - b.order)[0]?.id ?? null;
+  const firstSectionId = sections.slice().sort((a, b) => a.order - b.order)[0]?.id ?? null;
 
-  // ── UI state ─────────────────────────────────────────────────────────────
+  // ── Phase 2.6: Dynamic student context ───────────────────────────────────
+  // ctx starts from test data; replaced when a real student is loaded.
+  const [ctx, setCtx] = useState<StudentDocumentContext>(testCtx);
+  const [currentSource, setCurrentSource] = useState<DataSource>("test-data");
+  const [loadedStudentName, setLoadedStudentName] = useState<string | undefined>(undefined);
+  const isStudentLoaded = currentSource !== "test-data";
+
+  // ── Phase 2.6: Overwrite-confirmation modal ───────────────────────────────
+  // When a counsellor has edited sections and tries to load another student,
+  // show a confirmation before replacing the workspace.
+  const [pendingPayload, setPendingPayload] = useState<SopStudentLoadedPayload | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [docApproved, setDocApproved] = useState(false);
+  const [regeneratingSectionId, setRegeneratingSectionId] = useState<string | null>(null);
+  const [isGeneratingAllAi, setIsGeneratingAllAi] = useState(false);
+  const [aiBannerNotice, setAiBannerNotice] = useState<{
+    type: "info" | "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Per-section content — start from template originals
   const [sectionContents, setSectionContents] = useState<Record<string, string>>(
@@ -71,7 +98,19 @@ export function SopWorkspace() {
     () => Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
   );
 
-  // ── PDF Generator Hook ───────────────────────────────────────────────────
+  // Derived: has counsellor made any edits?
+  const hasEdits = useMemo(() => {
+    return sections.some(
+      (s) =>
+        sectionStatuses[s.id] !== "NOT_REVIEWED" ||
+        sectionContents[s.id] !== s.content
+    );
+  }, [sections, sectionStatuses, sectionContents]);
+
+  // ── Validation (reactive on ctx) ──────────────────────────────────────────
+  const validation = useMemo(() => validateDocumentContext(ctx), [ctx]);
+
+  // ── PDF Generator Hook ────────────────────────────────────────────────────
   const {
     status: pdfStatus,
     errorMessage: pdfError,
@@ -89,7 +128,76 @@ export function SopWorkspace() {
   const canApproveDocument =
     approvedCount >= requiredSections.length && !documentHasErrors;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Phase 2.6 & AI: Apply a loaded student payload ─────────────────────────
+
+  const applyStudentPayload = useCallback(
+    (payload: SopStudentLoadedPayload) => {
+      setCtx(payload.ctx);
+      setCurrentSource(payload.source);
+      setLoadedStudentName(payload.studentName);
+
+      // Reset narrative sections to fresh template values for the new course
+      setSectionContents((prev) => {
+        const next = { ...prev };
+        sections.forEach((s) => {
+          if (s.regeneratable || s.source === "AI_SUGGESTED" || s.source === "HYBRID") {
+            next[s.id] = s.content;
+          }
+        });
+        return next;
+      });
+
+      // Reset section review statuses — previously approved content from
+      // another student must NOT remain approved (as per spec §11).
+      setSectionStatuses(
+        Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
+      );
+      // Reset document approval gate
+      setDocApproved(false);
+    },
+    [sections]
+  );
+
+  // ── Phase 2.6: Student loader callbacks ───────────────────────────────────
+
+  function handleStudentLoaded(payload: SopStudentLoadedPayload) {
+    if (hasEdits) {
+      // Counsellor has edits — ask before overwriting (§6)
+      setPendingPayload(payload);
+      setShowConfirmModal(true);
+    } else {
+      applyStudentPayload(payload);
+    }
+  }
+
+  function handleClearStudent() {
+    // Revert to test data
+    setCtx(testCtx);
+    setCurrentSource("test-data");
+    setLoadedStudentName(undefined);
+    setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
+    setSectionStatuses(
+      Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
+    );
+    setDocApproved(false);
+  }
+
+  function handleConfirmOverwrite() {
+    if (pendingPayload) {
+      // Also reset section contents on overwrite
+      setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
+      applyStudentPayload(pendingPayload);
+    }
+    setPendingPayload(null);
+    setShowConfirmModal(false);
+  }
+
+  function handleCancelOverwrite() {
+    setPendingPayload(null);
+    setShowConfirmModal(false);
+  }
+
+  // ── Section handlers ──────────────────────────────────────────────────────
 
   function handleContentChange(sectionId: string, newContent: string) {
     setSectionContents((prev) => ({ ...prev, [sectionId]: newContent }));
@@ -122,6 +230,117 @@ export function SopWorkspace() {
     );
   }
 
+  async function handleRegenerateSection(sectionId: string) {
+    const targetSection = sections.find((s) => s.id === sectionId);
+    if (!targetSection) return;
+
+    setRegeneratingSectionId(sectionId);
+
+    try {
+      const res = await fetch("/api/sop/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionId,
+          sectionTitle: targetSection.title,
+          context: ctx,
+          currentContent: sectionContents[sectionId] ?? targetSection.content,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success && data.text) {
+        // Update section content with AI-generated narrative
+        setSectionContents((prev) => ({
+          ...prev,
+          [sectionId]: data.text,
+        }));
+        // Require counsellor review after AI generation
+        setSectionStatuses((prev) => ({
+          ...prev,
+          [sectionId]: "NEEDS_REVIEW",
+        }));
+        // Revoke overall document signoff if previously approved
+        setDocApproved(false);
+      } else {
+        throw new Error(data?.error?.message || "Failed to generate AI response.");
+      }
+    } catch (err: unknown) {
+      console.error("[SOP AI Regenerate Error]:", err);
+      throw err;
+    } finally {
+      setRegeneratingSectionId(null);
+    }
+  }
+
+  async function handleGenerateAllAi() {
+    const aiSections = sections.filter((s) => s.regeneratable);
+    if (aiSections.length === 0 || isGeneratingAllAi) return;
+
+    setIsGeneratingAllAi(true);
+    const courseTitle = ctx.destination.course || "the target course";
+    setAiBannerNotice({
+      type: "info",
+      message: `Generating tailored AI narratives with Gemini for "${courseTitle}"...`,
+    });
+
+    try {
+      let completedCount = 0;
+      for (const sec of aiSections) {
+        setAiBannerNotice({
+          type: "info",
+          message: `Generating ${sec.title} (${completedCount + 1}/${aiSections.length}) for "${courseTitle}"...`,
+        });
+
+        const res = await fetch("/api/sop/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sectionId: sec.id,
+            sectionTitle: sec.title,
+            context: ctx,
+            currentContent: sectionContents[sec.id] ?? sec.content,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success && data.text) {
+          setSectionContents((prev) => ({
+            ...prev,
+            [sec.id]: data.text,
+          }));
+          setSectionStatuses((prev) => ({
+            ...prev,
+            [sec.id]: "NEEDS_REVIEW" as ReviewStatus,
+          }));
+          completedCount++;
+        } else {
+          throw new Error(data?.error?.message || `Failed to generate ${sec.title}`);
+        }
+
+        // Gentle 300ms throttle to prevent sudden-burst rate limiting
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+
+      setDocApproved(false);
+      setAiBannerNotice({
+        type: "success",
+        message: `✓ Successfully generated all ${completedCount} narrative sections tailored specifically to ${courseTitle}!`,
+      });
+      setTimeout(() => setAiBannerNotice(null), 6000);
+    } catch (err: unknown) {
+      console.error("[Generate All AI Error]:", err);
+      setAiBannerNotice({
+        type: "error",
+        message: err instanceof Error ? `⚠️ ${err.message}` : "Failed to generate AI sections.",
+      });
+      setTimeout(() => setAiBannerNotice(null), 7000);
+    } finally {
+      setIsGeneratingAllAi(false);
+    }
+  }
+
   function handleSaveDraft() {
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 3000);
@@ -138,8 +357,11 @@ export function SopWorkspace() {
       document.getElementById("sop-printable-letter");
     if (!target) return;
 
+    // Use loaded student name if available; otherwise fall back to application
+    const displayName = loadedStudentName || application.studentName;
+
     await downloadPdf(target, {
-      studentName: application.studentName,
+      studentName: displayName,
       country: ctx.destination.country,
       documentType: "Visa_Cover_Letter",
       year: 2026,
@@ -148,6 +370,9 @@ export function SopWorkspace() {
 
   // ── Selected section ──────────────────────────────────────────────────────
   const selectedSection = sections.find((s) => s.id === selectedSectionId) ?? null;
+
+  // Display name in header — prefer loaded student; fall back to mock
+  const displayStudentName = loadedStudentName || application.studentName;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -158,7 +383,7 @@ export function SopWorkspace() {
       {/* Workspace header */}
       <WorkspaceHeader
         templateName={template.name}
-        studentName={application.studentName}
+        studentName={displayStudentName}
         documentStatus={docApproved ? "approved" : application.status}
         approvedCount={approvedCount}
         requiredCount={requiredSections.length}
@@ -168,9 +393,43 @@ export function SopWorkspace() {
         onPreview={() => setPreviewOpen(true)}
         onApproveDocument={handleApproveDocument}
         onApproveAll={handleApproveAll}
+        onGenerateAllAi={handleGenerateAllAi}
+        isGeneratingAllAi={isGeneratingAllAi}
         onDownloadPdf={handleDownloadPdf}
         isGeneratingPdf={isGeneratingPdf}
       />
+
+      {/* Phase 2.6: Student loader bar */}
+      <SopStudentLoader
+        onStudentLoaded={handleStudentLoaded}
+        onClearStudent={handleClearStudent}
+        isStudentLoaded={isStudentLoaded}
+        loadedStudentName={loadedStudentName}
+        currentSource={currentSource}
+      />
+
+      {/* AI banner notice */}
+      {aiBannerNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`flex-shrink-0 px-5 py-2.5 border-b text-[12px] font-semibold flex items-center justify-between transition-all ${
+            aiBannerNotice.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : aiBannerNotice.type === "info"
+              ? "bg-violet-50 border-violet-200 text-violet-800 animate-pulse"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          <span>{aiBannerNotice.message}</span>
+          <button
+            onClick={() => setAiBannerNotice(null)}
+            className="text-slate-400 hover:text-slate-600 font-bold ml-3 text-[11px]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Save notice */}
       {savedNotice && (
@@ -204,7 +463,7 @@ export function SopWorkspace() {
           <div className="flex items-center gap-2">
             <span>✓ Document approved.</span>
             <span className="font-normal opacity-90 text-[11px]">
-              Ready for visa application & embassy submission.
+              Ready for visa application &amp; embassy submission.
             </span>
           </div>
           <button
@@ -240,6 +499,8 @@ export function SopWorkspace() {
               onContentChange={(c) => handleContentChange(selectedSection.id, c)}
               onReset={() => handleReset(selectedSection.id)}
               onApprove={() => handleApproveSection(selectedSection.id)}
+              onRegenerate={handleRegenerateSection}
+              isRegenerating={regeneratingSectionId === selectedSection.id}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-center px-8">
@@ -269,6 +530,42 @@ export function SopWorkspace() {
         />
       )}
 
+      {/* Phase 2.6: Overwrite confirmation modal (§6) */}
+      {showConfirmModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sop-overwrite-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
+            <p className="text-base font-bold text-slate-800 mb-2" id="sop-overwrite-dialog-title">
+              ⚠ Replace workspace?
+            </p>
+            <p className="text-[13px] text-slate-600 leading-relaxed mb-5">
+              Loading another student will replace the current document workspace,
+              including all edits and review statuses. This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                id="sop-overwrite-cancel-btn"
+                onClick={handleCancelOverwrite}
+                className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                id="sop-overwrite-confirm-btn"
+                onClick={handleConfirmOverwrite}
+                className="px-4 py-2 text-[13px] font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 active:scale-95 transition-all"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}
       <div
         style={{
@@ -277,10 +574,10 @@ export function SopWorkspace() {
           top: "0",
           width: "794px",
           minHeight: "1123px",
-          padding: "40px 52px",
+          padding: "36px 48px",
           fontFamily: "'Times New Roman', Times, Georgia, serif",
           fontSize: "13px",
-          lineHeight: "1.30",
+          lineHeight: "1.23",
           color: "#111827",
           backgroundColor: "#ffffff",
           textAlign: "justify",
@@ -291,7 +588,7 @@ export function SopWorkspace() {
         id="sop-printable-letter"
         aria-hidden="true"
       >
-        <div style={{ textAlign: "center", marginBottom: "14px" }}>
+        <div style={{ textAlign: "center", marginBottom: "12px" }}>
           <span
             style={{
               fontSize: "14px",
@@ -316,9 +613,9 @@ export function SopWorkspace() {
                 <div
                   key={section.id}
                   style={{
-                    marginBottom: "12px",
+                    marginBottom: "10px",
                     whiteSpace: "pre-line",
-                    lineHeight: "1.25",
+                    lineHeight: "1.22",
                     textAlign: "left",
                   }}
                 >
@@ -333,9 +630,9 @@ export function SopWorkspace() {
                   key={section.id}
                   style={{
                     fontWeight: "bold",
-                    marginBottom: "12px",
+                    marginBottom: "10px",
                     textAlign: "left",
-                    lineHeight: "1.25",
+                    lineHeight: "1.22",
                   }}
                 >
                   {renderFormatted(rendered)}
@@ -348,9 +645,9 @@ export function SopWorkspace() {
                 <div
                   key={section.id}
                   style={{
-                    marginTop: "16px",
+                    marginTop: "12px",
                     whiteSpace: "pre-line",
-                    lineHeight: "1.25",
+                    lineHeight: "1.22",
                     textAlign: "left",
                   }}
                 >
@@ -363,7 +660,7 @@ export function SopWorkspace() {
               <div
                 key={section.id}
                 style={{
-                  marginBottom: "7px",
+                  marginBottom: "5.5px",
                   textIndent: "0",
                 }}
               >
@@ -377,3 +674,4 @@ export function SopWorkspace() {
     </div>
   );
 }
+
