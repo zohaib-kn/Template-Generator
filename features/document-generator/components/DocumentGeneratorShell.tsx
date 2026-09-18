@@ -34,6 +34,8 @@ import { LeadershipForm } from "../forms/LeadershipForm";
 import { CertificationsForm } from "../forms/CertificationsForm";
 import { InternshipsForm } from "../forms/InternshipsForm";
 import { WebhookToolbar } from "./WebhookToolbar";
+import { RawDataPanel } from "./RawDataPanel";
+import type { CrmSnapshot } from "@/types/crmSnapshot";
 
 /**
  * Plain helper — NOT a hook. Looks up section guidance from an already-computed
@@ -70,6 +72,15 @@ function GeneratorLayout() {
     () => getAdmissionsGuidance(applicationTarget),
     [applicationTarget]
   );
+
+  // ── Raw CRM snapshot (editor-only, for RawDataPanel) ───────────────────────
+  const [rawSnapshot, setRawSnapshot] = useState<CrmSnapshot | null>(null);
+  const [rawSource, setRawSource] = useState<"crm-api" | "mock" | null>(null);
+
+  function handleRawSnapshot(snapshot: CrmSnapshot | null, source: "crm-api" | "mock") {
+    setRawSnapshot(snapshot);
+    setRawSource(source);
+  }
 
   // ── Entry counts for accordion badges ───────────────────────────────────
   const edCount       = (data.education ?? []).length;
@@ -110,8 +121,14 @@ function GeneratorLayout() {
               </p>
             </div>
 
-            {/* ── Webhook test toolbar (Phase 1) ── */}
-            <WebhookToolbar />
+            {/* ── Webhook toolbar — loads live student from CRM, auto-fills target ── */}
+            <WebhookToolbar
+              onTargetDetected={setApplicationTarget}
+              onRawSnapshot={handleRawSnapshot}
+            />
+
+            {/* ── Raw Data Panel — shows all CRM fields (editor-only) ── */}
+            <RawDataPanel snapshot={rawSnapshot} source={rawSource} />
 
             {/* 0. Application Target (editor-only — never in PDF) */}
             <SectionAccordion
