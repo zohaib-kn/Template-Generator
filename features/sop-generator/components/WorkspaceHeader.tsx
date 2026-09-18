@@ -12,6 +12,8 @@ interface WorkspaceHeaderProps {
   onPreview: () => void;
   onApproveDocument: () => void;
   onApproveAll?: () => void;
+  onGenerateAllAi?: () => void;
+  isGeneratingAllAi?: boolean;
   onDownloadPdf?: () => void;
   isGeneratingPdf?: boolean;
 }
@@ -38,6 +40,8 @@ export function WorkspaceHeader({
   onPreview,
   onApproveDocument,
   onApproveAll,
+  onGenerateAllAi,
+  isGeneratingAllAi = false,
   onDownloadPdf,
   isGeneratingPdf = false,
 }: WorkspaceHeaderProps) {
@@ -139,6 +143,32 @@ export function WorkspaceHeader({
           >
             Save Draft
           </button>
+
+          {/* Generate All AI */}
+          {onGenerateAllAi && (
+            <button
+              id="sop-header-generate-all-ai-btn"
+              onClick={onGenerateAllAi}
+              disabled={isGeneratingAllAi}
+              className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg
+                         border border-violet-300 text-violet-700 bg-violet-50
+                         hover:bg-violet-100 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Generate all course-specific AI narrative sections with Gemini"
+            >
+              {isGeneratingAllAi ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-violet-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span>Generating AI...</span>
+                </>
+              ) : (
+                <span>✨ Generate All AI</span>
+              )}
+            </button>
+          )}
 
           {/* Approve All */}
           {onApproveAll && !isApproved && (

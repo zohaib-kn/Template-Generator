@@ -162,13 +162,15 @@ interface SectionEditorProps {
   onContentChange: (newContent: string) => void;
   onReset: () => void;
   onApprove: () => void;
+  onRegenerate?: (sectionId: string) => Promise<void>;
+  isRegenerating?: boolean;
 }
 
 /**
  * Centre panel editor.
  *
  * For FIXED / DATABASE sections: shows rendered text, no free editing.
- * For AI_SUGGESTED sections: editable textarea with regenerate notice.
+ * For AI_SUGGESTED sections: editable textarea with live Gemini AI regeneration.
  * For WEBHOOK sections: shows structured facts + rendered content, read-only.
  * For HYBRID sections: shows source facts table THEN an editable narrative area.
  */
@@ -180,17 +182,37 @@ export function SectionEditor({
   onContentChange,
   onReset,
   onApprove,
+  onRegenerate,
+  isRegenerating = false,
 }: SectionEditorProps) {
   const [showSourceData, setShowSourceData] = useState(false);
-  const [regenNotice, setRegenNotice] = useState(false);
+  const [regenFeedback, setRegenFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const resolved = interpolate(content, ctx);
-  const originalResolved = interpolate(section.content, ctx);
   const isModified = content !== section.content;
 
-  function handleRegenerate() {
-    setRegenNotice(true);
-    setTimeout(() => setRegenNotice(false), 4000);
+  async function handleRegenerateClick() {
+    if (!onRegenerate) return;
+    setRegenFeedback(null);
+    try {
+      await onRegenerate(section.id);
+      setRegenFeedback({
+        type: "success",
+        message: `Tailored narrative for "${ctx.destination.course || section.title}" generated with Gemini AI.`,
+      });
+      setTimeout(() => setRegenFeedback(null), 4500);
+    } catch (err: unknown) {
+      setRegenFeedback({
+        type: "error",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Failed to regenerate narrative. Please try again.",
+      });
+    }
   }
 
   return (
@@ -236,12 +258,39 @@ export function SectionEditor({
             {section.regeneratable && (
               <button
                 id={`regenerate-${section.id}`}
-                onClick={handleRegenerate}
+                onClick={handleRegenerateClick}
+                disabled={isRegenerating}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
                            border border-violet-200 text-violet-600 bg-violet-50
-                           hover:bg-violet-100 active:scale-95 transition-all"
+                           hover:bg-violet-100 active:scale-95 transition-all
+                           disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
-                ✨ Regenerate
+                {isRegenerating ? (
+                  <>
+                    <svg
+                      className="animate-spin h-3 w-3 text-violet-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
+                    </svg>
+                    <span>Regenerating...</span>
+                  </>
+                ) : (
+                  <span>✨ Regenerate</span>
+                )}
               </button>
             )}
 
@@ -250,9 +299,11 @@ export function SectionEditor({
               <button
                 id={`reset-${section.id}`}
                 onClick={onReset}
+                disabled={isRegenerating}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
                            border border-slate-200 text-slate-500 bg-white
-                           hover:bg-slate-50 active:scale-95 transition-all"
+                           hover:bg-slate-50 active:scale-95 transition-all
+                           disabled:opacity-50"
               >
                 Reset
               </button>
@@ -262,7 +313,7 @@ export function SectionEditor({
             <button
               id={`approve-${section.id}`}
               onClick={onApprove}
-              disabled={status === "APPROVED"}
+              disabled={status === "APPROVED" || isRegenerating}
               className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
                          bg-emerald-600 text-white
                          hover:bg-emerald-700 active:scale-95 transition-all
@@ -273,13 +324,25 @@ export function SectionEditor({
           </div>
         </div>
 
-        {/* Regen notice */}
-        {regenNotice && (
-          <div className="mt-2 px-3 py-2 rounded-lg bg-violet-50 border border-violet-200">
-            <p className="text-[11px] text-violet-700">
-              ✨ AI generation will be connected in a later phase. This section currently uses a
-              template-generated draft that can be edited manually.
-            </p>
+        {/* Feedback notice */}
+        {regenFeedback && (
+          <div
+            className={`mt-2 px-3 py-2 rounded-lg text-[11px] flex items-center justify-between transition-all ${
+              regenFeedback.type === "success"
+                ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                : "bg-rose-50 border border-rose-200 text-rose-700"
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <span>{regenFeedback.type === "success" ? "✓" : "⚠️"}</span>
+              <span>{regenFeedback.message}</span>
+            </div>
+            <button
+              onClick={() => setRegenFeedback(null)}
+              className="opacity-70 hover:opacity-100 font-bold ml-2 cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
         )}
       </div>
