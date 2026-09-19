@@ -413,18 +413,18 @@ export function SopWorkspace() {
         <div
           role="status"
           aria-live="polite"
-          className={`flex-shrink-0 px-5 py-2.5 border-b text-[12px] font-semibold flex items-center justify-between transition-all ${
+          className={`flex-shrink-0 px-6 py-2.5 border-b text-xs font-medium flex items-center justify-between transition-all ${
             aiBannerNotice.type === "success"
               ? "bg-emerald-50 border-emerald-200 text-emerald-800"
               : aiBannerNotice.type === "info"
-              ? "bg-violet-50 border-violet-200 text-violet-800 animate-pulse"
-              : "bg-red-50 border-red-200 text-red-800"
+              ? "bg-[#F0F7FA] border-[#D2E7F0] text-[#096491] animate-pulse"
+              : "bg-rose-50 border-rose-200 text-rose-800"
           }`}
         >
           <span>{aiBannerNotice.message}</span>
           <button
             onClick={() => setAiBannerNotice(null)}
-            className="text-slate-400 hover:text-slate-600 font-bold ml-3 text-[11px]"
+            className="text-slate-400 hover:text-slate-600 font-bold ml-3 text-xs"
           >
             ✕
           </button>
@@ -436,10 +436,11 @@ export function SopWorkspace() {
         <div
           role="status"
           aria-live="polite"
-          className="flex-shrink-0 px-5 py-2 bg-emerald-50 border-b border-emerald-200
-                     text-emerald-700 text-[11px] font-semibold"
+          className="flex-shrink-0 px-6 py-2 bg-[#F0F7FA] border-b border-[#D2E7F0]
+                     text-[#096491] text-xs font-medium flex items-center gap-1.5"
         >
-          ✓ Draft saved locally.
+          <span>✓</span>
+          <span>Draft saved locally.</span>
         </div>
       )}
 
@@ -447,7 +448,7 @@ export function SopWorkspace() {
       {pdfError && (
         <div
           role="alert"
-          className="flex-shrink-0 px-5 py-2.5 bg-red-50 border-b border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2"
+          className="flex-shrink-0 px-6 py-2.5 bg-rose-50 border-b border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2"
         >
           <span>⚠ PDF generation failed: {pdfError}</span>
         </div>
@@ -457,11 +458,11 @@ export function SopWorkspace() {
       {docApproved && (
         <div
           role="status"
-          className="flex-shrink-0 px-5 py-2.5 bg-emerald-600 text-white
-                     text-[12px] font-semibold flex items-center justify-between gap-4 flex-wrap"
+          className="flex-shrink-0 px-6 py-2.5 bg-emerald-600 text-white
+                     text-xs font-medium flex items-center justify-between gap-4 flex-wrap shadow-xs"
         >
           <div className="flex items-center gap-2">
-            <span>✓ Document approved.</span>
+            <span className="font-semibold">✓ Document approved.</span>
             <span className="font-normal opacity-90 text-[11px]">
               Ready for visa application &amp; embassy submission.
             </span>
@@ -470,7 +471,7 @@ export function SopWorkspace() {
             id="sop-approved-banner-download-btn"
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf}
-            className="bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 px-3 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5 shadow"
+            className="bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 px-3 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-xs"
           >
             {isGeneratingPdf ? "Generating PDF…" : "📥 Download Official PDF"}
           </button>
@@ -478,7 +479,7 @@ export function SopWorkspace() {
       )}
 
       {/* Three-column workspace */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden bg-[#F8FAFC]">
         {/* Left: Section navigation */}
         <SectionSidebar
           sections={sections}
@@ -489,7 +490,7 @@ export function SopWorkspace() {
         />
 
         {/* Centre: Section editor */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 min-w-0">
+        <main className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC] min-w-0">
           {selectedSection ? (
             <SectionEditor
               section={selectedSection}
@@ -536,28 +537,28 @@ export function SopWorkspace() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="sop-overwrite-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs"
         >
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
-            <p className="text-base font-bold text-slate-800 mb-2" id="sop-overwrite-dialog-title">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
+            <p className="text-sm font-bold text-slate-900 mb-1.5" id="sop-overwrite-dialog-title">
               ⚠ Replace workspace?
             </p>
-            <p className="text-[13px] text-slate-600 leading-relaxed mb-5">
+            <p className="text-xs text-slate-600 leading-relaxed mb-5">
               Loading another student will replace the current document workspace,
               including all edits and review statuses. This cannot be undone.
             </p>
-            <div className="flex gap-3 justify-end">
+            <div className="flex gap-2.5 justify-end">
               <button
                 id="sop-overwrite-cancel-btn"
                 onClick={handleCancelOverwrite}
-                className="px-4 py-2 text-[13px] font-semibold rounded-lg border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 active:scale-95 transition-all"
+                className="h-8 px-3.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 transition-colors shadow-xs"
               >
                 Cancel
               </button>
               <button
                 id="sop-overwrite-confirm-btn"
                 onClick={handleConfirmOverwrite}
-                className="px-4 py-2 text-[13px] font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 active:scale-95 transition-all"
+                className="h-8 px-3.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-xs"
               >
                 Continue
               </button>

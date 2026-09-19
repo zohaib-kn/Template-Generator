@@ -18,7 +18,7 @@ import type {
 } from "@/types";
 import { generateId } from "@/lib/generateId";
 import { useDocumentContext } from "../state/DocumentContext";
-import type { Dispatch } from "react";
+import { useCallback, type Dispatch } from "react";
 import type { DocumentAction } from "../state/documentReducer";
 
 /**
@@ -193,17 +193,21 @@ export function useDocumentState() {
     removeCertification: (id: string) => certifications.remove(id),
 
     // --- Reset --------------------------------------------------------------
-    reset: () => dispatch({ type: "RESET" }),
+    reset: useCallback(() => dispatch({ type: "RESET" }), [dispatch]),
 
     // --- Test data (Phase 1 webhook integration only) ----------------------
-    // Loads the static testStudentData fixture into state. After this the
-    // user can freely edit fields; Send to Webhook sends CURRENT state.
-    loadTestStudent: () => dispatch({ type: "LOAD_TEST_STUDENT" }),
+    loadTestStudent: useCallback(
+      () => dispatch({ type: "LOAD_TEST_STUDENT" }),
+      [dispatch]
+    ),
 
     // --- Load student from external source ----------------------------------
-    // Accepts any DocumentData (from mock API, real API, etc.).
-    // Used by "Load Student From Webhook" button.
-    loadStudent: (studentData: import("@/types").DocumentData) =>
-      dispatch({ type: "LOAD_STUDENT", payload: studentData }),
+    // Stable useCallback reference — prevents consumers (e.g. WebhookToolbar)
+    // from triggering re-renders / infinite loops when passed as a dependency.
+    loadStudent: useCallback(
+      (studentData: import("@/types").DocumentData) =>
+        dispatch({ type: "LOAD_STUDENT", payload: studentData }),
+      [dispatch]
+    ),
   };
 }

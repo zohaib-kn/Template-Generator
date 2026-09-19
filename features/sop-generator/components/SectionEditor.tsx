@@ -32,7 +32,7 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/30 z-40"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -44,24 +44,24 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
         aria-labelledby="source-dialog-title"
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md">
+        <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
           {/* Header */}
-          <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b border-slate-100">
+          <div className="flex items-start justify-between px-6 pt-5 pb-3.5 border-b border-slate-100">
             <div>
               <p
                 id="source-dialog-title"
-                className="text-sm font-bold text-slate-800"
+                className="text-sm font-bold text-slate-900"
               >
                 {section.title}
               </p>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1.5">
                 <SourceBadge source={section.source} />
               </div>
             </div>
             <button
               id="source-dialog-close-btn"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-lg
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg
                          hover:bg-slate-100 transition-colors ml-2"
               aria-label="Close"
             >
@@ -82,46 +82,46 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
             </button>
           </div>
 
-          {/* Notice */}
-          <div className="mx-5 mt-4 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
-            <p className="text-[11px] text-blue-700 leading-relaxed">
-              <strong>These are factual student values</strong> and are not AI-generated.
+          {/* Restrained Factual Notice */}
+          <div className="mx-6 mt-4 px-3.5 py-2.5 rounded-lg bg-[#F4F9FA] border border-[#D9EAF0]">
+            <p className="text-[11px] text-[#096491] leading-relaxed">
+              <strong className="font-semibold">These are factual student values</strong> and are not AI-generated.
               Factual data comes from the student&apos;s application record and must be verified
               before the document is approved.
             </p>
           </div>
 
           {/* Facts table */}
-          <div className="px-5 py-4">
+          <div className="px-6 py-4 max-h-[50vh] overflow-y-auto">
             {Object.keys(facts).length === 0 ? (
-              <p className="text-[12px] text-slate-400 italic">
+              <p className="text-xs text-slate-400 italic">
                 No structured source facts available for this section.
               </p>
             ) : (
-              <table className="w-full text-[12px]">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="text-left pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide w-2/5">
+                    <th className="text-left pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-2/5">
                       Field
                     </th>
-                    <th className="text-left pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    <th className="text-left pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       Value
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100/60">
                   {Object.entries(facts).map(([key, template]) => {
                     const value = interpolate(template, ctx);
                     const isMissing = value.includes("[MISSING:");
                     return (
-                      <tr key={key} className="border-b border-slate-50 last:border-0">
-                        <td className="py-2 pr-4 text-slate-500 font-medium align-top">
+                      <tr key={key}>
+                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top text-xs">
                           {key}
                         </td>
                         <td
-                          className={`py-2 align-top font-medium break-words ${
+                          className={`py-2.5 align-top font-medium text-xs break-words ${
                             isMissing
-                              ? "text-red-500 italic"
+                              ? "text-rose-500 italic"
                               : "text-slate-800"
                           }`}
                         >
@@ -136,12 +136,12 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
           </div>
 
           {/* Footer */}
-          <div className="px-5 pb-4 pt-0 flex justify-end">
+          <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/50">
             <button
               onClick={onClose}
-              className="text-[12px] font-semibold px-4 py-1.5 rounded-lg
-                         bg-slate-100 text-slate-600 hover:bg-slate-200
-                         active:scale-95 transition-all"
+              className="h-8 px-4 rounded-lg text-xs font-medium
+                         bg-white border border-slate-200 text-slate-700 hover:bg-slate-50
+                         transition-colors shadow-xs"
             >
               Close
             </button>
@@ -216,19 +216,22 @@ export function SectionEditor({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 bg-[#F8FAFC]">
       {/* Section header */}
-      <div className="flex-shrink-0 px-5 pt-4 pb-3 border-b border-slate-100 bg-white">
-        <div className="flex items-start justify-between gap-3">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="min-w-0">
-            <h2 className="text-sm font-bold text-slate-800 leading-snug">
-              {section.title}
+            <div className="flex items-center gap-2">
+              <h2 className="text-[16px] md:text-[18px] font-semibold text-slate-900 leading-snug truncate">
+                {section.title}
+              </h2>
               {section.required && (
-                <span className="ml-1.5 text-red-400 text-[10px]" aria-label="Required section">
+                <span className="text-[10px] font-medium text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full" aria-label="Required section">
                   Required
                 </span>
               )}
-            </h2>
+            </div>
+
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <SourceBadge source={section.source} />
               <ReviewStatusBadge status={status} />
@@ -246,9 +249,7 @@ export function SectionEditor({
                 <button
                   id={`view-source-data-${section.id}`}
                   onClick={() => setShowSourceData(true)}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
-                             border border-blue-200 text-blue-600 bg-blue-50
-                             hover:bg-blue-100 active:scale-95 transition-all"
+                  className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
                 >
                   View Source Data
                 </button>
@@ -260,15 +261,12 @@ export function SectionEditor({
                 id={`regenerate-${section.id}`}
                 onClick={handleRegenerateClick}
                 disabled={isRegenerating}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
-                           border border-violet-200 text-violet-600 bg-violet-50
-                           hover:bg-violet-100 active:scale-95 transition-all
-                           disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="h-8 px-3 rounded-lg border border-[#D2E7F0] text-[#096491] bg-[#F0F7FA] hover:bg-[#E2F0F7] text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isRegenerating ? (
                   <>
                     <svg
-                      className="animate-spin h-3 w-3 text-violet-600"
+                      className="animate-spin h-3.5 w-3.5 text-[#096491]"
                       fill="none"
                       viewBox="0 0 24 24"
                     >
@@ -286,10 +284,13 @@ export function SectionEditor({
                         d="M4 12a8 8 0 018-8v8H4z"
                       />
                     </svg>
-                    <span>Regenerating...</span>
+                    <span>Regenerating…</span>
                   </>
                 ) : (
-                  <span>✨ Regenerate</span>
+                  <>
+                    <span className="text-[11px]">✨</span>
+                    <span>Regenerate</span>
+                  </>
                 )}
               </button>
             )}
@@ -300,24 +301,23 @@ export function SectionEditor({
                 id={`reset-${section.id}`}
                 onClick={onReset}
                 disabled={isRegenerating}
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
-                           border border-slate-200 text-slate-500 bg-white
-                           hover:bg-slate-50 active:scale-95 transition-all
-                           disabled:opacity-50"
+                className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
               >
                 Reset
               </button>
             )}
 
-            {/* Approve */}
+            {/* Approve Section (Dominant local action) */}
             <button
               id={`approve-${section.id}`}
               onClick={onApprove}
               disabled={status === "APPROVED" || isRegenerating}
-              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg
-                         bg-emerald-600 text-white
-                         hover:bg-emerald-700 active:scale-95 transition-all
-                         disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+              className={`h-8 px-3.5 rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5
+                         ${
+                           status === "APPROVED"
+                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                             : "bg-[#096491] text-white hover:bg-[#074f74] active:bg-[#063f5d] disabled:opacity-50 disabled:cursor-not-allowed"
+                         }`}
             >
               {status === "APPROVED" ? "✓ Approved" : "Approve Section"}
             </button>
@@ -327,19 +327,19 @@ export function SectionEditor({
         {/* Feedback notice */}
         {regenFeedback && (
           <div
-            className={`mt-2 px-3 py-2 rounded-lg text-[11px] flex items-center justify-between transition-all ${
+            className={`mt-2.5 px-3.5 py-2 rounded-lg text-xs flex items-center justify-between transition-all ${
               regenFeedback.type === "success"
-                ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-                : "bg-rose-50 border border-rose-200 text-rose-700"
+                ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                : "bg-rose-50 border border-rose-200 text-rose-800"
             }`}
           >
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span>{regenFeedback.type === "success" ? "✓" : "⚠️"}</span>
               <span>{regenFeedback.message}</span>
             </div>
             <button
               onClick={() => setRegenFeedback(null)}
-              className="opacity-70 hover:opacity-100 font-bold ml-2 cursor-pointer"
+              className="opacity-70 hover:opacity-100 font-bold ml-2 cursor-pointer text-xs"
             >
               ✕
             </button>
@@ -348,29 +348,29 @@ export function SectionEditor({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto p-5 bg-slate-50 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
-        {/* WEBHOOK: show structured facts then rendered text (read-only) */}
+        {/* WEBHOOK: Restrained Information Block (Student Data — Factual Source Values) */}
         {section.source === "WEBHOOK" && section.sourceFacts && (
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-3">
-              👤 Student Data — Factual Source Values
+          <div className="rounded-xl border border-[#D9EAF0] bg-[#F4F9FA] p-5 shadow-xs">
+            <p className="text-[11px] font-bold text-[#096491] uppercase tracking-wider mb-1">
+              STUDENT DATA — FACTUAL SOURCE VALUES
             </p>
-            <p className="text-[10px] text-blue-500 mb-3 leading-relaxed">
+            <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
               These are factual student values and are not AI-generated.
             </p>
-            <dl className="grid gap-y-1.5">
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
               {Object.entries(section.sourceFacts).map(([key, tmpl]) => {
                 const val = interpolate(tmpl, ctx);
                 const missing = val.includes("[MISSING:");
                 return (
-                  <div key={key} className="flex gap-3">
-                    <dt className="w-36 text-[11px] text-blue-500 font-medium flex-shrink-0">
+                  <div key={key} className="flex gap-3 items-baseline">
+                    <dt className="w-36 text-[11px] text-slate-500 font-medium flex-shrink-0">
                       {key}
                     </dt>
                     <dd
-                      className={`text-[11px] font-semibold ${
-                        missing ? "text-red-500 italic" : "text-blue-900"
+                      className={`text-xs font-semibold ${
+                        missing ? "text-rose-500 italic" : "text-slate-800"
                       }`}
                     >
                       {val}
@@ -382,27 +382,27 @@ export function SectionEditor({
           </div>
         )}
 
-        {/* HYBRID: show source facts + editable narrative separately */}
+        {/* HYBRID: Restrained Information Block for Source Facts */}
         {section.source === "HYBRID" && section.sourceFacts && (
-          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-2">
-              🔀 Source Facts (Verified)
+          <div className="rounded-xl border border-[#EFE7D8] bg-[#FAF8F5] p-5 shadow-xs">
+            <p className="text-[11px] font-bold text-[#8C6B38] uppercase tracking-wider mb-1">
+              SOURCE FACTS (VERIFIED)
             </p>
-            <p className="text-[10px] text-amber-500 mb-3">
+            <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
               These factual values anchor the narrative below. They must not be AI-generated.
             </p>
-            <dl className="grid gap-y-1.5">
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
               {Object.entries(section.sourceFacts).map(([key, tmpl]) => {
                 const val = interpolate(tmpl, ctx);
                 const missing = val.includes("[MISSING:");
                 return (
-                  <div key={key} className="flex gap-3">
-                    <dt className="w-36 text-[11px] text-amber-600 font-medium flex-shrink-0">
+                  <div key={key} className="flex gap-3 items-baseline">
+                    <dt className="w-36 text-[11px] text-slate-500 font-medium flex-shrink-0">
                       {key}
                     </dt>
                     <dd
-                      className={`text-[11px] font-semibold ${
-                        missing ? "text-red-500 italic" : "text-amber-900"
+                      className={`text-xs font-semibold ${
+                        missing ? "text-rose-500 italic" : "text-slate-800"
                       }`}
                     >
                       {val}
@@ -414,64 +414,66 @@ export function SectionEditor({
           </div>
         )}
 
-        {/* Editable or read-only content */}
+        {/* Editable or Document Workspace content */}
         {section.editable ? (
-          <div>
+          <div className="space-y-2">
             {section.source === "HYBRID" && (
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                ✨ Suggested Narrative (Editable)
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Suggested Narrative (Editable)
               </p>
             )}
-            <textarea
-              id={`section-editor-textarea-${section.id}`}
-              value={content}
-              onChange={(e) => onContentChange(e.target.value)}
-              rows={18}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3
-                         text-[12px] text-slate-700 font-mono leading-relaxed
-                         focus:outline-none focus:border-indigo-400 focus:ring-1
-                         focus:ring-indigo-200 resize-none transition-colors"
-              aria-label={`Edit content for ${section.title}`}
-            />
+            <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-xs focus-within:border-[#096491] focus-within:ring-1 focus-within:ring-[#096491] transition-all">
+              <textarea
+                id={`section-editor-textarea-${section.id}`}
+                value={content}
+                onChange={(e) => onContentChange(e.target.value)}
+                rows={16}
+                className="w-full bg-transparent px-3 py-2 text-[14px] text-slate-800 font-sans leading-[1.65] resize-none outline-none"
+                aria-label={`Edit content for ${section.title}`}
+              />
+            </div>
             {isModified && (
-              <p className="text-[10px] text-amber-600 mt-1.5">
-                ⚠ Content modified from original.{" "}
-                {status === "APPROVED" && "Status reset to Needs Review."}
+              <p className="text-[11px] text-amber-600 flex items-center gap-1.5 font-medium">
+                <span>⚠</span>
+                <span>Content modified from original. {status === "APPROVED" && "Status reset to Needs Review."}</span>
               </p>
             )}
           </div>
         ) : (
-          <div>
-            {/* Non-editable: rendered preview */}
+          <div className="space-y-2">
+            {/* Non-editable: Document preview card */}
             <div
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3
-                          text-[12px] text-slate-700 leading-relaxed whitespace-pre-wrap font-mono"
+              className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 text-[14px] text-slate-800 font-sans leading-[1.65] whitespace-pre-wrap shadow-xs"
               aria-label={`Content preview for ${section.title}`}
             >
               {resolved}
             </div>
-            <p className="text-[10px] text-slate-400 mt-1.5">
-              This section is controlled by the data source and cannot be free-text edited.
-            </p>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>This section is controlled by the data source and cannot be free-text edited.</span>
+            </div>
           </div>
         )}
 
-        {/* DATABASE: verified info notice */}
+        {/* DATABASE: Verified info notice */}
         {section.source === "DATABASE" && (
-          <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2">
-            <p className="text-[11px] text-green-700">
-              ✅ <strong>Verified Data.</strong> This section is sourced from the verified
-              destination database and does not require counsellor editing.
+          <div className="rounded-xl border border-[#D9EAF0] bg-[#F4F9FA] px-4 py-3 flex items-start gap-2.5">
+            <span className="text-[#096491] text-xs mt-0.5">✓</span>
+            <p className="text-xs text-[#096491] leading-relaxed">
+              <strong className="font-semibold">Verified Data.</strong> This section is sourced from the verified destination database and does not require counsellor editing.
             </p>
           </div>
         )}
 
-        {/* FIXED: template text notice */}
+        {/* FIXED: Template text notice */}
         {section.source === "FIXED" && (
-          <div className="rounded-lg border border-slate-100 bg-white px-3 py-2">
-            <p className="text-[11px] text-slate-500">
-              📋 This section uses standard template wording. It can be lightly edited
-              if your institution requires custom language.
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-start gap-2.5 shadow-xs">
+            <span className="text-slate-400 text-xs mt-0.5">📋</span>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This section uses standard template wording. It can be lightly edited if your institution requires custom language.
             </p>
           </div>
         )}
