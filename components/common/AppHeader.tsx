@@ -42,7 +42,7 @@ function PdfControls() {
         size="sm"
         disabled={isGenerating}
         onClick={() => generate(data, {})}
-        className="border-white/25 text-white bg-white/10 hover:bg-white/20 hover:border-white/40 disabled:opacity-60"
+        className="border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-xs text-xs font-semibold disabled:opacity-50"
         aria-label="Generate and download PDF"
         id="generate-pdf-btn"
       >
@@ -113,6 +113,7 @@ interface NavTab {
 const NAV_TABS: NavTab[] = [
   { label: "Resume Builder", href: "/",             id: "nav-tab-resume" },
   { label: "SOP Generator",  href: "/sop-generator", id: "nav-tab-sop"    },
+  { label: "LOR Generator",  href: "/lor-generator", id: "nav-tab-lor"    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -124,17 +125,12 @@ interface AppHeaderProps {
 }
 
 /**
- * Shared product header — visible on both Resume Builder and SOP Generator.
+ * Shared product header — visible on Resume Builder, SOP Generator, and LOR Generator.
  *
  * Contains:
  *   - Brand logo + product name
- *   - Tool navigation tabs (Resume Builder | SOP Generator)
+ *   - Tool navigation tabs (Resume Builder | SOP Generator | LOR Generator)
  *   - PDF generation controls (Resume Builder only)
- *
- * IMPORTANT: PdfControls uses useDocumentContext() which throws outside
- * a DocumentProvider. We gate rendering it on the current pathname:
- *   "/" → render PdfControls (inside DocumentProvider)
- *   "/sop-generator" → skip PdfControls (no provider)
  */
 export function AppHeader({ target: _target }: AppHeaderProps = {}) {
   const pathname = usePathname();
@@ -146,7 +142,7 @@ export function AppHeader({ target: _target }: AppHeaderProps = {}) {
     <>
       <header
         className="flex items-center justify-between px-6 h-14 bg-navy border-b border-navy-dark
-                   flex-shrink-0 z-10 shadow-md relative"
+                   flex-shrink-0 z-20 shadow-md relative"
       >
         {/* ── Brand ── */}
         <div className="flex items-center gap-3">
@@ -163,7 +159,7 @@ export function AppHeader({ target: _target }: AppHeaderProps = {}) {
               <rect x="9" y="8" width="6" height="7" rx="1" fill="white" fillOpacity="0.6" />
             </svg>
           </div>
-          <span className="text-white font-semibold text-sm tracking-tight">
+          <span className="text-white font-semibold text-sm tracking-tight" style={{ color: "#ffffff" }}>
             Template Generator
           </span>
         </div>
@@ -184,16 +180,25 @@ export function AppHeader({ target: _target }: AppHeaderProps = {}) {
                 key={tab.href}
                 href={tab.href}
                 id={tab.id}
-                className={`px-3.5 py-1.5 rounded-md text-[12px] font-semibold
-                             transition-all duration-150
-                             ${
-                               isActive
-                                 ? "bg-white text-navy shadow-sm"
-                                 : "text-white/70 hover:text-white hover:bg-white/15"
-                             }`}
+                style={{
+                  color: isActive ? "#0f1e30" : "#ffffff",
+                  backgroundColor: isActive ? "#ffffff" : "transparent",
+                }}
+                className={`px-3.5 py-1.5 rounded-md text-[12px] font-semibold transition-all duration-150 ${
+                  isActive
+                    ? "shadow-sm font-bold"
+                    : "hover:bg-white/15"
+                }`}
                 aria-current={isActive ? "page" : undefined}
               >
-                {tab.label}
+                <span
+                  style={{
+                    color: isActive ? "#0f1e30" : "#ffffff",
+                  }}
+                  className={isActive ? "font-bold text-[#0f1e30]" : "text-white font-medium"}
+                >
+                  {tab.label}
+                </span>
               </Link>
             );
           })}

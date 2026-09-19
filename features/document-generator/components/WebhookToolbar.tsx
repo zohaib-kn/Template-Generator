@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useDocumentState } from "../hooks/useDocumentState";
 import type { ApplicationTarget } from "../guidance/types";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { mapCrmToNormalizedStudent, mapNormalizedToResume } from "@/services/normalization";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import { StudentDropdown } from "@/components/common/StudentDropdown";
+import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,13 +52,13 @@ interface WebhookToolbarProps {
  */
 export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolbarProps = {}) {
   const { data, loadTestStudent, loadStudent, reset } = useDocumentState();
+  const { selectedStudentData, loadStatus: globalLoadStatus, selectedStudentId } = useGlobalStudent();
 
   // Section A state
   const [sendStatus, setSendStatus] = useState<SendStatus>({ kind: "idle" });
 
-  // Section B state
+  // Section B state (kept for program selector after load)
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>({ kind: "idle" });
-  const [studentInput, setStudentInput] = useState("");
 
   // Multiple programs state
   const [currentSnapshot, setCurrentSnapshot] = useState<CrmSnapshot | null>(null);
@@ -72,45 +74,41 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
     data.aboutMe
   );
 
-  // ── Helper: Extract Student ID, key, and baseUrl from text or URL ──────────
-  function parseStudentInput(input?: string): {
-    studentId?: string;
-    key?: string;
-    baseUrl?: string;
-    isBareKey?: boolean;
-  } {
-    if (!input) return {};
-    const trimmed = input.trim();
-    if (!trimmed) return {};
+  // ── React to global student selection ──────────────────────────────────────
+  // When the user picks a student from the dropdown (in any module), load
+  // their CRM snapshot into the Resume Builder automatically.
+  const handleGlobalStudentLoaded = useCallback((studentId: string) => {
+    if (!selectedStudentData) return;
+    const rawSnapshot = selectedStudentData;
+    const source = "senior-crm-api" as const;
+    const normalized = mapCrmToNormalizedStudent(rawSnapshot, { source });
+    const { student, target } = mapNormalizedToResume(normalized);
 
-    if (/^[0-9a-fA-F]{32,}$/.test(trimmed)) {
-      return { isBareKey: true };
+    loadStudent(student);
+
+    if (target && onTargetDetected) onTargetDetected(target);
+    if (onRawSnapshot) onRawSnapshot(rawSnapshot, "crm-api");
+
+    setCurrentSnapshot(rawSnapshot);
+    setCurrentSource(source);
+    setAvailablePrograms(normalized.applications.all);
+    setSelectedProgramId(normalized.applications.activeProgramId || (normalized.applications.all[0]?.id ?? ""));
+    setFetchStatus({
+      kind: "success",
+      name: student.personal?.fullName ?? "Student",
+      source,
+    });
+  }, [selectedStudentData, loadStudent, onTargetDetected, onRawSnapshot]);
+
+  // Also reset fetchStatus if student is cleared
+  useEffect(() => {
+    if (!selectedStudentId) {
+      setFetchStatus({ kind: "idle" });
+      setAvailablePrograms([]);
+      setCurrentSnapshot(null);
     }
+  }, [selectedStudentId]);
 
-    if (
-      trimmed.startsWith("http://") ||
-      trimmed.startsWith("https://") ||
-      trimmed.includes("/api/students/")
-    ) {
-      try {
-        const fullUrl = trimmed.startsWith("http")
-          ? trimmed
-          : `https://dummy.local${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
-        const urlObj = new URL(fullUrl);
-
-        const pathIdMatch = urlObj.pathname.match(/[0-9a-fA-F]{24}/);
-        const studentId = pathIdMatch ? pathIdMatch[0] : undefined;
-        const key = urlObj.searchParams.get("key")?.trim() || undefined;
-        const baseUrl = trimmed.startsWith("http") ? urlObj.origin : undefined;
-        return { studentId, key, baseUrl };
-      } catch {
-        // fallback to regex
-      }
-    }
-
-    const match = trimmed.match(/[0-9a-fA-F]{24}/);
-    return { studentId: match ? match[0] : undefined };
-  }
 
   // ── Section A: Send current state to external webhook ─────────────────────
   async function handleSend() {
@@ -139,93 +137,6 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
     }
   }
 
-  // ── Section B: Fetch student from internal backend /api/student/[id] ───────
-  async function handleFetchFromBackend(overrideInput?: string) {
-    const rawInput = (typeof overrideInput === "string" ? overrideInput : studentInput).trim();
-    const parsed = parseStudentInput(rawInput);
-
-    if (parsed.isBareKey) {
-      setFetchStatus({
-        kind: "error",
-        message:
-          "You pasted the API key instead of the Student ID or full URL. Please paste the full CRM URL or the 24-character Student ID.",
-      });
-      return;
-    }
-
-    if (!parsed.studentId || !/^[0-9a-fA-F]{24}$/.test(parsed.studentId)) {
-      setFetchStatus({
-        kind: "error",
-        message: rawInput
-          ? "Please enter a valid 24-character hexadecimal Student ID or CRM URL."
-          : "Please enter a Student ID or use one of the preset chips below.",
-      });
-      return;
-    }
-
-    const effectiveId = parsed.studentId;
-    setFetchStatus({ kind: "loading" });
-
-    try {
-      const queryParams = new URLSearchParams();
-      if (parsed.key) queryParams.set("key", parsed.key);
-      if (parsed.baseUrl) queryParams.set("baseUrl", parsed.baseUrl);
-      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
-
-      const res = await fetch(`/api/student/${effectiveId}${queryString}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-
-      const json = await res.json();
-
-      if (!res.ok || !json.success) {
-        setFetchStatus({
-          kind: "error",
-          message: json.error?.message || `Failed to load student (HTTP ${res.status}).`,
-        });
-        return;
-      }
-
-      // 1. Map raw snapshot to NormalizedStudentProfile
-      const rawSnapshot = json.data as CrmSnapshot;
-      const source = json.source as "senior-crm-api" | "cached-snapshot";
-      const normalized = mapCrmToNormalizedStudent(rawSnapshot, { source });
-
-      // 2. Project Normalized Profile to DocumentData + ApplicationTarget
-      const { student, target } = mapNormalizedToResume(normalized);
-
-      // 3. Load into existing Resume Builder state (editable by counsellor)
-      loadStudent(student);
-
-      // 4. Update ApplicationTarget for Suggestions Panel
-      if (target && onTargetDetected) {
-        onTargetDetected(target);
-      }
-
-      // 5. Update RawDataPanel — map source to the two-value union that onRawSnapshot expects
-      if (onRawSnapshot) {
-        onRawSnapshot(rawSnapshot, source === "senior-crm-api" ? "crm-api" : "mock");
-      }
-
-      // 6. Retain state for multiple-application selector
-      setCurrentSnapshot(rawSnapshot);
-      setCurrentSource(source);
-      setAvailablePrograms(normalized.applications.all);
-      setSelectedProgramId(normalized.applications.activeProgramId || (normalized.applications.all[0]?.id ?? ""));
-
-      setFetchStatus({
-        kind: "success",
-        name: student.personal?.fullName ?? "Student",
-        source,
-      });
-    } catch (err: unknown) {
-      setFetchStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Network error.",
-      });
-    }
-  }
 
   // ── Handler: Active program changed by counsellor ─────────────────────────
   function handleProgramChange(programId: string) {
@@ -326,96 +237,27 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
       {/* Divider */}
       <div className="border-t border-indigo-200" />
 
-      {/* ── Section B: Load student FROM CRM API ── */}
+      {/* ── Section B: Load student FROM CRM — Dropdown ── */}
       <div className="space-y-2.5">
         <div>
           <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest">
             📥 Load Student From CRM
           </p>
           <p className="text-[10px] text-indigo-500 leading-relaxed mt-0.5">
-            Fetch any student via ID or full snapshot URL. Also auto-fills <strong>🎯 Application Target</strong>.
+            Pick a student — data auto-fills Resume, SOP, and LOR instantly.
           </p>
         </div>
 
-        {/* Input box with clear button */}
-        <div className="space-y-1.5">
-          <div className="relative">
-            <input
-              type="text"
-              value={studentInput}
-              onChange={(e) => setStudentInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleFetchFromBackend();
-                }
-              }}
-              placeholder="Student ID (e.g. 6a508...) or full CRM URL"
-              className="w-full text-[11px] bg-white border border-indigo-200 rounded-lg pl-2.5 pr-7 py-1.5 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all shadow-sm"
-            />
-            {studentInput.trim().length > 0 && (
-              <button
-                type="button"
-                onClick={() => setStudentInput("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[12px] font-bold p-0.5"
-                title="Clear input"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+        {/* ── Student Dropdown ── */}
+        <StudentDropdown
+          onStudentSelected={handleGlobalStudentLoaded}
+          compact
+          className="w-full"
+        />
 
-          {/* Quick preset chips */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-semibold text-indigo-500">Presets:</span>
-            <button
-              type="button"
-              onClick={() => {
-                const id = "6a508a96af13bb33e9fc07ce";
-                setStudentInput(id);
-                handleFetchFromBackend(id);
-              }}
-              className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-violet-100 text-violet-800 border border-violet-200 hover:bg-violet-200 active:scale-95 transition-all"
-              title="Load Kaavya Girish Nair (Law student)"
-            >
-              👩‍⚖️ Kaavya (Law)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const id = "69e600e750f7c6e4051f547e";
-                setStudentInput(id);
-                handleFetchFromBackend(id);
-              }}
-              className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 border border-indigo-200 hover:bg-indigo-200 active:scale-95 transition-all"
-              title="Load Fardee kumar (Tech student with work experience)"
-            >
-              👨‍💻 Fardee (Tech)
-            </button>
-          </div>
-        </div>
-
-        <button
-          id="mock-webhook-load-btn"
-          onClick={() => handleFetchFromBackend()}
-          disabled={fetchStatus.kind === "loading"}
-          className="w-full text-[12px] font-semibold rounded-lg px-3 py-2
-                     bg-violet-600 text-white hover:bg-violet-700
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     active:scale-95 transition-all shadow-sm"
-        >
-          {fetchStatus.kind === "loading"
-            ? "Loading…"
-            : studentInput.trim().length > 0
-            ? "🌐 Load Specified Student"
-            : "🌐 Load Student From CRM"}
-        </button>
-
-        {/* Fetch status */}
-        {fetchStatus.kind === "idle" && (
-          <p className="text-[11px] text-indigo-400">Status: Idle</p>
-        )}
-        {fetchStatus.kind === "loading" && (
-          <p className="text-[11px] text-violet-600 animate-pulse">Fetching via /api/student/[id]…</p>
+        {/* Status messages */}
+        {globalLoadStatus.kind === "loading" && (
+          <p className="text-[11px] text-violet-600 animate-pulse">Fetching student data from CRM…</p>
         )}
         {fetchStatus.kind === "success" && (
           <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 space-y-1.5">
@@ -423,22 +265,12 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
               <p className="text-[11px] font-semibold text-emerald-800">
                 ✅ {fetchStatus.name}
               </p>
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                fetchStatus.source === "senior-crm-api"
-                  ? "bg-violet-100 text-violet-700 border border-violet-200"
-                  : fetchStatus.source === "cached-snapshot"
-                  ? "bg-amber-100 text-amber-700 border border-amber-200"
-                  : "bg-slate-100 text-slate-500 border border-slate-200"
-              }`}>
-                {fetchStatus.source === "senior-crm-api"
-                  ? "Live CRM"
-                  : fetchStatus.source === "cached-snapshot"
-                  ? "Cached CRM"
-                  : "Mock Data"}
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
+                Live CRM
               </span>
             </div>
             <p className="text-[11px] text-emerald-700">
-              Resume and suggestions updated. You can edit any field below.
+              Resume updated. You can edit any field below.
             </p>
 
             {/* Application Selector when multiple programs exist */}
@@ -465,10 +297,10 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
             )}
           </div>
         )}
-        {fetchStatus.kind === "error" && (
+        {globalLoadStatus.kind === "error" && (
           <div className="rounded-lg bg-red-100 border border-red-300 px-3 py-2">
             <p className="text-[11px] font-semibold text-red-800">✕ Failed to load student</p>
-            <p className="text-[11px] text-red-700 break-all mt-0.5">{fetchStatus.message}</p>
+            <p className="text-[11px] text-red-700 break-all mt-0.5">{globalLoadStatus.message}</p>
           </div>
         )}
       </div>

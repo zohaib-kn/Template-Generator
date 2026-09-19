@@ -106,15 +106,27 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     [data.certifications]
   );
 
+  // ── Stable primitive/memoized refs for fields used directly in useIsomorphicLayoutEffect ──
+  // Using individual stable values instead of the whole `data` object prevents the
+  // effect from re-running on every render (data is a new object reference each time).
+  const aboutMe            = data.aboutMe ?? "";
+  const academicInterests  = useMemo(() => data.academicInterests  ?? [], [data.academicInterests]);
+  const languages          = useMemo(() => data.languages          ?? [], [data.languages]);
+  const skills             = useMemo(() => data.skills             ?? [], [data.skills]);
+  const hobbies            = useMemo(() => data.hobbies            ?? [], [data.hobbies]);
+  const recommendations    = useMemo(() => data.recommendations    ?? [], [data.recommendations]);
+  const declaration        = data.declaration ?? "";
+  const englishCertificate = useMemo(() => data.englishCertificate ?? null, [data.englishCertificate]);
+
   // Fallback initial distribution before layout measurement runs
   const fallbackPages = useMemo<PageItem[][]>(() => {
     const p1: PageItem[] = [];
     const p2: PageItem[] = [];
 
-    if (data.aboutMe && data.aboutMe.trim().length > 0) {
+    if (aboutMe && aboutMe.trim().length > 0) {
       p1.push({
         key: "about",
-        node: <AboutSection text={data.aboutMe} />,
+        node: <AboutSection text={aboutMe} />,
       });
     }
     if (educationEntries.length > 0) {
@@ -129,10 +141,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         node: <InternshipSection entries={internshipEntries} />,
       });
     }
-    if (data.academicInterests && data.academicInterests.length > 0) {
+    if (academicInterests && academicInterests.length > 0) {
       p1.push({
         key: "academicInterests",
-        node: <AcademicInterestsSection entries={data.academicInterests} />,
+        node: <AcademicInterestsSection entries={academicInterests} />,
       });
     }
     if (projectEntries.length > 0) {
@@ -165,43 +177,43 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         node: <CertificationsSection entries={certificationEntries} />,
       });
     }
-    if (data.languages && data.languages.length > 0) {
+    if (languages && languages.length > 0) {
       p2.push({
         key: "languages",
-        node: <LanguageSkillsSection entries={data.languages} />,
+        node: <LanguageSkillsSection entries={languages} />,
       });
     }
     if (
-      data.englishCertificate &&
-      (data.englishCertificate.examName || data.englishCertificate.score)
+      englishCertificate &&
+      (englishCertificate.examName || englishCertificate.score)
     ) {
       p2.push({
         key: "englishCertificate",
-        node: <EnglishCertificateSection cert={data.englishCertificate} />,
+        node: <EnglishCertificateSection cert={englishCertificate} />,
       });
     }
-    if (data.skills && data.skills.length > 0) {
+    if (skills && skills.length > 0) {
       p2.push({
         key: "skills",
-        node: <SkillsSection entries={data.skills} />,
+        node: <SkillsSection entries={skills} />,
       });
     }
-    if (data.hobbies && data.hobbies.length > 0) {
+    if (hobbies && hobbies.length > 0) {
       p2.push({
         key: "hobbies",
-        node: <HobbiesSection entries={data.hobbies} />,
+        node: <HobbiesSection entries={hobbies} />,
       });
     }
-    if (data.recommendations && data.recommendations.length > 0) {
+    if (recommendations && recommendations.length > 0) {
       p2.push({
         key: "recommendations",
-        node: <RecommendationsSection entries={data.recommendations} />,
+        node: <RecommendationsSection entries={recommendations} />,
       });
     }
-    if (data.declaration && data.declaration.trim().length > 0) {
+    if (declaration && declaration.trim().length > 0) {
       p2.push({
         key: "declaration",
-        node: <DeclarationSection text={data.declaration} />,
+        node: <DeclarationSection text={declaration} />,
       });
     }
 
@@ -209,7 +221,14 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     if (p2.length > 0) pages.push(p2);
     return pages;
   }, [
-    data,
+    aboutMe,
+    academicInterests,
+    languages,
+    englishCertificate,
+    skills,
+    hobbies,
+    recommendations,
+    declaration,
     educationEntries,
     internshipEntries,
     projectEntries,
@@ -404,8 +423,8 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     }
 
     // Sequence of sections to place:
-    if (data.aboutMe && data.aboutMe.trim().length > 0) {
-      placeAtomic("about", <AboutSection text={data.aboutMe} />);
+    if (aboutMe && aboutMe.trim().length > 0) {
+      placeAtomic("about", <AboutSection text={aboutMe} />);
     }
 
     placeSplittable(
@@ -422,10 +441,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       (sub, t) => <InternshipSection entries={sub} title={t} />
     );
 
-    if (data.academicInterests && data.academicInterests.length > 0) {
+    if (academicInterests && academicInterests.length > 0) {
       placeAtomic(
         "academicInterests",
-        <AcademicInterestsSection entries={data.academicInterests} />
+        <AcademicInterestsSection entries={academicInterests} />
       );
     }
 
@@ -464,42 +483,42 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       (sub, t) => <CertificationsSection entries={sub} title={t} />
     );
 
-    if (data.languages && data.languages.length > 0) {
+    if (languages && languages.length > 0) {
       placeAtomic(
         "languages",
-        <LanguageSkillsSection entries={data.languages} />
+        <LanguageSkillsSection entries={languages} />
       );
     }
 
     if (
-      data.englishCertificate &&
-      (data.englishCertificate.examName || data.englishCertificate.score)
+      englishCertificate &&
+      (englishCertificate.examName || englishCertificate.score)
     ) {
       placeAtomic(
         "englishCertificate",
-        <EnglishCertificateSection cert={data.englishCertificate} />
+        <EnglishCertificateSection cert={englishCertificate} />
       );
     }
 
-    if (data.skills && data.skills.length > 0) {
-      placeAtomic("skills", <SkillsSection entries={data.skills} />);
+    if (skills && skills.length > 0) {
+      placeAtomic("skills", <SkillsSection entries={skills} />);
     }
 
-    if (data.hobbies && data.hobbies.length > 0) {
-      placeAtomic("hobbies", <HobbiesSection entries={data.hobbies} />);
+    if (hobbies && hobbies.length > 0) {
+      placeAtomic("hobbies", <HobbiesSection entries={hobbies} />);
     }
 
-    if (data.recommendations && data.recommendations.length > 0) {
+    if (recommendations && recommendations.length > 0) {
       placeAtomic(
         "recommendations",
-        <RecommendationsSection entries={data.recommendations} />
+        <RecommendationsSection entries={recommendations} />
       );
     }
 
-    if (data.declaration && data.declaration.trim().length > 0) {
+    if (declaration && declaration.trim().length > 0) {
       placeAtomic(
         "declaration",
-        <DeclarationSection text={data.declaration} />
+        <DeclarationSection text={declaration} />
       );
     }
 
@@ -507,7 +526,14 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       arePagesEqual(prev, computedPages) ? prev : computedPages
     );
   }, [
-    data,
+    aboutMe,
+    academicInterests,
+    languages,
+    englishCertificate,
+    skills,
+    hobbies,
+    recommendations,
+    declaration,
     educationEntries,
     internshipEntries,
     projectEntries,
