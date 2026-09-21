@@ -56,7 +56,11 @@ function renderFormatted(text: string) {
  *   - Document approval gates
  *   - Official Embassy PDF Generation & Download
  */
-export function SopWorkspace() {
+export interface SopWorkspaceProps {
+  initialDraft?: SopDraftRecord;
+}
+
+export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   // ── Static fixtures (template & initial test ctx) ────────────────────────
   const application = useMemo(() => getApplication(), []);
   const template    = useMemo(() => getTemplate(application.templateId), [application]);
@@ -66,10 +70,14 @@ export function SopWorkspace() {
   const firstSectionId = sections.slice().sort((a, b) => a.order - b.order)[0]?.id ?? null;
 
   // ── Phase 2.6: Dynamic student context ───────────────────────────────────
-  // ctx starts from test data; replaced when a real student is loaded.
-  const [ctx, setCtx] = useState<StudentDocumentContext>(testCtx);
-  const [currentSource, setCurrentSource] = useState<DataSource>("test-data");
-  const [loadedStudentName, setLoadedStudentName] = useState<string | undefined>(undefined);
+  // ctx starts from test data; replaced when a real student is loaded or passed via initialDraft.
+  const [ctx, setCtx] = useState<StudentDocumentContext>(() => initialDraft?.ctx ?? testCtx);
+  const [currentSource, setCurrentSource] = useState<DataSource>(
+    () => initialDraft?.currentSource ?? (initialDraft ? "live-crm" : "test-data")
+  );
+  const [loadedStudentName, setLoadedStudentName] = useState<string | undefined>(
+    () => initialDraft?.loadedStudentName ?? initialDraft?.studentName
+  );
   const isStudentLoaded = currentSource !== "test-data";
 
   // ── Phase 2.6: Overwrite-confirmation modal ───────────────────────────────
@@ -81,9 +89,11 @@ export function SopWorkspace() {
   // ── UI state ──────────────────────────────────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [savedNoticeText, setSavedNoticeText] = useState<string | null>(null);
-  const [docApproved, setDocApproved] = useState(false);
-  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
+    initialDraft ? `✓ Document ${initialDraft.id} loaded for review` : null
+  );
+  const [docApproved, setDocApproved] = useState(initialDraft?.docApproved ?? false);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(initialDraft?.id ?? null);
   const [draftsModalOpen, setDraftsModalOpen] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -95,15 +105,23 @@ export function SopWorkspace() {
     message: string;
   } | null>(null);
 
-  // Per-section content — start from template originals
-  const [sectionContents, setSectionContents] = useState<Record<string, string>>(
-    () => Object.fromEntries(sections.map((s) => [s.id, s.content]))
-  );
+  // Per-section content — start from initialDraft or template originals
+  const [sectionContents, setSectionContents] = useState<Record<string, string>>(() => {
+    const base = Object.fromEntries(sections.map((s) => [s.id, s.content]));
+    if (initialDraft?.sectionContents) {
+      return { ...base, ...initialDraft.sectionContents };
+    }
+    return base;
+  });
 
   // Per-section review status
-  const [sectionStatuses, setSectionStatuses] = useState<Record<string, ReviewStatus>>(
-    () => Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
-  );
+  const [sectionStatuses, setSectionStatuses] = useState<Record<string, ReviewStatus>>(() => {
+    const base = Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
+    if (initialDraft?.sectionStatuses) {
+      return { ...base, ...initialDraft.sectionStatuses };
+    }
+    return base;
+  });
 
   // Derived: has counsellor made any edits?
   const hasEdits = useMemo(() => {
