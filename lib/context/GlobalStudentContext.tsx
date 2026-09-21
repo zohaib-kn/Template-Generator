@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * GlobalStudentContext
@@ -124,12 +124,28 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      setSelectedStudentData(json.data as CrmSnapshot);
+      const snapshot = json.data as CrmSnapshot;
+      setSelectedStudentData(snapshot);
+      const personal = snapshot.student?.personalDetails;
+      const fullName = personal ? [personal.firstName, personal.lastName].filter(Boolean).join(" ") : null;
+      if (fullName) {
+        setSelectedStudentName(fullName);
+      }
       setLoadStatus({ kind: "success" });
     } catch {
       setLoadStatus({ kind: "error", message: "Network error loading student data." });
     }
   }, [students]);
+
+  // ── Auto-select student if studentId is present in URL search params ─────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlStudentId = urlParams.get("studentId");
+    if (urlStudentId && urlStudentId !== selectedStudentId) {
+      selectStudent(urlStudentId);
+    }
+  }, [selectStudent, selectedStudentId]);
 
   const clearStudent = useCallback(() => {
     setSelectedStudentId(null);
