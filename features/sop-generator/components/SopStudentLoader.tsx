@@ -27,7 +27,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import type { StudentDocumentContext } from "../types/sop-generator";
+import type { StudentDocumentContext, DataSource } from "../types/sop-generator";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
 import {
@@ -41,7 +41,7 @@ import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 // Types
 // ---------------------------------------------------------------------------
 
-export type DataSource = "live-crm" | "cached-crm" | "test-data";
+export type { DataSource };
 
 export interface SopStudentLoadedPayload {
   ctx: StudentDocumentContext;

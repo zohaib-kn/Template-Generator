@@ -30,6 +30,8 @@ interface WebhookToolbarProps {
   onTargetDetected?: (target: Partial<ApplicationTarget>) => void;
   /** Called with the full raw CRM snapshot for the RawDataPanel. */
   onRawSnapshot?: (snapshot: CrmSnapshot | null, source: "crm-api" | "mock") => void;
+  /** Called when a student is loaded or cleared so the shell can reset active draft IDs. */
+  onStudentLoaded?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,7 +52,11 @@ interface WebhookToolbarProps {
  *     → updates ApplicationTarget → triggers Admissions Guidance & Profile Suggestions
  *     → supports switching active program when multiple applications exist
  */
-export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolbarProps = {}) {
+export function WebhookToolbar({
+  onTargetDetected,
+  onRawSnapshot,
+  onStudentLoaded,
+}: WebhookToolbarProps = {}) {
   const { data, loadTestStudent, loadStudent, reset } = useDocumentState();
   const { selectedStudentData, loadStatus: globalLoadStatus, selectedStudentId } = useGlobalStudent();
 
@@ -86,6 +92,7 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
 
     loadStudent(student);
 
+    if (onStudentLoaded) onStudentLoaded();
     if (target && onTargetDetected) onTargetDetected(target);
     if (onRawSnapshot) onRawSnapshot(rawSnapshot, "crm-api");
 
@@ -171,6 +178,7 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
               id="webhook-clear-btn"
               onClick={() => {
                 reset();
+                if (onStudentLoaded) onStudentLoaded();
                 setSendStatus({ kind: "idle" });
                 setFetchStatus({ kind: "idle" });
                 setAvailablePrograms([]);
@@ -187,6 +195,7 @@ export function WebhookToolbar({ onTargetDetected, onRawSnapshot }: WebhookToolb
               id="webhook-load-btn"
               onClick={() => {
                 loadTestStudent();
+                if (onStudentLoaded) onStudentLoaded();
                 setSendStatus({ kind: "idle" });
                 setFetchStatus({ kind: "idle" });
                 setAvailablePrograms([]);

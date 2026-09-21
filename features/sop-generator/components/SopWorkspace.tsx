@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import type { ReviewStatus, StudentDocumentContext } from "../types/sop-generator";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import type { ReviewStatus, StudentDocumentContext, SopDraftRecord } from "../types/sop-generator";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { SectionSidebar } from "./SectionSidebar";
 import { SectionEditor } from "./SectionEditor";
@@ -14,6 +14,8 @@ import { validateDocumentContext, hasErrors } from "../lib/validateDocumentConte
 import { interpolate } from "../lib/interpolateTemplate";
 import { useSopPdfGenerator } from "../hooks/useSopPdfGenerator";
 import { AppHeader } from "@/components/common/AppHeader";
+import { SopDraftsModal } from "./SopDraftsModal";
+import { getAllDrafts, saveDraft } from "../lib/sopDraftStorage";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -79,8 +81,13 @@ export function SopWorkspace() {
   // ── UI state ──────────────────────────────────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [savedNoticeText, setSavedNoticeText] = useState<string | null>(null);
   const [docApproved, setDocApproved] = useState(false);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [draftsModalOpen, setDraftsModalOpen] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [recoveryBanner, setRecoveryBanner] = useState<SopDraftRecord | null>(null);
   const [regeneratingSectionId, setRegeneratingSectionId] = useState<string | null>(null);
   const [isGeneratingAllAi, setIsGeneratingAllAi] = useState(false);
   const [aiBannerNotice, setAiBannerNotice] = useState<{
@@ -117,6 +124,15 @@ export function SopWorkspace() {
     downloadPdf,
   } = useSopPdfGenerator();
   const isGeneratingPdf = pdfStatus === "generating";
+
+  // ── Check saved drafts on initial mount ──────────────────────────────────
+  useEffect(() => {
+    const all = getAllDrafts();
+    setDraftCount(all.length);
+    if (all.length > 0) {
+      setRecoveryBanner(all[0]);
+    }
+  }, []);
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const requiredSections = sections.filter((s) => s.required);
@@ -175,6 +191,7 @@ export function SopWorkspace() {
     setCtx(testCtx);
     setCurrentSource("test-data");
     setLoadedStudentName(undefined);
+    setActiveDraftId(null);
     setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
     setSectionStatuses(
       Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
@@ -184,6 +201,7 @@ export function SopWorkspace() {
 
   function handleConfirmOverwrite() {
     if (pendingPayload) {
+      setActiveDraftId(null);
       // Also reset section contents on overwrite
       setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
       applyStudentPayload(pendingPayload);
@@ -342,8 +360,60 @@ export function SopWorkspace() {
   }
 
   function handleSaveDraft() {
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    setIsSavingDraft(true);
+    try {
+      const displayName = loadedStudentName || application.studentName;
+      const targetCourse = ctx.destination.course || "General Course";
+      const targetUni = ctx.destination.university || "Target University";
+
+      const saved = saveDraft({
+        id: activeDraftId || undefined,
+        studentName: displayName,
+        course: targetCourse,
+        university: targetUni,
+        templateId: template.id,
+        sectionContents,
+        sectionStatuses,
+        docApproved,
+        ctx,
+        currentSource,
+        loadedStudentName,
+      });
+
+      setActiveDraftId(saved.id);
+      setDraftCount(getAllDrafts().length);
+      setRecoveryBanner(null);
+
+      const timeStr = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setSavedNoticeText(`✓ Draft saved locally at ${timeStr}.`);
+      setTimeout(() => setSavedNoticeText(null), 3500);
+    } catch (err) {
+      console.error("[SOP Save Draft Error]:", err);
+      setSavedNoticeText("⚠️ Failed to save draft locally.");
+      setTimeout(() => setSavedNoticeText(null), 4000);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  function handleRestoreDraft(draft: SopDraftRecord) {
+    setCtx(draft.ctx);
+    setCurrentSource(draft.currentSource || "test-data");
+    setLoadedStudentName(draft.loadedStudentName || draft.studentName);
+    setSectionContents(draft.sectionContents);
+    setSectionStatuses(draft.sectionStatuses);
+    setDocApproved(draft.docApproved);
+    setActiveDraftId(draft.id);
+    setRecoveryBanner(null);
+    setSavedNoticeText(`✓ Restored draft for "${draft.studentName}".`);
+    setTimeout(() => setSavedNoticeText(null), 3500);
+  }
+
+  function handleDismissRecovery() {
+    setRecoveryBanner(null);
   }
 
   function handleApproveDocument() {
@@ -390,6 +460,9 @@ export function SopWorkspace() {
         totalCount={sections.length}
         hasErrors={documentHasErrors}
         onSaveDraft={handleSaveDraft}
+        isSavingDraft={isSavingDraft}
+        draftCount={draftCount}
+        onOpenDrafts={() => setDraftsModalOpen(true)}
         onPreview={() => setPreviewOpen(true)}
         onApproveDocument={handleApproveDocument}
         onApproveAll={handleApproveAll}
@@ -407,6 +480,44 @@ export function SopWorkspace() {
         loadedStudentName={loadedStudentName}
         currentSource={currentSource}
       />
+
+      {/* Quick recovery banner */}
+      {recoveryBanner && (
+        <div
+          role="alert"
+          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200
+                     text-amber-900 text-xs font-medium flex items-center justify-between gap-4"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📁</span>
+            <span>
+              Found a saved draft for{" "}
+              <strong className="font-semibold text-amber-950">
+                {recoveryBanner.studentName}
+              </strong>
+              {recoveryBanner.course ? ` (${recoveryBanner.course})` : ""}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              id="sop-resume-draft-btn"
+              onClick={() => handleRestoreDraft(recoveryBanner)}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+            >
+              Resume Editing
+            </button>
+            <button
+              id="sop-dismiss-recovery-btn"
+              onClick={handleDismissRecovery}
+              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs"
+              title="Dismiss banner"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* AI banner notice */}
       {aiBannerNotice && (
@@ -432,7 +543,7 @@ export function SopWorkspace() {
       )}
 
       {/* Save notice */}
-      {savedNotice && (
+      {savedNoticeText && (
         <div
           role="status"
           aria-live="polite"
@@ -440,7 +551,7 @@ export function SopWorkspace() {
                      text-[#096491] text-xs font-medium flex items-center gap-1.5"
         >
           <span>✓</span>
-          <span>Draft saved locally.</span>
+          <span>{savedNoticeText}</span>
         </div>
       )}
 
@@ -566,6 +677,14 @@ export function SopWorkspace() {
           </div>
         </div>
       )}
+
+      {/* Saved Drafts Modal */}
+      <SopDraftsModal
+        isOpen={draftsModalOpen}
+        onClose={() => setDraftsModalOpen(false)}
+        onLoadDraft={handleRestoreDraft}
+        onDraftsChange={() => setDraftCount(getAllDrafts().length)}
+      />
 
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}
       <div

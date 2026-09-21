@@ -9,6 +9,9 @@ interface WorkspaceHeaderProps {
   totalCount: number;
   hasErrors: boolean;
   onSaveDraft: () => void;
+  draftCount?: number;
+  onOpenDrafts?: () => void;
+  isSavingDraft?: boolean;
   onPreview: () => void;
   onApproveDocument: () => void;
   onApproveAll?: () => void;
@@ -37,6 +40,9 @@ export function WorkspaceHeader({
   totalCount,
   hasErrors,
   onSaveDraft,
+  draftCount = 0,
+  onOpenDrafts,
+  isSavingDraft = false,
   onPreview,
   onApproveDocument,
   onApproveAll,
@@ -136,13 +142,33 @@ export function WorkspaceHeader({
 
         {/* Right: action buttons */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* View Saved Drafts */}
+          {onOpenDrafts && (
+            <button
+              id="sop-open-drafts-btn"
+              onClick={onOpenDrafts}
+              className="h-9 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors shadow-xs flex items-center gap-1.5"
+              title="View saved drafts on this device"
+            >
+              <span className="text-xs">📁</span>
+              <span>Drafts</span>
+              {draftCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#096491] text-white leading-none">
+                  {draftCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Save Draft */}
           <button
             id="sop-save-draft-btn"
             onClick={onSaveDraft}
-            className="h-9 px-3.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors shadow-xs"
+            disabled={isSavingDraft}
+            className="h-9 px-3.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-60"
           >
-            Save Draft
+            <span className="text-xs">💾</span>
+            <span>{isSavingDraft ? "Saving…" : "Save Draft"}</span>
           </button>
 
           {/* Generate All AI */}
