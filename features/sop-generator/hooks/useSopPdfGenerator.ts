@@ -5,13 +5,20 @@ import { generateSopPdf, type SopPdfNamingOptions } from "../pdf/generateSopPdf"
 
 export type SopPdfStatus = "idle" | "generating" | "success" | "error";
 
+export interface SopPdfGenerationResult {
+  success: boolean;
+  pdfBase64?: string;
+  filename?: string;
+  errorMessage?: string | null;
+}
+
 export interface UseSopPdfGeneratorReturn {
   status: SopPdfStatus;
   errorMessage: string | null;
   downloadPdf: (
     targetElement: HTMLElement,
     options?: SopPdfNamingOptions
-  ) => Promise<boolean>;
+  ) => Promise<SopPdfGenerationResult>;
   resetStatus: () => void;
 }
 
@@ -23,14 +30,18 @@ export function useSopPdfGenerator(): UseSopPdfGeneratorReturn {
     async (
       targetElement: HTMLElement,
       options?: SopPdfNamingOptions
-    ): Promise<boolean> => {
+    ): Promise<SopPdfGenerationResult> => {
       setStatus("generating");
       setErrorMessage(null);
 
       try {
-        await generateSopPdf(targetElement, options);
+        const result = await generateSopPdf(targetElement, options);
         setStatus("success");
-        return true;
+        return {
+          success: true,
+          pdfBase64: result?.pdfBase64,
+          filename: result?.filename,
+        };
       } catch (err: unknown) {
         const message =
           err instanceof Error
@@ -38,7 +49,7 @@ export function useSopPdfGenerator(): UseSopPdfGeneratorReturn {
             : "An unexpected error occurred during PDF generation.";
         setErrorMessage(message);
         setStatus("error");
-        return false;
+        return { success: false, errorMessage: message };
       }
     },
     []

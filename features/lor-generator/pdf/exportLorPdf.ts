@@ -41,7 +41,7 @@ async function waitForImages(element: HTMLElement): Promise<void> {
 export async function exportLorPdf(
   elementId: string,
   doc: LorDocument
-): Promise<void> {
+): Promise<{ filename: string; pdfBase64: string }> {
   const targetElement = document.getElementById(elementId);
   if (!targetElement) {
     throw new Error(`Target container #${elementId} not found in DOM.`);
@@ -121,8 +121,10 @@ export async function exportLorPdf(
   const recommenderPart = sanitizeName(doc.recommender.fullName) || "Recommender";
   const year = new Date().getFullYear();
   const filename = `LOR_${studentPart}_${recommenderPart}_${year}.pdf`;
+  const pdfBase64 = pdf.output("datauristring");
 
   pdf.save(filename);
+  return { filename, pdfBase64 };
 }
 
 /**

@@ -6,6 +6,7 @@
 
 import { CanonicalDocumentData } from "../documents/canonicalDocument";
 import { DocumentPlan } from "../documents/documentPlanner";
+import { STUDENT_VOICE_GUIDELINES, HUMANIZATION_PASS_CHECKLIST } from "./studentVoiceGuidelines";
 
 export function buildSopPrompt(
   data: CanonicalDocumentData,
@@ -23,17 +24,20 @@ export function buildSopPrompt(
   return `DOCUMENT TYPE: STATEMENT OF PURPOSE (SOP)
 
 OBJECTIVE:
-Write a compelling, scholarly, and authentic Statement of Purpose for admission to "${data.course.officialName}" at "${data.university.officialName}".
+Write an authentic, sincere, and compelling Statement of Purpose for admission to "${data.course.officialName}" at "${data.university.officialName}".
+The essay must sound like it was written by a real, motivated student applying for higher studies abroad.
 
 STRUCTURAL PLAN:
-Develop a cohesive, well-flowing academic essay following this blueprint:
+Develop a cohesive, well-flowing essay following this blueprint:
 
 ${planInstructions}
 
-CRITICAL RULES FOR STATEMENT OF PURPOSE:
+${STUDENT_VOICE_GUIDELINES}
+
+CRITICAL SOP AUDIENCE & ADMISSIONS RULES:
 1. Academic Perspective:
    - Written in the applicant's first-person voice ("I").
-   - Tone: Reflective, academically driven, purposeful, and intellectually mature. Creativity: MEDIUM.
+   - Serious, thoughtful, motivated, and capable student tone.
 2. STRICT PROHIBITIONS:
    - NEVER mention bank account balances, financial net worth, tuition loans, or financial sponsorship.
    - NEVER mention visa insurance policies, health insurance coverage, flight tickets, PNR numbers, or accommodation lease bookings.
@@ -41,13 +45,15 @@ CRITICAL RULES FOR STATEMENT OF PURPOSE:
    - DO NOT use childish opening clichés (e.g. "Ever since I was a child", "Since time immemorial").
 3. Facts & Specificity:
    - Ground academic discussion in actual subjects studied (${data.education.subjects.join(", ") || "core disciplines"}) and the target curriculum.
-   - If projects or work experience are provided, discuss their technical substance, methodologies, and lessons learned.
-   - If projects or work experience are NOT provided, do NOT invent fictional companies, clients, or research papers. Focus on academic coursework and problem-solving.
+   - If projects or work experience are provided, discuss their actual substance, tools, and lessons learned.
+   - If projects or work experience are NOT provided, do NOT invent fictional companies, clients, or research papers. Focus on academic coursework, personal motivation, and problem-solving.
 4. Natural Semantic Variation & Syntax:
-   - Vary sentence structures naturally. Avoid repeatedly starting sentences with "I chose", "I want", "I intend", or "My goal is".
-   - Avoid generic marketing buzzwords ("prestigious institution", "world-class", "perfectly aligns", "transformative journey", "academic excellence").
+   - Vary sentence structures naturally. Mix short, medium, and longer sentences.
+   - Strictly avoid overly academic jargon and corporate buzzwords ("rigorous analytical foundation", "comprehensive training tailored to contemporary technical standards", "prestigious institution", "world-class", "perfectly aligns", "transformative journey").
 5. Official Names:
    - The official course name ("${data.course.officialName}") and university name ("${data.university.officialName}") must remain consistent on first reference.
+
+${HUMANIZATION_PASS_CHECKLIST}
 
 OUTPUT FORMAT:
 Return a cohesive, multi-paragraph Statement of Purpose with clean paragraph breaks.

@@ -23,3 +23,4 @@ export * from "./examples/exampleRetriever";
 export * from "./gemini/geminiClient";
 export * from "./gemini/promptBuilder";
 export * from "./gemini/generateDocument";
+export * from "./prompts/studentVoiceGuidelines";

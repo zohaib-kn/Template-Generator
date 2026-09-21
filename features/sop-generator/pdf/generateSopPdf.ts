@@ -58,7 +58,7 @@ export function buildSopFilename(options?: SopPdfNamingOptions): string {
 export async function generateSopPdf(
   targetElement: HTMLElement,
   options?: SopPdfNamingOptions
-): Promise<void> {
+): Promise<{ filename: string; pdfBase64: string }> {
   const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
     import("html2canvas"),
     import("jspdf"),
@@ -131,8 +131,9 @@ export async function generateSopPdf(
     const imgData = canvas.toDataURL("image/jpeg", 0.98);
     pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM);
     const filename = buildSopFilename(options);
+    const pdfBase64 = pdf.output("datauristring");
     pdf.save(filename);
-    return;
+    return { filename, pdfBase64 };
   }
 
   // Multi-page slicing for longer documents if ever needed
@@ -177,5 +178,7 @@ export async function generateSopPdf(
   }
 
   const filename = buildSopFilename(options);
+  const pdfBase64 = pdf.output("datauristring");
   pdf.save(filename);
+  return { filename, pdfBase64 };
 }

@@ -23,7 +23,8 @@ export type WebhookDocumentStatus =
   | "GENERATED"
   | "NEEDS_REVIEW"
   | "FAILED"
-  | "VALIDATION_FAILED";
+  | "VALIDATION_FAILED"
+  | "FINALIZED";
 
 export interface GenerateDocumentRequest {
   documentType: DocumentType | string;
@@ -52,10 +53,12 @@ export type WebhookErrorCode =
   | "INVALID_REQUEST"
   | "UNAUTHORIZED"
   | "STUDENT_NOT_FOUND"
+  | "DOCUMENT_NOT_FOUND"
   | "UNSUPPORTED_DOCUMENT_TYPE"
   | "TEMPLATE_NOT_FOUND"
   | "VALIDATION_FAILED"
   | "GENERATION_FAILED"
+  | "DOCUMENT_NOT_FINALIZED"
   | "INTERNAL_ERROR";
 
 export interface WebhookErrorResponse {
@@ -86,4 +89,8 @@ export interface DocumentRecord {
   normalizedProfile: NormalizedStudentProfile;
   sopContext?: StudentDocumentContext;
   metadata?: Record<string, unknown>;
+  pdfBase64?: string;
+  pdfFileName?: string;
+  pdfGeneratedAt?: string;
 }
+
