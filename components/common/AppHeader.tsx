@@ -122,6 +122,11 @@ const NAV_TABS: NavTab[] = [
 
 interface AppHeaderProps {
   target?: { destinationCountry?: string };
+  onNewResume?: () => void;
+  onSaveDraft?: () => void;
+  onOpenDrafts?: () => void;
+  draftCount?: number;
+  isSavingDraft?: boolean;
 }
 
 /**
@@ -131,8 +136,16 @@ interface AppHeaderProps {
  *   - Brand logo + product name
  *   - Tool navigation tabs (Resume Builder | SOP Generator | LOR Generator)
  *   - PDF generation controls (Resume Builder only)
+ *   - Local draft persistence controls (Resume Builder only)
  */
-export function AppHeader({ target: _target }: AppHeaderProps = {}) {
+export function AppHeader({
+  target: _target,
+  onNewResume,
+  onSaveDraft,
+  onOpenDrafts,
+  draftCount = 0,
+  isSavingDraft = false,
+}: AppHeaderProps = {}) {
   const pathname = usePathname();
 
   // Resume Builder is the root route. Exact match to avoid false positives.
@@ -204,8 +217,49 @@ export function AppHeader({ target: _target }: AppHeaderProps = {}) {
           })}
         </nav>
 
-        {/* ── Right: PDF controls (Resume Builder only) ── */}
-        <div className="flex items-center gap-3">
+        {/* ── Right: Drafts & PDF controls (Resume Builder only) ── */}
+        <div className="flex items-center gap-2">
+          {isResumeRoute && onNewResume && (
+            <button
+              id="resume-new-btn"
+              onClick={onNewResume}
+              className="h-8 px-2.5 rounded-lg border border-white/20 text-white/90 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1 shadow-xs"
+              title="Start a new blank resume"
+            >
+              <span className="text-xs font-bold">+</span>
+              <span>New</span>
+            </button>
+          )}
+
+          {isResumeRoute && onOpenDrafts && (
+            <button
+              id="resume-open-drafts-btn"
+              onClick={onOpenDrafts}
+              className="h-8 px-2.5 rounded-lg border border-white/20 text-white/90 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+              title="View saved resume drafts on this device"
+            >
+              <span className="text-xs">📁</span>
+              <span>Drafts</span>
+              {draftCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gold text-[#0f1e30] leading-none">
+                  {draftCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {isResumeRoute && onSaveDraft && (
+            <button
+              id="resume-save-draft-btn"
+              onClick={onSaveDraft}
+              disabled={isSavingDraft}
+              className="h-8 px-3 rounded-lg border border-white/20 text-white/90 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+            >
+              <span className="text-xs">💾</span>
+              <span>{isSavingDraft ? "Saving…" : "Save Draft"}</span>
+            </button>
+          )}
+
           {isResumeRoute ? (
             <PdfControls />
           ) : (

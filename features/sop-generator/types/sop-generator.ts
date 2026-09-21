@@ -263,3 +263,22 @@ export interface SopSectionState {
 
 /** Map from section id → runtime state. */
 export type SopDocumentState = Record<string, SopSectionState>;
+
+/** Where the student data in the workspace was loaded from. */
+export type DataSource = "live-crm" | "cached-crm" | "test-data";
+
+/** Persisted draft record for localStorage or backend store. */
+export interface SopDraftRecord {
+  id: string;
+  studentName: string;
+  course: string;
+  university: string;
+  templateId: string;
+  savedAt: string; // ISO string
+  sectionContents: Record<string, string>;
+  sectionStatuses: Record<string, ReviewStatus>;
+  docApproved: boolean;
+  ctx: StudentDocumentContext;
+  currentSource: DataSource;
+  loadedStudentName?: string;
+}

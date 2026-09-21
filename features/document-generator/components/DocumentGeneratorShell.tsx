@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DocumentProvider } from "../state/DocumentContext";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SectionAccordion } from "./SectionAccordion";
 import { DocumentPreview } from "../preview/DocumentPreview";
 import { useDocumentState } from "../hooks/useDocumentState";
+import type { ResumeDraftRecord } from "../types/draft";
+import { ResumeDraftsModal } from "./ResumeDraftsModal";
+import { getAllResumeDrafts, saveResumeDraft } from "../lib/resumeDraftStorage";
 
 // Guidance system
 import type { ApplicationTarget } from "../guidance/types";
@@ -58,7 +61,16 @@ function getSectionGuidance(
  * and must never flow into DocumentData or the PDF template.
  */
 function GeneratorLayout() {
-  const { data } = useDocumentState();
+  const { data, loadStudent, reset } = useDocumentState();
+
+  // ── Draft management state ─────────────────────────────────────────────
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [activeDraftStudentName, setActiveDraftStudentName] = useState<string | null>(null);
+  const [draftsModalOpen, setDraftsModalOpen] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [savedNoticeText, setSavedNoticeText] = useState<string | null>(null);
+  const [recoveryBanner, setRecoveryBanner] = useState<ResumeDraftRecord | null>(null);
 
   // ── Application Target (editor-only, NOT in DocumentData) ───────────────
   const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({
@@ -72,6 +84,98 @@ function GeneratorLayout() {
     () => getAdmissionsGuidance(applicationTarget),
     [applicationTarget]
   );
+
+  // ── Check saved drafts on initial mount ──────────────────────────────────
+  useEffect(() => {
+    const all = getAllResumeDrafts();
+    setDraftCount(all.length);
+    if (all.length > 0) {
+      setRecoveryBanner(all[0]);
+    }
+  }, []);
+
+  function handleSaveDraft() {
+    setIsSavingDraft(true);
+    try {
+      const studentName = data.personal?.fullName?.trim() || "Unnamed Student";
+      const targetUni = applicationTarget.universityName || undefined;
+      const targetCourse = applicationTarget.intendedCourse || undefined;
+      const destCountry = applicationTarget.destinationCountry || undefined;
+
+      // If student name changed from what active draft was saved under,
+      // detach activeDraftId so we save as a new draft rather than overwriting!
+      const isDifferentStudent =
+        Boolean(activeDraftStudentName) &&
+        activeDraftStudentName?.toLowerCase() !== studentName.toLowerCase();
+
+      const targetDraftId = isDifferentStudent ? undefined : (activeDraftId || undefined);
+
+      const saved = saveResumeDraft({
+        id: targetDraftId,
+        studentName,
+        targetUniversity: targetUni,
+        intendedCourse: targetCourse,
+        destinationCountry: destCountry,
+        data,
+        applicationTarget,
+      });
+
+      setActiveDraftId(saved.id);
+      setActiveDraftStudentName(studentName);
+      setDraftCount(getAllResumeDrafts().length);
+      setRecoveryBanner(null);
+
+      const timeStr = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setSavedNoticeText(`✓ Resume draft saved locally at ${timeStr}.`);
+      setTimeout(() => setSavedNoticeText(null), 3500);
+    } catch (err) {
+      console.error("[Resume Save Draft Error]:", err);
+      setSavedNoticeText("⚠️ Failed to save resume draft locally.");
+      setTimeout(() => setSavedNoticeText(null), 4000);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  function handleRestoreDraft(draft: ResumeDraftRecord) {
+    loadStudent(draft.data);
+    if (draft.applicationTarget) {
+      setApplicationTarget(draft.applicationTarget);
+    }
+    setActiveDraftId(draft.id);
+    setActiveDraftStudentName(draft.studentName);
+    setRecoveryBanner(null);
+    setSavedNoticeText(`✓ Restored resume draft for "${draft.studentName}".`);
+    setTimeout(() => setSavedNoticeText(null), 3500);
+  }
+
+  function handleNewResume() {
+    reset();
+    setApplicationTarget({
+      destinationCountry: "United Kingdom",
+      degreeLevel: "Master's",
+      courseCategory: "Business / Management",
+      intendedCourse: "MSc Business Analytics",
+      universityName: "University of Manchester",
+    });
+    setActiveDraftId(null);
+    setActiveDraftStudentName(null);
+    setRecoveryBanner(null);
+    setSavedNoticeText("✓ Started a fresh blank resume.");
+    setTimeout(() => setSavedNoticeText(null), 3000);
+  }
+
+  function handleToolbarStudentLoaded() {
+    setActiveDraftId(null);
+    setActiveDraftStudentName(null);
+  }
+
+  function handleDismissRecovery() {
+    setRecoveryBanner(null);
+  }
 
   // ── Raw CRM snapshot (editor-only, for RawDataPanel) ───────────────────────
   const [rawSnapshot, setRawSnapshot] = useState<CrmSnapshot | null>(null);
@@ -101,7 +205,65 @@ function GeneratorLayout() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100">
-      <AppHeader target={applicationTarget} />
+      <AppHeader
+        target={applicationTarget}
+        onNewResume={handleNewResume}
+        onSaveDraft={handleSaveDraft}
+        onOpenDrafts={() => setDraftsModalOpen(true)}
+        draftCount={draftCount}
+        isSavingDraft={isSavingDraft}
+      />
+
+      {/* Quick recovery banner */}
+      {recoveryBanner && (
+        <div
+          role="alert"
+          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200
+                     text-amber-900 text-xs font-medium flex items-center justify-between gap-4 z-10"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm">📁</span>
+            <span>
+              Found a saved resume draft for{" "}
+              <strong className="font-semibold text-amber-950">
+                {recoveryBanner.studentName}
+              </strong>
+              {recoveryBanner.intendedCourse ? ` (${recoveryBanner.intendedCourse})` : ""}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              id="resume-resume-draft-btn"
+              onClick={() => handleRestoreDraft(recoveryBanner)}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+            >
+              Resume Editing
+            </button>
+            <button
+              id="resume-dismiss-recovery-btn"
+              onClick={handleDismissRecovery}
+              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs"
+              title="Dismiss banner"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save notice */}
+      {savedNoticeText && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex-shrink-0 px-6 py-2 bg-[#F0F7FA] border-b border-[#D2E7F0]
+                     text-[#096491] text-xs font-medium flex items-center gap-1.5 z-10"
+        >
+          <span>✓</span>
+          <span>{savedNoticeText}</span>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── Editor Panel ──────────────────────────────────────────────── */}
@@ -125,6 +287,7 @@ function GeneratorLayout() {
             <WebhookToolbar
               onTargetDetected={setApplicationTarget}
               onRawSnapshot={handleRawSnapshot}
+              onStudentLoaded={handleToolbarStudentLoaded}
             />
 
             {/* ── Raw Data Panel — shows all CRM fields (editor-only) ── */}
@@ -331,6 +494,15 @@ function GeneratorLayout() {
           </div>
         </section>
       </div>
+
+      {/* Saved Resume Drafts Modal */}
+      <ResumeDraftsModal
+        isOpen={draftsModalOpen}
+        onClose={() => setDraftsModalOpen(false)}
+        onLoadDraft={handleRestoreDraft}
+        onNewResume={handleNewResume}
+        onDraftsChange={() => setDraftCount(getAllResumeDrafts().length)}
+      />
     </div>
   );
 }
