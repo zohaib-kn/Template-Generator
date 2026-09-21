@@ -47,7 +47,32 @@ function WorkspaceInner() {
     setIsExporting(true);
     setExportError(null);
     try {
-      await exportLorPdf("lor-a4-preview-page", doc);
+      const result = await exportLorPdf("lor-a4-preview-page", doc);
+
+      if (result && result.pdfBase64 && typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        let targetDocId = urlParams.get("docId") || urlParams.get("documentId");
+        if (!targetDocId) {
+          const match = window.location.pathname.match(/\/lor-generator\/(DOC-[a-zA-Z0-9_-]+)/);
+          if (match) targetDocId = match[1];
+        }
+
+        if (targetDocId) {
+          try {
+            await fetch(`/api/documents/${targetDocId}/pdf`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                pdfBase64: result.pdfBase64,
+                fileName: result.filename,
+                status: "FINALIZED",
+              }),
+            });
+          } catch (syncErr) {
+            console.warn("[LorWorkspace] Failed to persist finalized PDF to server:", syncErr);
+          }
+        }
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to generate PDF";
       setExportError(message);

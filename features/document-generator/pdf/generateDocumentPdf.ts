@@ -107,7 +107,7 @@ async function waitForImages(root: HTMLElement): Promise<void> {
 export async function generateDocumentPdf(
   data: DocumentData,
   options?: PdfNamingOptions
-): Promise<void> {
+): Promise<{ filename: string; pdfBase64: string }> {
   // Dynamically import heavy libs only when the user actually clicks the button
   const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
     import("html2canvas"),
@@ -265,5 +265,7 @@ export async function generateDocumentPdf(
 
   // --- 6. Download ------------------------------------------------------------
   const filename = buildFilename(data, options);
+  const pdfBase64 = pdf.output("datauristring");
   pdf.save(filename);
+  return { filename, pdfBase64 };
 }

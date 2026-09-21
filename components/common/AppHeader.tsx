@@ -35,13 +35,36 @@ function PdfControls() {
   const { status, errorMessage, generate } = usePdfGenerator();
   const isGenerating = status === "generating";
 
+  const handleGenerate = async () => {
+    const result = await generate(data, {});
+    if (result?.success && result?.pdfBase64 && typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const docId = urlParams.get("docId") || urlParams.get("documentId");
+      if (docId) {
+        try {
+          await fetch(`/api/documents/${docId}/pdf`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64: result.pdfBase64,
+              fileName: result.filename,
+              status: "FINALIZED",
+            }),
+          });
+        } catch (err) {
+          console.warn("[Resume PDF Server Sync Failed]:", err);
+        }
+      }
+    }
+  };
+
   return (
     <>
       <Button
         variant="outline"
         size="sm"
         disabled={isGenerating}
-        onClick={() => generate(data, {})}
+        onClick={handleGenerate}
         className="border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 shadow-xs text-xs font-semibold disabled:opacity-50"
         aria-label="Generate and download PDF"
         id="generate-pdf-btn"

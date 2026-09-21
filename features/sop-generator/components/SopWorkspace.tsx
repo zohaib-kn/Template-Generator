@@ -266,7 +266,10 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     );
   }
 
-  async function handleRegenerateSection(sectionId: string) {
+  async function handleRegenerateSection(
+    sectionId: string,
+    mode: "generate" | "rewrite-natural" = "generate"
+  ) {
     const targetSection = sections.find((s) => s.id === sectionId);
     if (!targetSection) return;
 
@@ -281,6 +284,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           sectionTitle: targetSection.title,
           context: ctx,
           currentContent: sectionContents[sectionId] ?? targetSection.content,
+          mode,
         }),
       });
 
@@ -448,12 +452,45 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     // Use loaded student name if available; otherwise fall back to application
     const displayName = loadedStudentName || application.studentName;
 
-    await downloadPdf(target, {
+    const result = await downloadPdf(target, {
       studentName: displayName,
       country: ctx.destination.country,
       documentType: "Visa_Cover_Letter",
       year: 2026,
     });
+
+    if (result.success && result.pdfBase64) {
+      // Determine active document ID (from draft, query param, or pathname)
+      let targetDocId = activeDraftId;
+      if (!targetDocId && typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        targetDocId = urlParams.get("docId") || urlParams.get("documentId");
+        if (!targetDocId) {
+          const match = window.location.pathname.match(/\/sop-generator\/(DOC-[a-zA-Z0-9_-]+)/);
+          if (match) targetDocId = match[1];
+        }
+      }
+
+      if (targetDocId) {
+        try {
+          const res = await fetch(`/api/documents/${targetDocId}/pdf`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64: result.pdfBase64,
+              fileName: result.filename,
+              status: "FINALIZED",
+            }),
+          });
+          if (res.ok) {
+            setSavedNoticeText("✓ PDF generated and finalized on server.");
+            setTimeout(() => setSavedNoticeText(null), 4000);
+          }
+        } catch (err) {
+          console.warn("[SOP PDF Server Sync Failed]:", err);
+        }
+      }
+    }
   }
 
   // ── Selected section ──────────────────────────────────────────────────────

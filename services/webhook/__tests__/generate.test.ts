@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/documents/generate/route";
 import { GET as GET_DOC } from "@/app/api/documents/[documentId]/route";
+import { GET as GET_PDF, POST as POST_PDF } from "@/app/api/documents/[documentId]/pdf/route";
 import { clearAllDocuments } from "@/services/webhook/documentStore";
 import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_Kaavya.json";
 
@@ -263,5 +264,157 @@ describe("Unified Document Generation Webhook", () => {
     assert.strictEqual(getBody.success, true);
     assert.strictEqual(getBody.document.id, docId);
     assert.strictEqual(getBody.document.documentType, "SOP");
+  });
+
+  test("Scenario 11: GET /api/documents/[documentId]/pdf requires X-API-Key (401 UNAUTHORIZED)", async () => {
+    const getReq = new NextRequest("http://localhost:3000/api/documents/DOC-any/pdf", {
+      method: "GET",
+    });
+    const res = await GET_PDF(getReq, { params: Promise.resolve({ documentId: "DOC-any" }) });
+    const body = await res.json();
+
+    assert.strictEqual(res.status, 401);
+    assert.strictEqual(body.code, "UNAUTHORIZED");
+  });
+
+  test("Scenario 12: GET /api/documents/[documentId]/pdf returns 409 DOCUMENT_NOT_FINALIZED before PDF upload", async () => {
+    // 1. Create document
+    const genReq = makeRequest({
+      studentId: KNOWN_CACHED_STUDENT_ID,
+      documentType: "SOP",
+    });
+    const genRes = await POST(genReq);
+    const genBody = await genRes.json();
+    const docId = genBody.documentId;
+
+    // 2. Fetch PDF before generate PDF is clicked
+    const pdfReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "GET",
+      headers: { "X-API-Key": TEST_API_KEY },
+    });
+    const pdfRes = await GET_PDF(pdfReq, { params: Promise.resolve({ documentId: docId }) });
+    const pdfBody = await pdfRes.json();
+
+    assert.strictEqual(pdfRes.status, 409);
+    assert.strictEqual(pdfBody.success, false);
+    assert.strictEqual(pdfBody.code, "DOCUMENT_NOT_FINALIZED");
+    assert.ok(pdfBody.message.includes("isn't finalized yet"));
+  });
+
+  test("Scenario 13: POST /api/documents/[documentId]/pdf uploads PDF and marks document FINALIZED", async () => {
+    // 1. Create document
+    const genReq = makeRequest({
+      studentId: KNOWN_CACHED_STUDENT_ID,
+      documentType: "SOP",
+    });
+    const genRes = await POST(genReq);
+    const genBody = await genRes.json();
+    const docId = genBody.documentId;
+
+    // 2. Client uploads generated PDF
+    const dummyBase64 = Buffer.from("%PDF-1.4 mock pdf content").toString("base64");
+    const uploadReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pdfBase64: `data:application/pdf;base64,${dummyBase64}`,
+        fileName: "Kaavya_SOP_Final.pdf",
+      }),
+    });
+    const uploadRes = await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });
+    const uploadBody = await uploadRes.json();
+
+    assert.strictEqual(uploadRes.status, 200);
+    assert.strictEqual(uploadBody.success, true);
+    assert.strictEqual(uploadBody.status, "FINALIZED");
+    assert.strictEqual(uploadBody.fileName, "Kaavya_SOP_Final.pdf");
+  });
+
+  test("Scenario 14: GET /api/documents/[documentId]/pdf streams raw PDF binary once finalized", async () => {
+    // 1. Create and finalize document
+    const genReq = makeRequest({
+      studentId: KNOWN_CACHED_STUDENT_ID,
+      documentType: "SOP",
+    });
+    const genRes = await POST(genReq);
+    const genBody = await genRes.json();
+    const docId = genBody.documentId;
+
+    const mockContent = "%PDF-1.4 test binary stream content";
+    const dummyBase64 = Buffer.from(mockContent).toString("base64");
+    const uploadReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pdfBase64: dummyBase64,
+        fileName: "Kaavya_SOP_Final.pdf",
+      }),
+    });
+    await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });
+
+    // 2. GET binary PDF with API key
+    const getPdfReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "GET",
+      headers: { "X-API-Key": TEST_API_KEY },
+    });
+    const getPdfRes = await GET_PDF(getPdfReq, { params: Promise.resolve({ documentId: docId }) });
+
+    assert.strictEqual(getPdfRes.status, 200);
+    assert.strictEqual(getPdfRes.headers.get("content-type"), "application/pdf");
+    assert.ok(getPdfRes.headers.get("content-disposition")?.includes("Kaavya_SOP_Final.pdf"));
+    
+    const arrayBuffer = await getPdfRes.arrayBuffer();
+    const text = Buffer.from(arrayBuffer).toString();
+    assert.strictEqual(text, mockContent);
+  });
+
+  test("Scenario 15: GET /api/documents/[documentId]/pdf returns JSON when requested via Accept header", async () => {
+    // 1. Create and finalize
+    const genReq = makeRequest({
+      studentId: KNOWN_CACHED_STUDENT_ID,
+      documentType: "SOP",
+    });
+    const genRes = await POST(genReq);
+    const genBody = await genRes.json();
+    const docId = genBody.documentId;
+
+    const dummyBase64 = Buffer.from("%PDF-1.4 json response test").toString("base64");
+    const uploadReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pdfBase64: dummyBase64,
+        fileName: "Kaavya_SOP_Final.pdf",
+      }),
+    });
+    await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });
+
+    // 2. GET with Accept: application/json
+    const getPdfReq = new NextRequest(`http://localhost:3000/api/documents/${docId}/pdf`, {
+      method: "GET",
+      headers: {
+        "X-API-Key": TEST_API_KEY,
+        "Accept": "application/json",
+      },
+    });
+    const getPdfRes = await GET_PDF(getPdfReq, { params: Promise.resolve({ documentId: docId }) });
+    const jsonBody = await getPdfRes.json();
+
+    assert.strictEqual(getPdfRes.status, 200);
+    assert.strictEqual(jsonBody.success, true);
+    assert.strictEqual(jsonBody.status, "FINALIZED");
+    assert.strictEqual(jsonBody.pdfBase64, dummyBase64);
+  });
+
+  test("Scenario 16: GET /api/documents/[documentId]/pdf returns 404 for unknown document", async () => {
+    const getPdfReq = new NextRequest("http://localhost:3000/api/documents/DOC-nonexistent/pdf", {
+      method: "GET",
+      headers: { "X-API-Key": TEST_API_KEY },
+    });
+    const getPdfRes = await GET_PDF(getPdfReq, { params: Promise.resolve({ documentId: "DOC-nonexistent" }) });
+    const jsonBody = await getPdfRes.json();
+
+    assert.strictEqual(getPdfRes.status, 404);
+    assert.strictEqual(jsonBody.code, "DOCUMENT_NOT_FOUND");
   });
 });

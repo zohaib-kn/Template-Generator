@@ -153,6 +153,18 @@ export const PLAIN_LANGUAGE_TRANSFORMATIONS: Record<string, string> = {
   "lead digital transformation": "work on technology projects",
   "create sustainable competitive advantage": "help organizations operate effectively",
   "navigate complex global ecosystems": "work in diverse environments",
+  "rigorous analytical foundation": "strong academic background",
+  "comprehensive training tailored to contemporary technical standards": "coursework covering modern technical skills",
+  "practical execution of modern information systems": "practical work with computer systems",
+  "complex infrastructural networks": "modern network systems",
+  "mathematical rigor": "mathematics and problem solving",
+  "sophisticated technical framework": "strong technical foundation",
+  "multidisciplinary ecosystem": "diverse technical areas",
+  "dynamic technological landscape": "technology sector",
+  "transformative academic journey": "studies",
+  "cutting-edge environment": "modern learning environment",
+  "unparalleled opportunity": "great opportunity",
+  "architect and manage advanced information infrastructure": "work in software and network engineering",
 };
 
 
@@ -197,6 +209,17 @@ export const GENERIC_AI_PHRASES = [
   "unwavering support",
   "resolutely committed",
   "steadfast dedication",
+  "rigorous analytical foundation",
+  "comprehensive training tailored to contemporary technical standards",
+  "practical execution of modern information systems",
+  "complex infrastructural networks",
+  "mathematical rigor",
+  "sophisticated technical framework",
+  "multidisciplinary ecosystem",
+  "dynamic technological landscape",
+  "transformative academic journey",
+  "cutting-edge environment",
+  "unparalleled opportunity",
 ] as const;
 
 /**

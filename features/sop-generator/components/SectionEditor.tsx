@@ -162,7 +162,7 @@ interface SectionEditorProps {
   onContentChange: (newContent: string) => void;
   onReset: () => void;
   onApprove: () => void;
-  onRegenerate?: (sectionId: string) => Promise<void>;
+  onRegenerate?: (sectionId: string, mode?: "generate" | "rewrite-natural") => Promise<void>;
   isRegenerating?: boolean;
 }
 
@@ -194,14 +194,17 @@ export function SectionEditor({
   const resolved = interpolate(content, ctx);
   const isModified = content !== section.content;
 
-  async function handleRegenerateClick() {
+  async function handleRegenerateClick(mode: "generate" | "rewrite-natural" = "generate") {
     if (!onRegenerate) return;
     setRegenFeedback(null);
     try {
-      await onRegenerate(section.id);
+      await onRegenerate(section.id, mode);
       setRegenFeedback({
         type: "success",
-        message: `Tailored narrative for "${ctx.destination.course || section.title}" generated with Gemini AI.`,
+        message:
+          mode === "rewrite-natural"
+            ? `Narrative rewritten in natural student voice for "${ctx.destination.course || section.title}".`
+            : `Tailored narrative for "${ctx.destination.course || section.title}" generated with Gemini AI.`,
       });
       setTimeout(() => setRegenFeedback(null), 4500);
     } catch (err: unknown) {
@@ -210,7 +213,7 @@ export function SectionEditor({
         message:
           err instanceof Error
             ? err.message
-            : "Failed to regenerate narrative. Please try again.",
+            : "Failed to process narrative. Please try again.",
       });
     }
   }
@@ -259,8 +262,9 @@ export function SectionEditor({
             {section.regeneratable && (
               <button
                 id={`regenerate-${section.id}`}
-                onClick={handleRegenerateClick}
+                onClick={() => handleRegenerateClick("generate")}
                 disabled={isRegenerating}
+                title="Generate a new section narrative tailored to this student and degree"
                 className="h-8 px-3 rounded-lg border border-[#D2E7F0] text-[#096491] bg-[#F0F7FA] hover:bg-[#E2F0F7] text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isRegenerating ? (
@@ -284,7 +288,7 @@ export function SectionEditor({
                         d="M4 12a8 8 0 018-8v8H4z"
                       />
                     </svg>
-                    <span>Regenerating…</span>
+                    <span>Generating…</span>
                   </>
                 ) : (
                   <>
@@ -292,6 +296,20 @@ export function SectionEditor({
                     <span>Regenerate</span>
                   </>
                 )}
+              </button>
+            )}
+
+            {/* Rewrite in Natural Student Voice */}
+            {section.regeneratable && content && content.trim().length > 0 && (
+              <button
+                id={`rewrite-natural-${section.id}`}
+                onClick={() => handleRegenerateClick("rewrite-natural")}
+                disabled={isRegenerating}
+                title="Rewrite current paragraph in a sincere, believable student voice while strictly preserving all facts"
+                className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="text-[11px]">✍️</span>
+                <span>Rewrite Natural</span>
               </button>
             )}
 

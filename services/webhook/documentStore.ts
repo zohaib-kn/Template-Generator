@@ -57,6 +57,63 @@ export function getAllDocuments(): DocumentRecord[] {
   return Array.from(store.values());
 }
 
+export function updateDocument(
+  id: string,
+  updates: Partial<DocumentRecord>
+): DocumentRecord | null {
+  const existing = findById(id);
+  if (!existing) return null;
+
+  const updated: DocumentRecord = {
+    ...existing,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.set(existing.id, updated);
+  return updated;
+}
+
+export function savePdf(
+  documentId: string,
+  pdfBase64: string,
+  fileName?: string
+): DocumentRecord | null {
+  const existing = findById(documentId);
+  if (!existing) return null;
+
+  const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+
+  const updated: DocumentRecord = {
+    ...existing,
+    status: "FINALIZED",
+    pdfBase64: cleanBase64,
+    pdfFileName: fileName || `${existing.studentName || "Document"}_Final.pdf`,
+    pdfGeneratedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.set(existing.id, updated);
+  return updated;
+}
+
+export function getPdf(
+  documentId: string
+): { buffer: Buffer; fileName: string; status: string } | null {
+  const doc = findById(documentId);
+  if (!doc || !doc.pdfBase64) return null;
+
+  const cleanBase64 = doc.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+  const buffer = Buffer.from(cleanBase64, "base64");
+  const fileName = doc.pdfFileName || `${doc.studentName || "Document"}_Final.pdf`;
+
+  return {
+    buffer,
+    fileName,
+    status: doc.status,
+  };
+}
+
 /** Clears all stored documents (primarily used for test cleanup). */
 export function clearAllDocuments(): void {
   store.clear();
