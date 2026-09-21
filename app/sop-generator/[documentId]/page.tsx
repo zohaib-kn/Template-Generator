@@ -4,15 +4,24 @@ import { findById } from "@/services/webhook/documentStore";
 import { SopWorkspace } from "@/features/sop-generator/components/SopWorkspace";
 import { getStudentDocumentContext } from "@/features/sop-generator/lib/applicationService";
 import type { SopDraftRecord } from "@/features/sop-generator/types/sop-generator";
+import { resolveStudentProfile } from "@/services/webhook/normalizeRequest";
+import { SopDocumentGenerator } from "@/services/webhook/generators/sopGenerator";
+import type { DocumentRecord } from "@/services/webhook/types";
 
 interface PageProps {
   params: Promise<{ documentId: string }>;
+  searchParams: Promise<{ studentId?: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { documentId } = await params;
+  const query = await searchParams;
   const doc = findById(documentId);
-  const title = doc ? `Review: ${doc.studentName} — SOP Generator` : "Document Review — SOP Generator";
+  const title = doc
+    ? `Review: ${doc.studentName} — SOP Generator`
+    : query?.studentId
+    ? `Review: Student (${query.studentId}) — SOP Generator`
+    : "Document Review — SOP Generator";
 
   return {
     title,
@@ -20,9 +29,38 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default async function SopDocumentReviewPage({ params }: PageProps) {
+export default async function SopDocumentReviewPage({ params, searchParams }: PageProps) {
   const { documentId } = await params;
-  const doc = findById(documentId);
+  const query = await searchParams;
+  let doc: DocumentRecord | null = findById(documentId);
+
+  // Auto-recovery for Vercel serverless where memory store resets across lambda instances:
+  if (!doc && query?.studentId?.trim()) {
+    try {
+      const studentId = query.studentId.trim();
+      const profile = await resolveStudentProfile({ studentId, documentType: "SOP" });
+      const sopGen = new SopDocumentGenerator();
+      const genResult = await sopGen.generate(profile);
+      doc = {
+        id: documentId,
+        studentId,
+        studentName: profile.personal.fullName || "Student",
+        documentType: "SOP",
+        templateId: genResult.templateId,
+        status: genResult.status,
+        reviewUrl: `/sop-generator/${documentId}?studentId=${studentId}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        sectionContents: genResult.sectionContents,
+        sectionStatuses: genResult.sectionStatuses,
+        validationIssues: genResult.validationIssues,
+        normalizedProfile: profile,
+        sopContext: genResult.sopContext,
+      };
+    } catch (err) {
+      console.warn(`[Review Page] Dynamic student recovery failed for ${query.studentId}:`, err);
+    }
+  }
 
   if (!doc) {
     return (

@@ -203,11 +203,11 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
   const studentName = normalizedProfile.personal.fullName || "Student";
 
-  let reviewUrl = `/sop-generator/${documentId}`;
+  let reviewUrl = `/sop-generator/${documentId}?studentId=${studentId}`;
   if (normalizedType === "RESUME") {
-    reviewUrl = `/resume-builder?documentId=${documentId}`;
+    reviewUrl = `/resume-builder?studentId=${studentId}&docId=${documentId}`;
   } else if (normalizedType === "LOR") {
-    reviewUrl = `/lor-generator?documentId=${documentId}`;
+    reviewUrl = `/lor-generator?studentId=${studentId}&docId=${documentId}`;
   }
 
   const record = saveDocument({
