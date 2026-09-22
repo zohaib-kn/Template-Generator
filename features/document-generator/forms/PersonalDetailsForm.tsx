@@ -100,11 +100,10 @@ export function PersonalDetailsForm() {
       )}
 
       <div className="space-y-4 pt-2">
-        {/* Photo upload */}
-        <div className="flex flex-col items-center gap-3">
-          {/* ── Preview circle ──────────────────────────────────────────── */}
+        {/* Photo upload - Sleek compact horizontal card */}
+        <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50/80 border border-slate-200/80">
           <div
-            className="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden flex items-center justify-center cursor-pointer hover:border-navy/50 transition-colors"
+            className="w-12 h-12 rounded-full bg-white border border-slate-300 shadow-2xs overflow-hidden flex items-center justify-center cursor-pointer hover:border-slate-400 transition-colors flex-shrink-0"
             onClick={() => fileInputRef.current?.click()}
             role="button"
             tabIndex={0}
@@ -119,39 +118,43 @@ export function PersonalDetailsForm() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-2xl" aria-hidden="true">👤</span>
+              <span className="text-lg opacity-60" aria-hidden="true">👤</span>
             )}
           </div>
 
-          {/* ── Buttons ─────────────────────────────────────────────────── */}
-          <div className="flex gap-2 items-center">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-medium text-navy hover:underline"
-            >
-              {personal.photoUrl ? "Change photo" : "Upload photo"}
-            </button>
-            {personal.photoUrl && (
-              <>
-                <span className="text-slate-300 text-xs">·</span>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs font-medium text-slate-500 hover:underline"
-                >
-                  Reposition
-                </button>
-                <span className="text-slate-300 text-xs">·</span>
-                <button
-                  type="button"
-                  onClick={clearPhoto}
-                  className="text-xs font-medium text-red-400 hover:underline"
-                >
-                  Remove
-                </button>
-              </>
-            )}
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-slate-800">
+              Europass Profile Photo
+            </p>
+            <div className="flex items-center gap-2 mt-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs font-medium text-slate-900 hover:underline cursor-pointer"
+              >
+                {personal.photoUrl ? "Change photo" : "Upload photo"}
+              </button>
+              {personal.photoUrl && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    Reposition
+                  </button>
+                  <span className="text-slate-300">·</span>
+                  <button
+                    type="button"
+                    onClick={clearPhoto}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700 cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           <input
@@ -166,7 +169,7 @@ export function PersonalDetailsForm() {
 
         {/* Name */}
         <div>
-          <Label htmlFor="pd-fullName" required>Full Name</Label>
+          <Label htmlFor="pd-fullName" required>Full name</Label>
           <Input
             id="pd-fullName"
             value={personal.fullName ?? ""}
@@ -178,7 +181,7 @@ export function PersonalDetailsForm() {
         {/* Two-column row */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label htmlFor="pd-passport">Passport No.</Label>
+            <Label htmlFor="pd-passport">Passport number</Label>
             <Input
               id="pd-passport"
               value={personal.passportNumber ?? ""}
@@ -199,7 +202,7 @@ export function PersonalDetailsForm() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label htmlFor="pd-dob">Date of Birth</Label>
+            <Label htmlFor="pd-dob">Date of birth</Label>
             <Input
               id="pd-dob"
               type="date"
@@ -208,7 +211,7 @@ export function PersonalDetailsForm() {
             />
           </div>
           <div>
-            <Label htmlFor="pd-pob">Place of Birth</Label>
+            <Label htmlFor="pd-pob">Place of birth</Label>
             <Input
               id="pd-pob"
               value={personal.placeOfBirth ?? ""}
@@ -229,7 +232,7 @@ export function PersonalDetailsForm() {
             />
           </div>
           <div>
-            <Label htmlFor="pd-phone">Phone</Label>
+            <Label htmlFor="pd-phone">Phone number</Label>
             <Input
               id="pd-phone"
               type="tel"
@@ -241,7 +244,7 @@ export function PersonalDetailsForm() {
         </div>
 
         <div>
-          <Label htmlFor="pd-email">Email</Label>
+          <Label htmlFor="pd-email">Email address</Label>
           <Input
             id="pd-email"
             type="email"
@@ -252,7 +255,7 @@ export function PersonalDetailsForm() {
         </div>
 
         <div>
-          <Label htmlFor="pd-address">Home Address</Label>
+          <Label htmlFor="pd-address">Home address</Label>
           <Input
             id="pd-address"
             value={personal.address ?? ""}

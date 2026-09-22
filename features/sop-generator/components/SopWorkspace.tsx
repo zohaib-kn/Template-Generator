@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import type { ReviewStatus, StudentDocumentContext, SopDraftRecord } from "../types/sop-generator";
+import type { ReviewStatus, StudentDocumentContext, SopDraftRecord, DataSource } from "../types/sop-generator";
+import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { SectionSidebar } from "./SectionSidebar";
 import { SectionEditor } from "./SectionEditor";
 import { ContextPanel } from "./ContextPanel";
 import { DocumentPreview } from "./DocumentPreview";
-import { SopStudentLoader } from "./SopStudentLoader";
-import type { SopStudentLoadedPayload, DataSource } from "./SopStudentLoader";
+import { StudentDetailsModal } from "./StudentDetailsModal";
+import type { SopStudentLoadedPayload } from "./SopStudentLoader";
 import { getApplication, getTemplate, getStudentDocumentContext } from "../lib/applicationService";
 import { validateDocumentContext, hasErrors } from "../lib/validateDocumentContext";
 import { interpolate } from "../lib/interpolateTemplate";
@@ -16,6 +18,11 @@ import { useSopPdfGenerator } from "../hooks/useSopPdfGenerator";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SopDraftsModal } from "./SopDraftsModal";
 import { getAllDrafts, saveDraft } from "../lib/sopDraftStorage";
+import { calculateDocumentWordCount } from "../lib/wordCount";
+import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
+import { mapCrmToNormalizedStudent, mapNormalizedToSop } from "@/services/normalization";
+import { StudentDropdown } from "@/components/common/StudentDropdown";
+import { StudentSelectModal } from "./StudentSelectModal";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -34,28 +41,6 @@ function renderFormatted(text: string) {
   });
 }
 
-/**
- * SopWorkspace — top-level client component for the SOP Generator.
- *
- * Owns all SOP-specific UI state:
- *   selectedSectionId  — which section the editor is showing
- *   sectionContents    — current (possibly edited) content per section
- *   sectionStatuses    — counsellor review status per section
- *   previewOpen        — A4 preview modal
- *
- * Phase 2.6 additions:
- *   - SopStudentLoader bar: load real CRM data via /api/student/[id]
- *   - ctx becomes mutable state (starts from test data, replaceable by CRM)
- *   - Overwrite confirmation modal
- *   - Section review-state reset on new student load
- *   - Data source badge
- *
- * Provides:
- *   - Live section review & editing
- *   - Auto-revert APPROVED -> NEEDS_REVIEW on edit
- *   - Document approval gates
- *   - Official Embassy PDF Generation & Download
- */
 export interface SopWorkspaceProps {
   initialDraft?: SopDraftRecord;
 }
@@ -69,8 +54,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const sections = template.sections;
   const firstSectionId = sections.slice().sort((a, b) => a.order - b.order)[0]?.id ?? null;
 
-  // ── Phase 2.6: Dynamic student context ───────────────────────────────────
-  // ctx starts from test data; replaced when a real student is loaded or passed via initialDraft.
+  // ── Dynamic student context ───────────────────────────────────────────────
   const [ctx, setCtx] = useState<StudentDocumentContext>(() => initialDraft?.ctx ?? testCtx);
   const [currentSource, setCurrentSource] = useState<DataSource>(
     () => initialDraft?.currentSource ?? (initialDraft ? "live-crm" : "test-data")
@@ -78,19 +62,30 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [loadedStudentName, setLoadedStudentName] = useState<string | undefined>(
     () => initialDraft?.loadedStudentName ?? initialDraft?.studentName
   );
+  const [useSampleData, setUseSampleData] = useState<boolean>(
+    () => Boolean(initialDraft) || false
+  );
+
   const isStudentLoaded = currentSource !== "test-data";
 
-  // ── Phase 2.6: Overwrite-confirmation modal ───────────────────────────────
-  // When a counsellor has edited sections and tries to load another student,
-  // show a confirmation before replacing the workspace.
+  // Global student context
+  const { selectedStudentData, selectedStudentId, selectStudent, clearStudent: clearGlobalStudent } = useGlobalStudent();
+  const [currentSnapshot, setCurrentSnapshot] = useState<CrmSnapshot | null>(null);
+  const [availablePrograms, setAvailablePrograms] = useState<NormalizedAppliedProgram[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>("");
+
+  // ── Overwrite-confirmation modal ──────────────────────────────────────────
   const [pendingPayload, setPendingPayload] = useState<SopStudentLoadedPayload | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
+  const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
+  const [isContextCollapsed, setIsContextCollapsed] = useState(false);
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
-    initialDraft ? `✓ Document ${initialDraft.id} loaded for review` : null
+    initialDraft ? `Document ${initialDraft.id} loaded` : null
   );
   const [docApproved, setDocApproved] = useState(initialDraft?.docApproved ?? false);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(initialDraft?.id ?? null);
@@ -105,7 +100,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     message: string;
   } | null>(null);
 
-  // Per-section content — start from initialDraft or template originals
+  // Per-section content
   const [sectionContents, setSectionContents] = useState<Record<string, string>>(() => {
     const base = Object.fromEntries(sections.map((s) => [s.id, s.content]));
     if (initialDraft?.sectionContents) {
@@ -123,7 +118,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     return base;
   });
 
-  // Derived: has counsellor made any edits?
+  // Has counsellor made any edits?
   const hasEdits = useMemo(() => {
     return sections.some(
       (s) =>
@@ -133,7 +128,16 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   }, [sections, sectionStatuses, sectionContents]);
 
   // ── Validation (reactive on ctx) ──────────────────────────────────────────
-  const validation = useMemo(() => validateDocumentContext(ctx), [ctx]);
+  const [validationRefreshKey, setValidationRefreshKey] = useState(0);
+  const validation = useMemo(
+    () => validateDocumentContext(ctx),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ctx, validationRefreshKey]
+  );
+
+  const handleRefreshValidation = useCallback(() => {
+    setValidationRefreshKey((prev) => prev + 1);
+  }, []);
 
   // ── PDF Generator Hook ────────────────────────────────────────────────────
   const {
@@ -143,7 +147,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   } = useSopPdfGenerator();
   const isGeneratingPdf = pdfStatus === "generating";
 
-  // ── Check saved drafts on initial mount ──────────────────────────────────
+  // Check saved drafts on initial mount
   useEffect(() => {
     const all = getAllDrafts();
     setDraftCount(all.length);
@@ -152,7 +156,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }, []);
 
-  // ── Derived state ─────────────────────────────────────────────────────────
+  // Derived state
   const requiredSections = sections.filter((s) => s.required);
   const approvedCount = requiredSections.filter(
     (s) => sectionStatuses[s.id] === "APPROVED"
@@ -162,13 +166,20 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const canApproveDocument =
     approvedCount >= requiredSections.length && !documentHasErrors;
 
-  // ── Phase 2.6 & AI: Apply a loaded student payload ─────────────────────────
+  const totalWordCount = useMemo(
+    () => calculateDocumentWordCount(sections, sectionContents, ctx),
+    [sections, sectionContents, ctx]
+  );
 
+  // ── Apply loaded student payload ──────────────────────────────────────────
   const applyStudentPayload = useCallback(
     (payload: SopStudentLoadedPayload) => {
       setCtx(payload.ctx);
       setCurrentSource(payload.source);
       setLoadedStudentName(payload.studentName);
+      setAvailablePrograms(payload.availablePrograms ?? []);
+      setSelectedProgramId(payload.selectedProgramId ?? "");
+      setUseSampleData(true);
 
       // Reset narrative sections to fresh template values for the new course
       setSectionContents((prev) => {
@@ -181,34 +192,70 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         return next;
       });
 
-      // Reset section review statuses — previously approved content from
-      // another student must NOT remain approved (as per spec §11).
+      // Reset section review statuses on new student load
       setSectionStatuses(
         Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
       );
-      // Reset document approval gate
       setDocApproved(false);
     },
     [sections]
   );
 
-  // ── Phase 2.6: Student loader callbacks ───────────────────────────────────
+  // ── React to Global Student Context Selection ─────────────────────────────
+  useEffect(() => {
+    if (selectedStudentData && selectedStudentId) {
+      const crmSource = "senior-crm-api" as const;
+      const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source: crmSource });
+      const sopCtx = mapNormalizedToSop(normalized);
+      const dataSource: DataSource = "live-crm";
+      const studentName = normalized.personal.fullName || "Student";
+      const activeProgId =
+        normalized.applications.activeProgramId ||
+        normalized.applications.all[0]?.id ||
+        "";
 
-  function handleStudentLoaded(payload: SopStudentLoadedPayload) {
-    if (hasEdits) {
-      // Counsellor has edits — ask before overwriting (§6)
-      setPendingPayload(payload);
-      setShowConfirmModal(true);
-    } else {
-      applyStudentPayload(payload);
+      setCurrentSnapshot(selectedStudentData);
+
+      const payload: SopStudentLoadedPayload = {
+        ctx: sopCtx,
+        studentId: selectedStudentId,
+        studentName,
+        source: dataSource,
+        availablePrograms: normalized.applications.all,
+        selectedProgramId: activeProgId,
+      };
+
+      if (hasEdits) {
+        setPendingPayload(payload);
+        setShowConfirmModal(true);
+      } else {
+        applyStudentPayload(payload);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentData, selectedStudentId]);
+
+  function handleProgramChange(programId: string) {
+    if (!currentSnapshot) return;
+    setSelectedProgramId(programId);
+
+    const updatedNormalized = mapCrmToNormalizedStudent(currentSnapshot, {
+      source: currentSource === "live-crm" ? "senior-crm-api" : "cached-snapshot",
+      activeProgramId: programId,
+    });
+    const updatedCtx = mapNormalizedToSop(updatedNormalized);
+    setCtx(updatedCtx);
   }
 
   function handleClearStudent() {
-    // Revert to test data
+    clearGlobalStudent();
+    setCurrentSnapshot(null);
+    setAvailablePrograms([]);
+    setSelectedProgramId("");
     setCtx(testCtx);
     setCurrentSource("test-data");
     setLoadedStudentName(undefined);
+    setUseSampleData(false);
     setActiveDraftId(null);
     setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
     setSectionStatuses(
@@ -220,7 +267,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   function handleConfirmOverwrite() {
     if (pendingPayload) {
       setActiveDraftId(null);
-      // Also reset section contents on overwrite
       setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
       applyStudentPayload(pendingPayload);
     }
@@ -234,10 +280,9 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   }
 
   // ── Section handlers ──────────────────────────────────────────────────────
-
   function handleContentChange(sectionId: string, newContent: string) {
     setSectionContents((prev) => ({ ...prev, [sectionId]: newContent }));
-    // Auto-revert APPROVED → NEEDS_REVIEW when content is edited
+    // Auto-revert APPROVED → NEEDS_REVIEW on edit
     setSectionStatuses((prev) => {
       if (prev[sectionId] === "APPROVED") {
         return { ...prev, [sectionId]: "NEEDS_REVIEW" };
@@ -249,7 +294,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   function handleReset(sectionId: string) {
     const original = sections.find((s) => s.id === sectionId)?.content ?? "";
     setSectionContents((prev) => ({ ...prev, [sectionId]: original }));
-    // Reset to NOT_REVIEWED after resetting content
     setSectionStatuses((prev) => ({
       ...prev,
       [sectionId]: "NOT_REVIEWED",
@@ -258,6 +302,22 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
   function handleApproveSection(sectionId: string) {
     setSectionStatuses((prev) => ({ ...prev, [sectionId]: "APPROVED" }));
+  }
+
+  function handleUndoApprove(sectionId: string) {
+    setSectionStatuses((prev) => ({ ...prev, [sectionId]: "NEEDS_REVIEW" }));
+    setDocApproved(false);
+  }
+
+  function handleToggleSectionStatus(sectionId: string) {
+    setSectionStatuses((prev) => {
+      const current = prev[sectionId] ?? "NOT_REVIEWED";
+      const next = current === "APPROVED" ? "NEEDS_REVIEW" : "APPROVED";
+      return { ...prev, [sectionId]: next };
+    });
+    if (sectionStatuses[sectionId] === "APPROVED") {
+      setDocApproved(false);
+    }
   }
 
   function handleApproveAll() {
@@ -291,17 +351,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       const data = await res.json();
 
       if (res.ok && data.success && data.text) {
-        // Update section content with AI-generated narrative
         setSectionContents((prev) => ({
           ...prev,
           [sectionId]: data.text,
         }));
-        // Require counsellor review after AI generation
         setSectionStatuses((prev) => ({
           ...prev,
           [sectionId]: "NEEDS_REVIEW",
         }));
-        // Revoke overall document signoff if previously approved
         setDocApproved(false);
       } else {
         throw new Error(data?.error?.message || "Failed to generate AI response.");
@@ -322,7 +379,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const courseTitle = ctx.destination.course || "the target course";
     setAiBannerNotice({
       type: "info",
-      message: `Generating tailored AI narratives with Gemini for "${courseTitle}"...`,
+      message: `Generating tailored narratives for "${courseTitle}"...`,
     });
 
     try {
@@ -359,23 +416,22 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           throw new Error(data?.error?.message || `Failed to generate ${sec.title}`);
         }
 
-        // Gentle 300ms throttle to prevent sudden-burst rate limiting
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
       setDocApproved(false);
       setAiBannerNotice({
         type: "success",
-        message: `✓ Successfully generated all ${completedCount} narrative sections tailored specifically to ${courseTitle}!`,
+        message: `Successfully generated ${completedCount} narrative sections for ${courseTitle}.`,
       });
-      setTimeout(() => setAiBannerNotice(null), 6000);
+      setTimeout(() => setAiBannerNotice(null), 5000);
     } catch (err: unknown) {
       console.error("[Generate All AI Error]:", err);
       setAiBannerNotice({
         type: "error",
-        message: err instanceof Error ? `⚠️ ${err.message}` : "Failed to generate AI sections.",
+        message: err instanceof Error ? err.message : "Failed to generate AI sections.",
       });
-      setTimeout(() => setAiBannerNotice(null), 7000);
+      setTimeout(() => setAiBannerNotice(null), 6000);
     } finally {
       setIsGeneratingAllAi(false);
     }
@@ -410,11 +466,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         hour: "2-digit",
         minute: "2-digit",
       });
-      setSavedNoticeText(`✓ Draft saved locally at ${timeStr}.`);
+      setSavedNoticeText(`Saved at ${timeStr}`);
       setTimeout(() => setSavedNoticeText(null), 3500);
     } catch (err) {
       console.error("[SOP Save Draft Error]:", err);
-      setSavedNoticeText("⚠️ Failed to save draft locally.");
+      setSavedNoticeText("Failed to save draft");
       setTimeout(() => setSavedNoticeText(null), 4000);
     } finally {
       setIsSavingDraft(false);
@@ -430,7 +486,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     setDocApproved(draft.docApproved);
     setActiveDraftId(draft.id);
     setRecoveryBanner(null);
-    setSavedNoticeText(`✓ Restored draft for "${draft.studentName}".`);
+    setUseSampleData(true);
+    setSavedNoticeText(`Restored draft for ${draft.studentName}`);
     setTimeout(() => setSavedNoticeText(null), 3500);
   }
 
@@ -449,7 +506,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       document.getElementById("sop-printable-letter");
     if (!target) return;
 
-    // Use loaded student name if available; otherwise fall back to application
     const displayName = loadedStudentName || application.studentName;
 
     const result = await downloadPdf(target, {
@@ -460,7 +516,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     });
 
     if (result.success && result.pdfBase64) {
-      // Determine active document ID (from draft, query param, or pathname)
       let targetDocId = activeDraftId;
       if (!targetDocId && typeof window !== "undefined") {
         const urlParams = new URLSearchParams(window.location.search);
@@ -483,7 +538,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
             }),
           });
           if (res.ok) {
-            setSavedNoticeText("✓ PDF generated and finalized on server.");
+            setSavedNoticeText(`PDF finalized on server (${totalWordCount} words)`);
             setTimeout(() => setSavedNoticeText(null), 4000);
           }
         } catch (err) {
@@ -493,22 +548,29 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
-  // ── Selected section ──────────────────────────────────────────────────────
+  // Selected section
   const selectedSection = sections.find((s) => s.id === selectedSectionId) ?? null;
+  const displayStudentName = loadedStudentName || (useSampleData ? application.studentName : "No Student Selected");
 
-  // Display name in header — prefer loaded student; fall back to mock
-  const displayStudentName = loadedStudentName || application.studentName;
+  const destinationSummary = useMemo(() => {
+    if (!useSampleData && !isStudentLoaded) return undefined;
+    const parts = [ctx.destination.country, ctx.destination.university, ctx.destination.course].filter(Boolean);
+    return parts.join(" · ");
+  }, [useSampleData, isStudentLoaded, ctx.destination]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Show empty state if no student has been loaded and counsellor hasn't chosen to view sample
+  const showEmptyState = !isStudentLoaded && !loadedStudentName && !useSampleData;
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Shared product header */}
+      {/* Slim Calm App Navigation */}
       <AppHeader />
 
-      {/* Workspace header */}
+      {/* Editorial Workspace Header */}
       <WorkspaceHeader
         templateName={template.name}
         studentName={displayStudentName}
+        destinationSummary={destinationSummary}
         documentStatus={docApproved ? "approved" : application.status}
         approvedCount={approvedCount}
         requiredCount={requiredSections.length}
@@ -518,6 +580,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         isSavingDraft={isSavingDraft}
         draftCount={draftCount}
         onOpenDrafts={() => setDraftsModalOpen(true)}
+        savedNoticeText={savedNoticeText}
         onPreview={() => setPreviewOpen(true)}
         onApproveDocument={handleApproveDocument}
         onApproveAll={handleApproveAll}
@@ -525,26 +588,23 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         isGeneratingAllAi={isGeneratingAllAi}
         onDownloadPdf={handleDownloadPdf}
         isGeneratingPdf={isGeneratingPdf}
-      />
-
-      {/* Phase 2.6: Student loader bar */}
-      <SopStudentLoader
-        onStudentLoaded={handleStudentLoaded}
-        onClearStudent={handleClearStudent}
+        totalWordCount={totalWordCount}
         isStudentLoaded={isStudentLoaded}
-        loadedStudentName={loadedStudentName}
-        currentSource={currentSource}
+        availablePrograms={availablePrograms}
+        selectedProgramId={selectedProgramId}
+        onProgramChange={handleProgramChange}
+        onClearStudent={handleClearStudent}
+        onOpenStudentSelect={() => setIsStudentSelectOpen(true)}
       />
 
       {/* Quick recovery banner */}
       {recoveryBanner && (
         <div
           role="alert"
-          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200
-                     text-amber-900 text-xs font-medium flex items-center justify-between gap-4"
+          className="flex-shrink-0 px-6 py-2 bg-amber-50/90 border-b border-amber-200/80 text-amber-900 text-xs flex items-center justify-between gap-4"
         >
           <div className="flex items-center gap-2">
-            <span className="text-sm">📁</span>
+            <span>📁</span>
             <span>
               Found a saved draft for{" "}
               <strong className="font-semibold text-amber-950">
@@ -557,15 +617,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
             <button
               id="sop-resume-draft-btn"
               onClick={() => handleRestoreDraft(recoveryBanner)}
-              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+              className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-md text-[11px] font-semibold transition-colors shadow-xs"
             >
               Resume Editing
             </button>
             <button
               id="sop-dismiss-recovery-btn"
               onClick={handleDismissRecovery}
-              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs"
-              title="Dismiss banner"
+              className="p-1 text-amber-700 hover:text-amber-950 rounded text-xs"
               aria-label="Dismiss banner"
             >
               ✕
@@ -579,11 +638,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         <div
           role="status"
           aria-live="polite"
-          className={`flex-shrink-0 px-6 py-2.5 border-b text-xs font-medium flex items-center justify-between transition-all ${
+          className={`flex-shrink-0 px-6 py-2 border-b text-xs flex items-center justify-between ${
             aiBannerNotice.type === "success"
               ? "bg-emerald-50 border-emerald-200 text-emerald-800"
               : aiBannerNotice.type === "info"
-              ? "bg-[#F0F7FA] border-[#D2E7F0] text-[#096491] animate-pulse"
+              ? "bg-blue-50 border-blue-200 text-blue-800"
               : "bg-rose-50 border-rose-200 text-rose-800"
           }`}
         >
@@ -597,67 +656,96 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         </div>
       )}
 
-      {/* Save notice */}
-      {savedNoticeText && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex-shrink-0 px-6 py-2 bg-[#F0F7FA] border-b border-[#D2E7F0]
-                     text-[#096491] text-xs font-medium flex items-center gap-1.5"
-        >
-          <span>✓</span>
-          <span>{savedNoticeText}</span>
-        </div>
-      )}
-
       {/* PDF Error alert */}
       {pdfError && (
         <div
           role="alert"
-          className="flex-shrink-0 px-6 py-2.5 bg-rose-50 border-b border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2"
+          className="flex-shrink-0 px-6 py-2 bg-rose-50 border-b border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2"
         >
-          <span>⚠ PDF generation failed: {pdfError}</span>
+          <span>⚠️ PDF generation error: {pdfError}</span>
         </div>
       )}
 
-      {/* Document approved banner */}
+      {/* Document Approved Banner */}
       {docApproved && (
         <div
           role="status"
-          className="flex-shrink-0 px-6 py-2.5 bg-emerald-600 text-white
-                     text-xs font-medium flex items-center justify-between gap-4 flex-wrap shadow-xs"
+          className="flex-shrink-0 px-6 py-2.5 bg-emerald-800 text-white text-xs font-medium flex items-center justify-between gap-4 flex-wrap"
         >
           <div className="flex items-center gap-2">
-            <span className="font-semibold">✓ Document approved.</span>
-            <span className="font-normal opacity-90 text-[11px]">
-              Ready for visa application &amp; embassy submission.
+            <span className="font-semibold">✓ Document Approved.</span>
+            <span className="opacity-90 text-[11px]">
+              All required sections have been reviewed and verified for embassy submission.
             </span>
           </div>
           <button
             id="sop-approved-banner-download-btn"
             onClick={handleDownloadPdf}
             disabled={isGeneratingPdf}
-            className="bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 px-3 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-xs"
+            className="bg-white text-emerald-900 hover:bg-emerald-50 px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-xs"
           >
             {isGeneratingPdf ? "Generating PDF…" : "📥 Download Official PDF"}
           </button>
         </div>
       )}
 
-      {/* Three-column workspace */}
-      <div className="flex flex-1 overflow-hidden bg-[#F8FAFC]">
-        {/* Left: Section navigation */}
+      {/* Main 3-Column Editorial Workspace */}
+      <div className="flex flex-1 overflow-hidden bg-[#F8F9FA]">
+        {/* Left: Story Structure Navigation */}
         <SectionSidebar
           sections={sections}
           selectedId={selectedSectionId}
           statuses={sectionStatuses}
           onSelectSection={setSelectedSectionId}
-          onApproveAll={handleApproveAll}
+          onToggleStatus={handleToggleSectionStatus}
         />
 
-        {/* Centre: Section editor */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC] min-w-0">
-          {selectedSection ? (
+        {/* Center: Document Canvas or Empty State */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-[#F8F9FA] min-w-0">
+          {showEmptyState ? (
+            <div className="flex-1 flex items-center justify-center p-8 bg-[#F8F9FA]">
+              <div className="max-w-md w-full text-center p-8 md:p-10 bg-white rounded-2xl border border-slate-200/90 shadow-xs space-y-5">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto text-slate-700">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Review a Student&apos;s Visa Letter
+                  </h2>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-1.5 max-w-sm mx-auto">
+                    Select a student to load their academic credentials, course destination, and personal story into the workspace.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsStudentSelectOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs transition-colors"
+                  >
+                    <span>👥</span>
+                    <span>Select Student from CRM</span>
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setUseSampleData(true)}
+                    className="text-xs text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors"
+                  >
+                    Or explore template with sample applicant (Aafia Ameen) →
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : selectedSection ? (
             <SectionEditor
               section={selectedSection}
               ctx={ctx}
@@ -666,26 +754,30 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
               onContentChange={(c) => handleContentChange(selectedSection.id, c)}
               onReset={() => handleReset(selectedSection.id)}
               onApprove={() => handleApproveSection(selectedSection.id)}
+              onUndoApprove={() => handleUndoApprove(selectedSection.id)}
               onRegenerate={handleRegenerateSection}
               isRegenerating={regeneratingSectionId === selectedSection.id}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-center px-8">
-              <div>
-                <p className="text-3xl mb-3">📄</p>
-                <p className="text-sm font-semibold text-slate-500">
-                  Select a section from the left to start editing.
-                </p>
-              </div>
+              <p className="text-xs text-slate-400">Select a section from the left to begin review.</p>
             </div>
           )}
         </main>
 
-        {/* Right: Context panel */}
-        <ContextPanel ctx={ctx} validationIssues={validation} />
+        {/* Right: Collapsible Story Context Panel */}
+        <ContextPanel
+          ctx={ctx}
+          validationIssues={validation}
+          isCollapsed={isContextCollapsed}
+          onToggleCollapse={() => setIsContextCollapsed((v) => !v)}
+          onOpenStudentDetails={() => setStudentDetailsOpen(true)}
+          onSelectSection={setSelectedSectionId}
+          onRefreshValidation={handleRefreshValidation}
+        />
       </div>
 
-      {/* A4 Preview modal */}
+      {/* A4 Preview Modal */}
       {previewOpen && (
         <DocumentPreview
           sections={sections}
@@ -697,21 +789,27 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         />
       )}
 
-      {/* Phase 2.6: Overwrite confirmation modal (§6) */}
+      {/* Student Details Modal (PII & sensitive records) */}
+      <StudentDetailsModal
+        ctx={ctx}
+        isOpen={studentDetailsOpen}
+        onClose={() => setStudentDetailsOpen(false)}
+      />
+
+      {/* Overwrite Confirmation Modal */}
       {showConfirmModal && (
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="sop-overwrite-dialog-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
         >
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-slate-200">
-            <p className="text-sm font-bold text-slate-900 mb-1.5" id="sop-overwrite-dialog-title">
-              ⚠ Replace workspace?
-            </p>
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full border border-slate-200">
+            <h3 className="text-sm font-semibold text-slate-900 mb-1.5" id="sop-overwrite-dialog-title">
+              Replace workspace?
+            </h3>
             <p className="text-xs text-slate-600 leading-relaxed mb-5">
-              Loading another student will replace the current document workspace,
-              including all edits and review statuses. This cannot be undone.
+              Loading another student will reset current section edits and review statuses.
             </p>
             <div className="flex gap-2.5 justify-end">
               <button
@@ -739,6 +837,18 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         onClose={() => setDraftsModalOpen(false)}
         onLoadDraft={handleRestoreDraft}
         onDraftsChange={() => setDraftCount(getAllDrafts().length)}
+      />
+
+      {/* Student Select Modal */}
+      <StudentSelectModal
+        isOpen={isStudentSelectOpen}
+        onClose={() => setIsStudentSelectOpen(false)}
+        onSelectStudent={(id) => {
+          selectStudent(id);
+          setIsStudentSelectOpen(false);
+        }}
+        selectedStudentId={selectedStudentId}
+        onClearStudent={handleClearStudent}
       />
 
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}
@@ -849,4 +959,3 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     </div>
   );
 }
-

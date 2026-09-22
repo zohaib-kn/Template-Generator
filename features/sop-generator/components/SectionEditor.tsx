@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type {
   TemplateSection,
   ReviewStatus,
   StudentDocumentContext,
 } from "../types/sop-generator";
-import { SourceBadge } from "./SourceBadge";
-import { ReviewStatusBadge } from "./ReviewStatusBadge";
 import { interpolate } from "../lib/interpolateTemplate";
+import { calculateSectionWordCount } from "../lib/wordCount";
 
 interface SourceDataDialogProps {
   section: TemplateSection;
@@ -17,22 +16,18 @@ interface SourceDataDialogProps {
 }
 
 /**
- * Modal dialog for viewing structured source facts in WEBHOOK / HYBRID sections.
- *
- * Displays:
- * - Each source fact key → resolved value (or MISSING indicator)
- * - A notice that these are factual values, not AI-generated
- *
- * Phase 1: read-only with a clear notice. Editing is local-state only.
+ * Modal dialog for inspecting structured source facts in WEBHOOK / HYBRID / DATABASE sections.
+ * Presented contextually without cluttering the document canvas.
  */
 export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProps) {
   const facts = section.sourceFacts ?? {};
+  const hasFacts = Object.keys(facts).length > 0;
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -44,57 +39,41 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
         aria-labelledby="source-dialog-title"
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 w-full max-w-lg overflow-hidden">
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-3.5 border-b border-slate-100">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
             <div>
-              <p
-                id="source-dialog-title"
-                className="text-sm font-bold text-slate-900"
-              >
-                {section.title}
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Source Data Inspection
               </p>
-              <div className="flex items-center gap-2 mt-1.5">
-                <SourceBadge source={section.source} />
-              </div>
+              <h3 id="source-dialog-title" className="text-sm font-semibold text-slate-900">
+                {section.title}
+              </h3>
             </div>
             <button
               id="source-dialog-close-btn"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg
-                         hover:bg-slate-100 transition-colors ml-2"
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
               aria-label="Close"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
 
-          {/* Restrained Factual Notice */}
-          <div className="mx-6 mt-4 px-3.5 py-2.5 rounded-lg bg-[#F4F9FA] border border-[#D9EAF0]">
-            <p className="text-[11px] text-[#096491] leading-relaxed">
-              <strong className="font-semibold">These are factual student values</strong> and are not AI-generated.
-              Factual data comes from the student&apos;s application record and must be verified
-              before the document is approved.
+          {/* Factual Notice */}
+          <div className="mx-6 mt-4 px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-200/70 text-xs text-slate-600">
+            <p className="leading-relaxed">
+              <strong className="font-semibold text-slate-800">Verified CRM Fields:</strong> These values reflect official student records and application submissions. They anchor the letter narrative.
             </p>
           </div>
 
-          {/* Facts table */}
+          {/* Facts Table */}
           <div className="px-6 py-4 max-h-[50vh] overflow-y-auto">
-            {Object.keys(facts).length === 0 ? (
-              <p className="text-xs text-slate-400 italic">
+            {!hasFacts ? (
+              <p className="text-xs text-slate-400 italic py-2">
                 No structured source facts available for this section.
               </p>
             ) : (
@@ -105,24 +84,22 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
                       Field
                     </th>
                     <th className="text-left pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Value
+                      Verified Value
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100/60">
+                <tbody className="divide-y divide-slate-100">
                   {Object.entries(facts).map(([key, template]) => {
                     const value = interpolate(template, ctx);
                     const isMissing = value.includes("[MISSING:");
                     return (
                       <tr key={key}>
-                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top text-xs">
+                        <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">
                           {key}
                         </td>
                         <td
-                          className={`py-2.5 align-top font-medium text-xs break-words ${
-                            isMissing
-                              ? "text-rose-500 italic"
-                              : "text-slate-800"
+                          className={`py-2.5 align-top font-medium break-words ${
+                            isMissing ? "text-rose-600 font-semibold italic" : "text-slate-900"
                           }`}
                         >
                           {value}
@@ -136,14 +113,12 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-3.5 border-t border-slate-100 flex justify-end bg-slate-50/50">
+          <div className="px-6 py-3 border-t border-slate-100 flex justify-end bg-slate-50/50">
             <button
               onClick={onClose}
-              className="h-8 px-4 rounded-lg text-xs font-medium
-                         bg-white border border-slate-200 text-slate-700 hover:bg-slate-50
-                         transition-colors shadow-xs"
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
             >
-              Close
+              Done
             </button>
           </div>
         </div>
@@ -162,17 +137,33 @@ interface SectionEditorProps {
   onContentChange: (newContent: string) => void;
   onReset: () => void;
   onApprove: () => void;
+  onUndoApprove?: () => void;
   onRegenerate?: (sectionId: string, mode?: "generate" | "rewrite-natural") => Promise<void>;
   isRegenerating?: boolean;
 }
 
 /**
- * Centre panel editor.
+ * Parses markdown bold (**text**) into <strong> elements for rich reading typography.
+ */
+function renderFormatted(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold text-slate-900">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+/**
+ * Editorial Document Canvas & Section Editor.
  *
- * For FIXED / DATABASE sections: shows rendered text, no free editing.
- * For AI_SUGGESTED sections: editable textarea with live Gemini AI regeneration.
- * For WEBHOOK sections: shows structured facts + rendered content, read-only.
- * For HYBRID sections: shows source facts table THEN an editable narrative area.
+ * Designed around reading and polishing a student's visa letter.
+ * The letter prose is the primary visual surface.
  */
 export function SectionEditor({
   section,
@@ -182,322 +173,359 @@ export function SectionEditor({
   onContentChange,
   onReset,
   onApprove,
+  onUndoApprove,
   onRegenerate,
   isRegenerating = false,
 }: SectionEditorProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftText, setDraftText] = useState(content);
   const [showSourceData, setShowSourceData] = useState(false);
-  const [regenFeedback, setRegenFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const resolved = interpolate(content, ctx);
+  // Sync draftText when section changes
+  useEffect(() => {
+    setDraftText(content);
+    setIsEditing(false);
+    setFeedback(null);
+  }, [section.id, content]);
+
+  const resolved = useMemo(() => interpolate(content, ctx), [content, ctx]);
   const isModified = content !== section.content;
+  const isApproved = status === "APPROVED";
+  const isNeedsReview = status === "NEEDS_REVIEW";
+
+  const sectionWordCount = useMemo(
+    () => calculateSectionWordCount(content, ctx),
+    [content, ctx]
+  );
+
+  const factsCount = section.sourceFacts ? Object.keys(section.sourceFacts).length : 0;
 
   async function handleRegenerateClick(mode: "generate" | "rewrite-natural" = "generate") {
     if (!onRegenerate) return;
-    setRegenFeedback(null);
+    setFeedback(null);
     try {
       await onRegenerate(section.id, mode);
-      setRegenFeedback({
+      setFeedback({
         type: "success",
         message:
           mode === "rewrite-natural"
-            ? `Narrative rewritten in natural student voice for "${ctx.destination.course || section.title}".`
-            : `Tailored narrative for "${ctx.destination.course || section.title}" generated with Gemini AI.`,
+            ? `Rewritten in natural student voice for ${ctx.destination.course || section.title}.`
+            : `Tailored narrative draft generated for ${ctx.destination.course || section.title}.`,
       });
-      setTimeout(() => setRegenFeedback(null), 4500);
+      setTimeout(() => setFeedback(null), 4000);
     } catch (err: unknown) {
-      setRegenFeedback({
+      setFeedback({
         type: "error",
-        message:
-          err instanceof Error
-            ? err.message
-            : "Failed to process narrative. Please try again.",
+        message: err instanceof Error ? err.message : "Failed to generate narrative draft.",
       });
     }
   }
 
-  return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#F8FAFC]">
-      {/* Section header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[16px] md:text-[18px] font-semibold text-slate-900 leading-snug truncate">
-                {section.title}
-              </h2>
-              {section.required && (
-                <span className="text-[10px] font-medium text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full" aria-label="Required section">
-                  Required
-                </span>
-              )}
-            </div>
+  function handleSaveEdit() {
+    onContentChange(draftText);
+    setIsEditing(false);
+  }
 
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <SourceBadge source={section.source} />
-              <ReviewStatusBadge status={status} />
+  function handleCancelEdit() {
+    setDraftText(content);
+    setIsEditing(false);
+  }
+
+  function handleResetClick() {
+    onReset();
+    setDraftText(section.content);
+    setIsEditing(false);
+  }
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 bg-[#F8F9FA] overflow-y-auto">
+      {/* Contextual Toolbar for the selected section (Full-width from Story Structure to Context Panel) */}
+      <div className="flex-shrink-0 sticky top-0 z-10 px-6 py-3 border-b border-slate-200/90 bg-white/95 backdrop-blur-xs">
+        <div className="w-full flex items-center justify-between gap-4 flex-wrap">
+          {/* Left: Section Identity */}
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-[11px] font-mono text-slate-400 font-semibold">
+              {String(section.order).padStart(2, "0")}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-slate-900 truncate">
+                  {section.title}
+                </h2>
+                {section.required && (
+                  <span className="text-rose-500 text-xs" title="Required section">
+                    *
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                <span>
+                  {section.regeneratable
+                    ? "Suggested draft"
+                    : section.source === "WEBHOOK"
+                    ? "Student data"
+                    : section.source === "DATABASE"
+                    ? "Verified destination"
+                    : "Template section"}
+                </span>
+                <span className="text-slate-300">·</span>
+                <span>{sectionWordCount} words</span>
+                <span className="text-slate-300">·</span>
+                <span
+                  className={
+                    isApproved
+                      ? "text-emerald-700 font-medium"
+                      : isNeedsReview
+                      ? "text-amber-700 font-medium"
+                      : "text-slate-500"
+                  }
+                >
+                  {isApproved ? "Approved" : isNeedsReview ? "Needs review" : "Not reviewed"}
+                </span>
+              </p>
             </div>
           </div>
 
-          {/* Section actions */}
+          {/* Right: Contextual Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* View source data */}
-            {(section.source === "WEBHOOK" ||
-              section.source === "HYBRID" ||
-              section.source === "DATABASE") &&
-              section.sourceFacts &&
-              Object.keys(section.sourceFacts).length > 0 && (
+            {isEditing ? (
+              <>
                 <button
-                  id={`view-source-data-${section.id}`}
-                  onClick={() => setShowSourceData(true)}
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+
+                {isModified && (
+                  <button
+                    type="button"
+                    id={`reset-${section.id}`}
+                    onClick={handleResetClick}
+                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+                  >
+                    Reset
+                  </button>
+                )}
+
+                {section.regeneratable && (
+                  <button
+                    type="button"
+                    id={`regenerate-${section.id}`}
+                    onClick={() => handleRegenerateClick("generate")}
+                    disabled={isRegenerating}
+                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isRegenerating ? (
+                      <span className="animate-spin text-slate-500">⟳</span>
+                    ) : (
+                      <span>✨ Regenerate</span>
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  className="h-8 px-3.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium transition-colors shadow-xs"
+                >
+                  Done Editing
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Free edit button */}
+                <button
+                  type="button"
+                  id={`edit-${section.id}`}
+                  onClick={() => setIsEditing(true)}
                   className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
                 >
-                  View Source Data
+                  Edit
                 </button>
-              )}
 
-            {/* Regenerate */}
-            {section.regeneratable && (
-              <button
-                id={`regenerate-${section.id}`}
-                onClick={() => handleRegenerateClick("generate")}
-                disabled={isRegenerating}
-                title="Generate a new section narrative tailored to this student and degree"
-                className="h-8 px-3 rounded-lg border border-[#D2E7F0] text-[#096491] bg-[#F0F7FA] hover:bg-[#E2F0F7] text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isRegenerating ? (
-                  <>
-                    <svg
-                      className="animate-spin h-3.5 w-3.5 text-[#096491]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8H4z"
-                      />
-                    </svg>
-                    <span>Generating…</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-[11px]">✨</span>
-                    <span>Regenerate</span>
-                  </>
+                {/* Regenerate if AI narrative */}
+                {section.regeneratable && (
+                  <button
+                    type="button"
+                    id={`regenerate-${section.id}`}
+                    onClick={() => handleRegenerateClick("generate")}
+                    disabled={isRegenerating}
+                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  >
+                    {isRegenerating ? (
+                      <>
+                        <span className="animate-spin text-slate-500">⟳</span>
+                        <span>Writing…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✨</span>
+                        <span>Regenerate</span>
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
-            )}
 
-            {/* Rewrite in Natural Student Voice */}
-            {section.regeneratable && content && content.trim().length > 0 && (
-              <button
-                id={`rewrite-natural-${section.id}`}
-                onClick={() => handleRegenerateClick("rewrite-natural")}
-                disabled={isRegenerating}
-                title="Rewrite current paragraph in a sincere, believable student voice while strictly preserving all facts"
-                className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="text-[11px]">✍️</span>
-                <span>Rewrite Natural</span>
-              </button>
-            )}
+                {/* Rewrite in authentic student voice */}
+                {section.regeneratable && content.trim().length > 0 && (
+                  <button
+                    type="button"
+                    id={`rewrite-natural-${section.id}`}
+                    onClick={() => handleRegenerateClick("rewrite-natural")}
+                    disabled={isRegenerating}
+                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                    title="Rewrite paragraph in natural, authentic student voice"
+                  >
+                    <span>✍️</span>
+                    <span>Rewrite Natural</span>
+                  </button>
+                )}
 
-            {/* Reset */}
-            {isModified && (
-              <button
-                id={`reset-${section.id}`}
-                onClick={onReset}
-                disabled={isRegenerating}
-                className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
-              >
-                Reset
-              </button>
-            )}
+                {/* Reset button if modified */}
+                {isModified && (
+                  <button
+                    type="button"
+                    id={`reset-${section.id}`}
+                    onClick={handleResetClick}
+                    className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+                    title="Reset to template original"
+                  >
+                    Reset
+                  </button>
+                )}
 
-            {/* Approve Section (Dominant local action) */}
-            <button
-              id={`approve-${section.id}`}
-              onClick={onApprove}
-              disabled={status === "APPROVED" || isRegenerating}
-              className={`h-8 px-3.5 rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5
-                         ${
-                           status === "APPROVED"
-                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                             : "bg-[#096491] text-white hover:bg-[#074f74] active:bg-[#063f5d] disabled:opacity-50 disabled:cursor-not-allowed"
-                         }`}
-            >
-              {status === "APPROVED" ? "✓ Approved" : "Approve Section"}
-            </button>
+                {/* Approve section CTA / Approved state with Undo */}
+                {isApproved ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-8 px-3 rounded-lg bg-emerald-50 border border-emerald-200/90 text-emerald-800 text-xs font-medium flex items-center gap-1">
+                      ✓ Approved
+                    </span>
+                    {onUndoApprove && (
+                      <button
+                        type="button"
+                        onClick={onUndoApprove}
+                        className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+                        title="Undo approval"
+                      >
+                        Undo
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    id={`approve-${section.id}`}
+                    onClick={onApprove}
+                    disabled={isRegenerating}
+                    className="h-8 px-3.5 rounded-lg bg-[#096491] hover:bg-[#074f74] active:bg-[#063f5d] text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
+                  >
+                    Approve Section
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Feedback notice */}
-        {regenFeedback && (
-          <div
-            className={`mt-2.5 px-3.5 py-2 rounded-lg text-xs flex items-center justify-between transition-all ${
-              regenFeedback.type === "success"
-                ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                : "bg-rose-50 border border-rose-200 text-rose-800"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span>{regenFeedback.type === "success" ? "✓" : "⚠️"}</span>
-              <span>{regenFeedback.message}</span>
-            </div>
-            <button
-              onClick={() => setRegenFeedback(null)}
-              className="opacity-70 hover:opacity-100 font-bold ml-2 cursor-pointer text-xs"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
-
-        {/* WEBHOOK: Restrained Information Block (Student Data — Factual Source Values) */}
-        {section.source === "WEBHOOK" && section.sourceFacts && (
-          <div className="rounded-xl border border-[#D9EAF0] bg-[#F4F9FA] p-5 shadow-xs">
-            <p className="text-[11px] font-bold text-[#096491] uppercase tracking-wider mb-1">
-              STUDENT DATA — FACTUAL SOURCE VALUES
-            </p>
-            <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-              These are factual student values and are not AI-generated.
-            </p>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
-              {Object.entries(section.sourceFacts).map(([key, tmpl]) => {
-                const val = interpolate(tmpl, ctx);
-                const missing = val.includes("[MISSING:");
-                return (
-                  <div key={key} className="flex gap-3 items-baseline">
-                    <dt className="w-36 text-[11px] text-slate-500 font-medium flex-shrink-0">
-                      {key}
-                    </dt>
-                    <dd
-                      className={`text-xs font-semibold ${
-                        missing ? "text-rose-500 italic" : "text-slate-800"
-                      }`}
-                    >
-                      {val}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        )}
-
-        {/* HYBRID: Restrained Information Block for Source Facts */}
-        {section.source === "HYBRID" && section.sourceFacts && (
-          <div className="rounded-xl border border-[#EFE7D8] bg-[#FAF8F5] p-5 shadow-xs">
-            <p className="text-[11px] font-bold text-[#8C6B38] uppercase tracking-wider mb-1">
-              SOURCE FACTS (VERIFIED)
-            </p>
-            <p className="text-[11px] text-slate-500 mb-4 leading-relaxed">
-              These factual values anchor the narrative below. They must not be AI-generated.
-            </p>
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
-              {Object.entries(section.sourceFacts).map(([key, tmpl]) => {
-                const val = interpolate(tmpl, ctx);
-                const missing = val.includes("[MISSING:");
-                return (
-                  <div key={key} className="flex gap-3 items-baseline">
-                    <dt className="w-36 text-[11px] text-slate-500 font-medium flex-shrink-0">
-                      {key}
-                    </dt>
-                    <dd
-                      className={`text-xs font-semibold ${
-                        missing ? "text-rose-500 italic" : "text-slate-800"
-                      }`}
-                    >
-                      {val}
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        )}
-
-        {/* Editable or Document Workspace content */}
-        {section.editable ? (
-          <div className="space-y-2">
-            {section.source === "HYBRID" && (
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Suggested Narrative (Editable)
-              </p>
-            )}
-            <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-xs focus-within:border-[#096491] focus-within:ring-1 focus-within:ring-[#096491] transition-all">
-              <textarea
-                id={`section-editor-textarea-${section.id}`}
-                value={content}
-                onChange={(e) => onContentChange(e.target.value)}
-                rows={16}
-                className="w-full bg-transparent px-3 py-2 text-[14px] text-slate-800 font-sans leading-[1.65] resize-none outline-none"
-                aria-label={`Edit content for ${section.title}`}
-              />
-            </div>
-            {isModified && (
-              <p className="text-[11px] text-amber-600 flex items-center gap-1.5 font-medium">
-                <span>⚠</span>
-                <span>Content modified from original. {status === "APPROVED" && "Status reset to Needs Review."}</span>
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Non-editable: Document preview card */}
+        {/* Feedback notice if any */}
+        {feedback && (
+          <div className="w-full mt-2">
             <div
-              className="rounded-xl border border-slate-200 bg-white p-5 md:p-6 text-[14px] text-slate-800 font-sans leading-[1.65] whitespace-pre-wrap shadow-xs"
-              aria-label={`Content preview for ${section.title}`}
+              className={`px-3 py-1.5 rounded-lg text-xs flex items-center justify-between ${
+                feedback.type === "success"
+                  ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                  : "bg-rose-50 border border-rose-200 text-rose-800"
+              }`}
             >
-              {resolved}
+              <span>{feedback.message}</span>
+              <button
+                onClick={() => setFeedback(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold ml-2 text-xs"
+              >
+                ✕
+              </button>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-0.5">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <span>This section is controlled by the data source and cannot be free-text edited.</span>
-            </div>
-          </div>
-        )}
-
-        {/* DATABASE: Verified info notice */}
-        {section.source === "DATABASE" && (
-          <div className="rounded-xl border border-[#D9EAF0] bg-[#F4F9FA] px-4 py-3 flex items-start gap-2.5">
-            <span className="text-[#096491] text-xs mt-0.5">✓</span>
-            <p className="text-xs text-[#096491] leading-relaxed">
-              <strong className="font-semibold">Verified Data.</strong> This section is sourced from the verified destination database and does not require counsellor editing.
-            </p>
-          </div>
-        )}
-
-        {/* FIXED: Template text notice */}
-        {section.source === "FIXED" && (
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-start gap-2.5 shadow-xs">
-            <span className="text-slate-400 text-xs mt-0.5">📋</span>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              This section uses standard template wording. It can be lightly edited if your institution requires custom language.
-            </p>
           </div>
         )}
       </div>
 
-      {/* Source data dialog */}
+      {/* Main Document Workspace Canvas */}
+      <div className="flex-1 py-8 px-4 md:px-8">
+        <div className="max-w-[760px] mx-auto">
+          {/* Subtle paper sheet */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden transition-all">
+            {/* Paper Header / Document Masthead */}
+            <div className="px-8 pt-8 pb-4 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <span className="uppercase tracking-wider font-semibold">
+                Visa Cover Letter · Embassy Submission
+              </span>
+              <span>
+                Section {section.order} of 16
+              </span>
+            </div>
+
+            {/* Document Content Area */}
+            <div className="p-8 md:p-12 font-serif text-[15px] md:text-[16px] text-slate-800 leading-[1.8] tracking-[0.01em]">
+              {isEditing ? (
+                <div className="space-y-3 font-sans">
+                  <div className="relative rounded-xl border border-slate-300 focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900 p-3 bg-slate-50/50 transition-all">
+                    <textarea
+                      id={`section-editor-textarea-${section.id}`}
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      rows={12}
+                      className="w-full bg-transparent text-[14px] text-slate-900 font-sans leading-[1.7] resize-none outline-none"
+                      aria-label={`Edit content for ${section.title}`}
+                      placeholder="Type section narrative here…"
+                      autoFocus
+                    />
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px] text-slate-400 font-sans">
+                      <span>{calculateSectionWordCount(draftText, ctx)} words</span>
+                      <span>Press &apos;Done Editing&apos; to commit</span>
+                    </div>
+                  </div>
+                  {isModified && (
+                    <p className="text-[11px] text-amber-600 flex items-center gap-1 font-medium font-sans">
+                      <span>⚠</span>
+                      <span>Modified from template default.</span>
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="space-y-4 whitespace-pre-wrap select-text"
+                  aria-label={`Letter content for ${section.title}`}
+                >
+                  {renderFormatted(resolved)}
+                </div>
+              )}
+            </div>
+
+            {/* Subtle contextual source info line below document prose */}
+            {factsCount > 0 && (
+              <div className="px-8 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-sans">
+                <span className="flex items-center gap-1.5 text-[11px]">
+                  <span className="text-slate-400">ⓘ</span>
+                  <span>Uses {factsCount} factual verified student fields</span>
+                </span>
+                <button
+                  type="button"
+                  id={`view-source-data-${section.id}`}
+                  onClick={() => setShowSourceData(true)}
+                  className="text-[11px] font-medium text-[#096491] hover:text-[#074f74] hover:underline"
+                >
+                  View source data →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Source Data Modal / Popover */}
       {showSourceData && (
         <SourceDataDialog
           section={section}
