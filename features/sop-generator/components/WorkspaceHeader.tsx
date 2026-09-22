@@ -1,8 +1,13 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
+import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+
 interface WorkspaceHeaderProps {
   templateName: string;
   studentName: string;
+  studentInitials?: string;
+  destinationSummary?: string;
   documentStatus: "draft" | "in_review" | "approved";
   approvedCount: number;
   requiredCount: number;
@@ -12,6 +17,7 @@ interface WorkspaceHeaderProps {
   draftCount?: number;
   onOpenDrafts?: () => void;
   isSavingDraft?: boolean;
+  savedNoticeText?: string | null;
   onPreview: () => void;
   onApproveDocument: () => void;
   onApproveAll?: () => void;
@@ -19,6 +25,14 @@ interface WorkspaceHeaderProps {
   isGeneratingAllAi?: boolean;
   onDownloadPdf?: () => void;
   isGeneratingPdf?: boolean;
+  totalWordCount?: number;
+  // Student selection & program switching
+  isStudentLoaded?: boolean;
+  availablePrograms?: NormalizedAppliedProgram[];
+  selectedProgramId?: string;
+  onProgramChange?: (programId: string) => void;
+  onClearStudent?: () => void;
+  onOpenStudentSelect?: () => void;
 }
 
 const DOC_STATUS_LABELS: Record<string, { label: string; colors: string }> = {
@@ -27,22 +41,21 @@ const DOC_STATUS_LABELS: Record<string, { label: string; colors: string }> = {
   approved:  { label: "Approved",  colors: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
-/**
- * Workspace header — breadcrumb, document title, student name, status,
- * progress counter, and document-level action buttons.
- */
 export function WorkspaceHeader({
   templateName,
   studentName,
+  studentInitials,
+  destinationSummary: _destinationSummary,
   documentStatus,
   approvedCount,
   requiredCount,
-  totalCount,
+  totalCount: _totalCount,
   hasErrors,
   onSaveDraft,
   draftCount = 0,
   onOpenDrafts,
   isSavingDraft = false,
+  savedNoticeText,
   onPreview,
   onApproveDocument,
   onApproveAll,
@@ -50,278 +63,399 @@ export function WorkspaceHeader({
   isGeneratingAllAi = false,
   onDownloadPdf,
   isGeneratingPdf = false,
+  totalWordCount,
+  isStudentLoaded = false,
+  availablePrograms = [],
+  selectedProgramId,
+  onProgramChange,
+  onClearStudent,
+  onOpenStudentSelect,
 }: WorkspaceHeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const statusCfg = DOC_STATUS_LABELS[documentStatus] ?? DOC_STATUS_LABELS.draft;
   const allRequiredApproved = approvedCount >= requiredCount;
   const canApprove = allRequiredApproved && !hasErrors;
   const isApproved = documentStatus === "approved";
 
-  // Reason why Approve is disabled
+  const initials =
+    studentInitials ||
+    studentName
+      .split(" ")
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() ||
+    "ST";
+
   const disabledReason = !canApprove
     ? hasErrors
-      ? "Resolve validation errors before approving."
-      : `${requiredCount - approvedCount} required section${requiredCount - approvedCount !== 1 ? "s" : ""} still need approval.`
+      ? "Resolve validation errors before approving"
+      : `${requiredCount - approvedCount} section${
+          requiredCount - approvedCount !== 1 ? "s" : ""
+        } still need review`
     : null;
 
-  return (
-    <div className="flex-shrink-0 border-b border-slate-200 bg-white">
-      {/* Breadcrumb */}
-      <div className="px-6 pt-3.5 pb-1">
-        <p className="text-[11px] font-medium text-slate-400 tracking-normal flex items-center gap-1.5">
-          <span>Documents</span>
-          <span className="text-slate-300">/</span>
-          <span>SOP Generator</span>
-          <span className="text-slate-300">/</span>
-          <span className="text-slate-600 font-semibold">Review</span>
-        </p>
-      </div>
+  // Close overflow menu on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-      {/* Main row */}
-      <div className="px-6 pb-3.5 flex items-center justify-between gap-6 flex-wrap">
-        {/* Left: title + meta */}
-        <div className="flex flex-col gap-1.5 min-w-0">
-          <h1 className="text-[18px] md:text-[20px] font-semibold text-slate-900 leading-tight tracking-tight truncate">
+  return (
+    <header className="flex-shrink-0 border-b border-slate-200/90 bg-white">
+      {/* Top Bar: Breadcrumb + Document Title + Auto-save + Actions */}
+      <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 text-xs gap-4">
+        {/* Breadcrumb + Document Title */}
+        <div className="flex items-center gap-2 min-w-0">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-shrink-0">
+            <span>Documents</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-500 font-medium">SOP Generator</span>
+          </nav>
+          <span className="text-slate-300 select-none text-xs">/</span>
+          <h1
+            className="text-xs md:text-sm font-semibold text-slate-900 tracking-tight truncate max-w-md lg:max-w-xl"
+            title={templateName}
+          >
             {templateName}
           </h1>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Student */}
-            <span className="text-[12px] text-slate-600 font-medium flex items-center gap-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400" aria-hidden="true">
-                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              <span>{studentName}</span>
-            </span>
-
-            <span className="text-slate-300 select-none">·</span>
-
-            {/* Document status */}
-            <span
-              className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${statusCfg.colors}`}
-            >
-              {statusCfg.label}
-            </span>
-
-            <span className="text-slate-300 select-none">·</span>
-
-            {/* Progress */}
-            <span className="text-[12px] text-slate-500">
-              <span
-                className={
-                  allRequiredApproved ? "text-emerald-600 font-semibold" : "font-medium text-slate-700"
-                }
-              >
-                {approvedCount}
-              </span>
-              {" / "}
-              {requiredCount} required sections approved
-            </span>
-
-            {/* Total sections note */}
-            <span className="text-[11px] text-slate-400 font-normal">
-              ({totalCount} total)
-            </span>
-          </div>
-
-          {/* Thin progress bar */}
-          <div className="w-52 h-1 bg-slate-100 rounded-full overflow-hidden mt-0.5">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                allRequiredApproved ? "bg-emerald-600" : "bg-[#096491]"
-              }`}
-              style={{
-                width: `${Math.min(
-                  100,
-                  (approvedCount / Math.max(1, requiredCount)) * 100
-                )}%`,
-              }}
-            />
-          </div>
         </div>
 
-        {/* Right: action buttons */}
+        {/* Right: Saved state notice + Action Buttons */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* View Saved Drafts */}
-          {onOpenDrafts && (
-            <button
-              id="sop-open-drafts-btn"
-              onClick={onOpenDrafts}
-              className="h-9 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors shadow-xs flex items-center gap-1.5"
-              title="View saved drafts on this device"
-            >
-              <span className="text-xs">📁</span>
-              <span>Drafts</span>
-              {draftCount > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#096491] text-white leading-none">
-                  {draftCount}
-                </span>
-              )}
-            </button>
-          )}
+          {/* Subtle save indicator */}
+          {savedNoticeText ? (
+            <span className="text-[11px] text-emerald-700 font-medium px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 animate-fade-in flex items-center gap-1">
+              <span>✓</span>
+              <span>{savedNoticeText.replace(/^✓\s*/, "")}</span>
+            </span>
+          ) : isSavingDraft ? (
+            <span className="text-[11px] text-slate-400">Saving…</span>
+          ) : null}
 
-          {/* Save Draft */}
+          {/* Preview CTA */}
           <button
-            id="sop-save-draft-btn"
-            onClick={onSaveDraft}
-            disabled={isSavingDraft}
-            className="h-9 px-3.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 text-xs font-medium transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-60"
-          >
-            <span className="text-xs">💾</span>
-            <span>{isSavingDraft ? "Saving…" : "Save Draft"}</span>
-          </button>
-
-          {/* Generate All AI */}
-          {onGenerateAllAi && (
-            <button
-              id="sop-header-generate-all-ai-btn"
-              onClick={onGenerateAllAi}
-              disabled={isGeneratingAllAi}
-              className="h-9 px-3 rounded-lg border border-[#D2E7F0] text-[#096491] bg-[#F0F7FA] hover:bg-[#E2F0F7] text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Generate all course-specific AI narrative sections with Gemini"
-            >
-              {isGeneratingAllAi ? (
-                <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-[#096491]" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  <span>Generating AI…</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[11px]">✨</span>
-                  <span>Generate All AI</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Approve All */}
-          {onApproveAll && !isApproved && (
-            <button
-              id="sop-header-approve-all-btn"
-              onClick={onApproveAll}
-              className="h-9 px-3.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
-              title="Mark all sections as Approved"
-            >
-              <span className="text-slate-500">✓</span>
-              <span>Approve All</span>
-            </button>
-          )}
-
-          {/* Preview */}
-          <button
+            type="button"
             id="sop-preview-btn"
             onClick={onPreview}
-            className="h-9 px-3.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
+            className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
           >
             Preview
           </button>
 
-          {/* Approve Document (Primary CTA) */}
+          {/* Primary CTA: Approve Document */}
           <div className="relative group">
             <button
+              type="button"
               id="sop-approve-document-btn"
               onClick={onApproveDocument}
               disabled={!canApprove || isApproved}
-              className={`h-9 px-4 rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5
-                         ${
-                           isApproved
-                             ? "bg-emerald-50 text-emerald-800 border border-emerald-200 cursor-default"
-                             : "bg-[#096491] text-white hover:bg-[#074f74] active:bg-[#063f5d] disabled:opacity-40 disabled:cursor-not-allowed"
-                         }`}
+              className={`h-8 px-3.5 rounded-lg text-xs font-medium transition-all shadow-xs flex items-center gap-1.5
+                ${
+                  isApproved
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200/90 cursor-default"
+                    : canApprove
+                    ? "bg-slate-900 text-white hover:bg-slate-800 active:scale-95"
+                    : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                }`}
             >
-              {isApproved ? "✓ Document Approved" : "Approve Document"}
+              {isApproved ? (
+                <>
+                  <span>✓</span>
+                  <span>Document Approved</span>
+                </>
+              ) : (
+                <span>Approve Document</span>
+              )}
             </button>
 
-            {/* Disabled tooltip */}
+            {/* Concise disabled explanation tooltip */}
             {disabledReason && !isApproved && (
               <div
-                className="absolute right-0 top-full mt-1.5 z-30 w-56
-                            bg-slate-800 text-white text-[11px] leading-relaxed
-                            rounded-lg px-3 py-2 shadow-lg pointer-events-none
-                            opacity-0 group-hover:opacity-100 transition-opacity"
                 role="tooltip"
+                className="absolute right-0 top-full mt-1.5 z-30 w-52 bg-slate-800 text-white text-[11px] leading-relaxed rounded-lg px-2.5 py-1.5 shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 {disabledReason}
               </div>
             )}
           </div>
 
-          {/* Download PDF button */}
-          {onDownloadPdf && (
-            <div className="relative group">
-              <button
-                id="sop-download-pdf-btn"
-                onClick={onDownloadPdf}
-                disabled={isGeneratingPdf || !isApproved}
-                className={`h-9 px-3.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs
-                           ${
-                             isApproved
-                               ? "bg-slate-800 text-white hover:bg-slate-900 cursor-pointer"
-                               : "border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed"
-                           }`}
-              >
-                {isGeneratingPdf ? (
-                  <>
-                    <svg
-                      className="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Generating PDF…
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    <span>Download PDF</span>
-                  </>
-                )}
-              </button>
+          {/* If approved, show direct Download PDF */}
+          {isApproved && onDownloadPdf && (
+            <button
+              type="button"
+              id="sop-download-pdf-btn"
+              onClick={onDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="h-8 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+            >
+              {isGeneratingPdf ? (
+                <span>Generating PDF…</span>
+              ) : (
+                <>
+                  <span>📥</span>
+                  <span>Download PDF</span>
+                </>
+              )}
+            </button>
+          )}
 
-              {!isApproved && (
-                <div
-                  className="absolute right-0 top-full mt-1.5 z-30 w-52
-                              bg-slate-800 text-white text-[11px] leading-relaxed
-                              rounded-lg px-3 py-2 shadow-lg pointer-events-none
-                              opacity-0 group-hover:opacity-100 transition-opacity text-center"
-                  role="tooltip"
+          {/* Secondary Actions Overflow Menu (•••) */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              id="sop-header-more-menu-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+              className="h-8 w-8 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 flex items-center justify-center transition-colors shadow-xs"
+              title="More actions"
+              aria-label="More actions"
+              aria-expanded={menuOpen}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
+              </svg>
+            </button>
+
+            {menuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 text-xs text-slate-700"
+                role="menu"
+              >
+                {/* Save Draft */}
+                <button
+                  type="button"
+                  id="sop-save-draft-btn"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSaveDraft();
+                  }}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between"
+                  role="menuitem"
                 >
-                  Approve document to download official PDF
+                  <span className="flex items-center gap-2">
+                    <span>💾</span>
+                    <span>Save Draft</span>
+                  </span>
+                </button>
+
+                {/* View Saved Drafts */}
+                {onOpenDrafts && (
+                  <button
+                    type="button"
+                    id="sop-open-drafts-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onOpenDrafts();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between"
+                    role="menuitem"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span>📁</span>
+                      <span>Saved Drafts</span>
+                    </span>
+                    {draftCount > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
+                        {draftCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                <div className="my-1 border-t border-slate-100" />
+
+                {/* Generate All AI Suggestions */}
+                {onGenerateAllAi && (
+                  <button
+                    type="button"
+                    id="sop-header-generate-all-ai-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onGenerateAllAi();
+                    }}
+                    disabled={isGeneratingAllAi}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 disabled:opacity-50"
+                    role="menuitem"
+                  >
+                    <span>✨</span>
+                    <span>{isGeneratingAllAi ? "Generating AI…" : "Generate All AI"}</span>
+                  </button>
+                )}
+
+                {/* Approve All */}
+                {onApproveAll && !isApproved && (
+                  <button
+                    type="button"
+                    id="sop-header-approve-all-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onApproveAll();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                    role="menuitem"
+                  >
+                    <span>✓</span>
+                    <span>Approve All Sections</span>
+                  </button>
+                )}
+
+                {/* Download PDF option in menu if not already shown */}
+                {onDownloadPdf && !isApproved && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDownloadPdf();
+                    }}
+                    disabled={isGeneratingPdf}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-400 disabled:opacity-50 cursor-not-allowed"
+                    role="menuitem"
+                    title="Approve document first to download official PDF"
+                  >
+                    <span>📥</span>
+                    <span>Download PDF (Locked)</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Row: Student Persona & Controls + Review Progress */}
+      <div className="px-6 py-2 flex items-center justify-between gap-4 flex-wrap">
+        {/* Left: Student Persona and Destination Line */}
+        <div className="flex items-center gap-2.5 text-xs text-slate-600 flex-wrap min-w-0">
+          {isStudentLoaded ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80">
+                <div className="w-5 h-5 rounded-full bg-slate-900 text-white font-semibold text-[10px] flex items-center justify-center flex-shrink-0">
+                  {initials}
                 </div>
+                <span className="font-semibold text-slate-900">
+                  {studentName}
+                </span>
+                <span
+                  className={`text-[10px] font-medium px-1.5 py-0.2 rounded-full border ${statusCfg.colors}`}
+                >
+                  {statusCfg.label}
+                </span>
+              </div>
+
+              {/* Explicit Switch Student Button */}
+              {onOpenStudentSelect && (
+                <button
+                  type="button"
+                  id="sop-switch-student-btn"
+                  onClick={onOpenStudentSelect}
+                  className="h-7 px-2.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Select a different student from CRM"
+                >
+                  <span>⇄</span>
+                  <span>Switch Student</span>
+                </button>
+              )}
+
+              {/* Clear Student Button */}
+              {onClearStudent && (
+                <button
+                  type="button"
+                  id="sop-clear-student-btn"
+                  onClick={onClearStudent}
+                  className="h-7 px-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 text-[11px] transition-colors cursor-pointer"
+                  title="Clear student and reset to sample template"
+                >
+                  ✕
+                </button>
+              )}
+
+              {/* Multiple program switcher inline if available */}
+              {availablePrograms.length > 1 && onProgramChange && (
+                <div className="flex items-center gap-1.5 ml-1">
+                  <label htmlFor="sop-prog-switcher" className="text-[10px] text-slate-400 uppercase font-semibold">
+                    Program:
+                  </label>
+                  <select
+                    id="sop-prog-switcher"
+                    value={selectedProgramId}
+                    onChange={(e) => onProgramChange(e.target.value)}
+                    className="text-[11px] font-medium text-slate-800 bg-white border border-slate-200 rounded-lg px-2 h-7 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg truncate focus:outline-none focus:border-slate-800 cursor-pointer shadow-xs"
+                  >
+                    {availablePrograms.map((prog) => (
+                      <option key={prog.id} value={prog.id}>
+                        {prog.university} — {prog.course}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 text-xs italic">No student loaded</span>
+              {onOpenStudentSelect && (
+                <button
+                  type="button"
+                  id="sop-select-student-btn"
+                  onClick={onOpenStudentSelect}
+                  className="h-7 px-3 rounded-lg bg-[#096491] hover:bg-[#074f74] text-white text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <span>+</span>
+                  <span>Select Student from CRM</span>
+                </button>
               )}
             </div>
           )}
         </div>
+
+        {/* Right: Review Progress & Word Count */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="text-right">
+            <div className="flex items-center gap-2 justify-end text-xs">
+              <span className="text-slate-500">
+                <strong className={allRequiredApproved ? "text-emerald-700 font-semibold" : "text-slate-900 font-semibold"}>
+                  {approvedCount}
+                </strong>
+                {" of "}
+                {requiredCount} reviewed
+              </span>
+
+              {totalWordCount !== undefined && totalWordCount > 0 && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="text-slate-500 font-medium">
+                    {totalWordCount} words
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Calm progress bar */}
+            <div className="w-36 h-1 bg-slate-100 rounded-full overflow-hidden mt-1.5 ml-auto">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  allRequiredApproved ? "bg-emerald-600" : "bg-slate-900"
+                }`}
+                style={{
+                  width: `${Math.min(
+                    100,
+                    (approvedCount / Math.max(1, requiredCount)) * 100
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </header>
   );
 }

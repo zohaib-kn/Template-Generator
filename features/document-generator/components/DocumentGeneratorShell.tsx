@@ -1,78 +1,75 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { DocumentProvider } from "../state/DocumentContext";
 import { AppHeader } from "@/components/common/AppHeader";
-import { SectionAccordion } from "./SectionAccordion";
-import { DocumentPreview } from "../preview/DocumentPreview";
 import { useDocumentState } from "../hooks/useDocumentState";
 import type { ResumeDraftRecord } from "../types/draft";
 import { ResumeDraftsModal } from "./ResumeDraftsModal";
 import { getAllResumeDrafts, saveResumeDraft } from "../lib/resumeDraftStorage";
+import { usePdfGenerator } from "../hooks/usePdfGenerator";
+import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
+import { mapCrmToNormalizedStudent, mapNormalizedToResume } from "@/services/normalization";
+import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import type { CrmSnapshot } from "@/types/crmSnapshot";
 
 // Guidance system
 import type { ApplicationTarget } from "../guidance/types";
 import { getAdmissionsGuidance } from "../guidance/getAdmissionsGuidance";
-import { ApplicationTargetForm } from "../forms/ApplicationTargetForm";
-import { GuidanceSummaryPanel } from "./GuidanceSummaryPanel";
-import { ProfileSuggestionsPanel } from "./ProfileSuggestionsPanel";
 
-// Forms — existing
-import { PersonalDetailsForm } from "../forms/PersonalDetailsForm";
-import { AboutMeForm } from "../forms/AboutMeForm";
-import { EducationForm } from "../forms/EducationForm";
-import { RecommendationsForm } from "../forms/RecommendationsForm";
-import { LanguagesForm } from "../forms/LanguagesForm";
-import { EnglishCertificateForm } from "../forms/EnglishCertificateForm";
-import { SkillsForm } from "../forms/SkillsForm";
-import { HobbiesForm } from "../forms/HobbiesForm";
-import { VolunteeringForm } from "../forms/VolunteeringForm";
-import { DeclarationForm } from "../forms/DeclarationForm";
-
-// Forms — university-admissions sections
-import { AcademicInterestsForm } from "../forms/AcademicInterestsForm";
-import { AcademicProjectsForm } from "../forms/AcademicProjectsForm";
-import { AchievementsForm } from "../forms/AchievementsForm";
-import { LeadershipForm } from "../forms/LeadershipForm";
-import { CertificationsForm } from "../forms/CertificationsForm";
-import { InternshipsForm } from "../forms/InternshipsForm";
-import { WebhookToolbar } from "./WebhookToolbar";
-import { RawDataPanel } from "./RawDataPanel";
-import type { CrmSnapshot } from "@/types/crmSnapshot";
+// Redesigned components
+import { ResumeWorkspaceHeader } from "./ResumeWorkspaceHeader";
+import { ResumeSectionSidebar, RESUME_SECTION_METADATA } from "./ResumeSectionSidebar";
+import { ResumeSectionEditor } from "./ResumeSectionEditor";
+import { ResumeContextPanel } from "./ResumeContextPanel";
+import { ResumeStudentDetailsModal } from "./ResumeStudentDetailsModal";
+import { ResumeDeveloperToolsModal } from "./ResumeDeveloperToolsModal";
+import { StudentSelectModal } from "@/features/sop-generator/components/StudentSelectModal";
+import { PreviewScaler } from "../preview/PreviewScaler";
+import { EuropassTemplate } from "@/templates/europass/EuropassTemplate";
 
 /**
- * Plain helper — NOT a hook. Looks up section guidance from an already-computed
- * GuidanceResult so it can safely be called anywhere inside a render function.
- */
-function getSectionGuidance(
-  guidance: ReturnType<typeof getAdmissionsGuidance>,
-  sectionKey: string
-) {
-  if (!guidance) return undefined;
-  const sg = guidance.sections.find((s) => s.sectionKey === sectionKey);
-  return sg ? { priority: sg.priority, hint: sg.hint } : undefined;
-}
-
-/**
- * Inner shell — rendered inside DocumentProvider so it can read context.
- * Separated from the outer shell to keep the provider boundary clean.
- *
- * ApplicationTarget lives here as local state — it is editor metadata only
- * and must never flow into DocumentData or the PDF template.
+ * Inner shell — rendered inside DocumentProvider so it can read and update context.
  */
 function GeneratorLayout() {
   const { data, loadStudent, reset } = useDocumentState();
+  const {
+    selectedStudentData,
+    selectedStudentId,
+    selectStudent,
+    clearStudent: clearGlobalStudent,
+  } = useGlobalStudent();
 
-  // ── Draft management state ─────────────────────────────────────────────
+  // ── Active Section Selection in Resume Structure ───────────────────────────
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("personalDetails");
+
+  // ── Draft management state (initialized lazily to avoid setState in effect) ──
+  const [draftCount, setDraftCount] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    return getAllResumeDrafts().length;
+  });
+  const [recoveryBanner, setRecoveryBanner] = useState<ResumeDraftRecord | null>(() => {
+    if (typeof window === "undefined") return null;
+    const drafts = getAllResumeDrafts();
+    return drafts.length > 0 ? drafts[0] : null;
+  });
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [activeDraftStudentName, setActiveDraftStudentName] = useState<string | null>(null);
   const [draftsModalOpen, setDraftsModalOpen] = useState(false);
-  const [draftCount, setDraftCount] = useState(0);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(null);
-  const [recoveryBanner, setRecoveryBanner] = useState<ResumeDraftRecord | null>(null);
 
-  // ── Application Target (editor-only, NOT in DocumentData) ───────────────
+  // ── Modals state ───────────────────────────────────────────────────────────
+  const [studentSelectOpen, setStudentSelectOpen] = useState(false);
+  const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
+  const [devToolsOpen, setDevToolsOpen] = useState(false);
+
+  // ── Collapsible sidebars & responsive layout state ─────────────────────────
+  const [isContextOpen, setIsContextOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<"split" | "editor" | "preview">("split");
+
+  // ── Application Target (editor-only metadata) ──────────────────────────────
   const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({
     destinationCountry: "United Kingdom",
     degreeLevel: "Master's",
@@ -80,20 +77,83 @@ function GeneratorLayout() {
     intendedCourse: "MSc Business Analytics",
     universityName: "University of Manchester",
   });
+
   const guidance = useMemo(
     () => getAdmissionsGuidance(applicationTarget),
     [applicationTarget]
   );
 
-  // ── Check saved drafts on initial mount ──────────────────────────────────
-  useEffect(() => {
-    const all = getAllResumeDrafts();
-    setDraftCount(all.length);
-    if (all.length > 0) {
-      setRecoveryBanner(all[0]);
-    }
-  }, []);
+  // ── CRM Snapshot & Multi-Program State ─────────────────────────────────────
+  const [currentSnapshot, setCurrentSnapshot] = useState<CrmSnapshot | null>(null);
+  const [availablePrograms, setAvailablePrograms] = useState<NormalizedAppliedProgram[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>("");
 
+  // Track the last loaded student ID to prevent re-processing identical payloads
+  const lastLoadedStudentIdRef = useRef<string | null>(null);
+
+  // ── React to global student selection ──────────────────────────────────────
+  useEffect(() => {
+    if (selectedStudentData && selectedStudentId && selectedStudentId !== lastLoadedStudentIdRef.current) {
+      lastLoadedStudentIdRef.current = selectedStudentId;
+      const source = "senior-crm-api" as const;
+      const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source });
+      const { student, target } = mapNormalizedToResume(normalized);
+
+      queueMicrotask(() => {
+        loadStudent(student);
+
+        if (target) {
+          setApplicationTarget((prev) => ({ ...prev, ...target }));
+        }
+
+        setCurrentSnapshot(selectedStudentData);
+        setAvailablePrograms(normalized.applications.all);
+        setSelectedProgramId(
+          normalized.applications.activeProgramId ||
+          normalized.applications.all[0]?.id ||
+          ""
+        );
+
+        setActiveDraftId(null);
+        setActiveDraftStudentName(null);
+      });
+    }
+  }, [selectedStudentData, selectedStudentId, loadStudent]);
+
+  // Handle program switching when student has multiple programs
+  const handleProgramChange = useCallback(
+    (programId: string) => {
+      if (!currentSnapshot) return;
+      setSelectedProgramId(programId);
+
+      const updatedNormalized = mapCrmToNormalizedStudent(currentSnapshot, {
+        source: "senior-crm-api",
+        activeProgramId: programId,
+      });
+      const { target: newTarget } = mapNormalizedToResume(updatedNormalized);
+
+      if (newTarget) {
+        setApplicationTarget((prev) => ({ ...prev, ...newTarget }));
+      }
+    },
+    [currentSnapshot]
+  );
+
+  // Clear student
+  const handleClearStudent = useCallback(() => {
+    reset();
+    clearGlobalStudent();
+    lastLoadedStudentIdRef.current = null;
+    setCurrentSnapshot(null);
+    setAvailablePrograms([]);
+    setSelectedProgramId("");
+    setActiveDraftId(null);
+    setActiveDraftStudentName(null);
+    setSavedNoticeText("✓ Cleared student profile.");
+    setTimeout(() => setSavedNoticeText(null), 3000);
+  }, [reset, clearGlobalStudent]);
+
+  // ── Draft Actions ──────────────────────────────────────────────────────────
   function handleSaveDraft() {
     setIsSavingDraft(true);
     try {
@@ -102,8 +162,6 @@ function GeneratorLayout() {
       const targetCourse = applicationTarget.intendedCourse || undefined;
       const destCountry = applicationTarget.destinationCountry || undefined;
 
-      // If student name changed from what active draft was saved under,
-      // detach activeDraftId so we save as a new draft rather than overwriting!
       const isDifferentStudent =
         Boolean(activeDraftStudentName) &&
         activeDraftStudentName?.toLowerCase() !== studentName.toLowerCase();
@@ -129,7 +187,7 @@ function GeneratorLayout() {
         hour: "2-digit",
         minute: "2-digit",
       });
-      setSavedNoticeText(`✓ Resume draft saved locally at ${timeStr}.`);
+      setSavedNoticeText(`✓ Resume saved at ${timeStr}`);
       setTimeout(() => setSavedNoticeText(null), 3500);
     } catch (err) {
       console.error("[Resume Save Draft Error]:", err);
@@ -148,78 +206,115 @@ function GeneratorLayout() {
     setActiveDraftId(draft.id);
     setActiveDraftStudentName(draft.studentName);
     setRecoveryBanner(null);
-    setSavedNoticeText(`✓ Restored resume draft for "${draft.studentName}".`);
+    setSavedNoticeText(`✓ Restored draft for "${draft.studentName}".`);
     setTimeout(() => setSavedNoticeText(null), 3500);
   }
 
   function handleNewResume() {
     reset();
-    setApplicationTarget({
-      destinationCountry: "United Kingdom",
-      degreeLevel: "Master's",
-      courseCategory: "Business / Management",
-      intendedCourse: "MSc Business Analytics",
-      universityName: "University of Manchester",
-    });
+    clearGlobalStudent();
+    lastLoadedStudentIdRef.current = null;
+    setCurrentSnapshot(null);
+    setAvailablePrograms([]);
+    setSelectedProgramId("");
     setActiveDraftId(null);
     setActiveDraftStudentName(null);
     setRecoveryBanner(null);
-    setSavedNoticeText("✓ Started a fresh blank resume.");
+    setSavedNoticeText("✓ Started fresh blank resume.");
     setTimeout(() => setSavedNoticeText(null), 3000);
   }
 
-  function handleToolbarStudentLoaded() {
-    setActiveDraftId(null);
-    setActiveDraftStudentName(null);
+  // ── PDF Generation ─────────────────────────────────────────────────────────
+  const { status: pdfStatus, errorMessage: pdfErrorMessage, generate } = usePdfGenerator();
+  const isGeneratingPdf = pdfStatus === "generating";
+
+  async function handleGeneratePdf() {
+    const result = await generate(data, {
+      country: applicationTarget.destinationCountry,
+      year: new Date().getFullYear(),
+      documentType: "Resume",
+    });
+
+    if (result?.success && result?.pdfBase64 && typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const docId = urlParams.get("docId") || urlParams.get("documentId");
+      if (docId) {
+        try {
+          await fetch(`/api/documents/${docId}/pdf`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pdfBase64: result.pdfBase64,
+              fileName: result.filename,
+              status: "FINALIZED",
+            }),
+          });
+        } catch (err) {
+          console.warn("[Resume PDF Server Sync Failed]:", err);
+        }
+      }
+    }
   }
 
-  function handleDismissRecovery() {
-    setRecoveryBanner(null);
-  }
+  // ── Completeness Calculation ───────────────────────────────────────────────
+  const { filledCount, totalCount } = useMemo(() => {
+    const p = data.personal;
+    const isPersonalFilled = Boolean(p?.fullName && (p.email || p.phone || p.nationality));
+    const isAboutMeFilled = Boolean(data.aboutMe && data.aboutMe.trim().length > 0);
+    const isEnglishFilled = Boolean(
+      data.englishCertificate?.examName || data.englishCertificate?.score
+    );
+    const isDeclarationFilled = Boolean(
+      data.declaration && data.declaration.trim().length > 0
+    );
 
-  // ── Raw CRM snapshot (editor-only, for RawDataPanel) ───────────────────────
-  const [rawSnapshot, setRawSnapshot] = useState<CrmSnapshot | null>(null);
-  const [rawSource, setRawSource] = useState<"crm-api" | "mock" | null>(null);
+    let filled = 0;
+    if (isPersonalFilled) filled++;
+    if (isAboutMeFilled) filled++;
+    if ((data.education ?? []).length > 0) filled++;
+    if ((data.internships ?? []).length > 0) filled++;
+    if ((data.academicProjects ?? []).length > 0) filled++;
+    if ((data.certifications ?? []).length > 0) filled++;
+    if ((data.academicInterests ?? []).length > 0) filled++;
+    if ((data.achievements ?? []).length > 0) filled++;
+    if ((data.leadershipActivities ?? []).length > 0) filled++;
+    if ((data.volunteering ?? []).length > 0) filled++;
+    if ((data.languages ?? []).length > 0) filled++;
+    if (isEnglishFilled) filled++;
+    if ((data.skills ?? []).length > 0) filled++;
+    if ((data.hobbies ?? []).length > 0) filled++;
+    if ((data.recommendations ?? []).length > 0) filled++;
+    if (isDeclarationFilled) filled++;
 
-  function handleRawSnapshot(snapshot: CrmSnapshot | null, source: "crm-api" | "mock") {
-    setRawSnapshot(snapshot);
-    setRawSource(source);
-  }
+    return {
+      filledCount: filled,
+      totalCount: Object.keys(RESUME_SECTION_METADATA).length,
+    };
+  }, [data]);
 
-  // ── Entry counts for accordion badges ───────────────────────────────────
-  const edCount       = (data.education ?? []).length;
-  const internCount   = (data.internships ?? []).length;
-  const recCount      = (data.recommendations ?? []).length;
-  const langCount     = (data.languages ?? []).length;
-  const skillCount    = (data.skills ?? []).length;
-  const hobbyCount    = (data.hobbies ?? []).length;
-  const volCount      = (data.volunteering ?? []).length;
-  const interestCount = (data.academicInterests ?? []).length;
-  const projectCount  = (data.academicProjects ?? []).length;
-  const achvCount     = (data.achievements ?? []).length;
-  const leadCount     = (data.leadershipActivities ?? []).length;
-  const certCount     = (data.certifications ?? []).length;
+  // Destination Summary string for header
+  const destinationSummary = useMemo(() => {
+    const parts = [
+      applicationTarget.universityName,
+      applicationTarget.intendedCourse,
+      applicationTarget.destinationCountry,
+    ].filter(Boolean);
+    return parts.join(" · ");
+  }, [applicationTarget]);
 
-  // ── Section guidance resolver (plain function, not a hook) ─────────────
-  const sg = (key: string) => getSectionGuidance(guidance, key);
+  const studentFullName = data.personal?.fullName?.trim() || "";
+  const isStudentActive = Boolean(studentFullName || currentSnapshot);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100">
-      <AppHeader
-        target={applicationTarget}
-        onNewResume={handleNewResume}
-        onSaveDraft={handleSaveDraft}
-        onOpenDrafts={() => setDraftsModalOpen(true)}
-        draftCount={draftCount}
-        isSavingDraft={isSavingDraft}
-      />
+      {/* ── Top Application Navigation (AppHeader) ── */}
+      <AppHeader />
 
-      {/* Quick recovery banner */}
+      {/* ── Quick Recovery Banner (for restored drafts) ── */}
       {recoveryBanner && (
         <div
           role="alert"
-          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200
-                     text-amber-900 text-xs font-medium flex items-center justify-between gap-4 z-10"
+          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-900 text-xs font-medium flex items-center justify-between gap-4 z-10"
         >
           <div className="flex items-center gap-2">
             <span className="text-sm">📁</span>
@@ -235,14 +330,14 @@ function GeneratorLayout() {
             <button
               id="resume-resume-draft-btn"
               onClick={() => handleRestoreDraft(recoveryBanner)}
-              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs"
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
             >
-              Resume Editing
+              Restore Draft
             </button>
             <button
               id="resume-dismiss-recovery-btn"
-              onClick={handleDismissRecovery}
-              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs"
+              onClick={() => setRecoveryBanner(null)}
+              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs cursor-pointer"
               title="Dismiss banner"
               aria-label="Dismiss banner"
             >
@@ -252,250 +347,146 @@ function GeneratorLayout() {
         </div>
       )}
 
-      {/* Save notice */}
-      {savedNoticeText && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="flex-shrink-0 px-6 py-2 bg-[#F0F7FA] border-b border-[#D2E7F0]
-                     text-[#096491] text-xs font-medium flex items-center gap-1.5 z-10"
-        >
-          <span>✓</span>
-          <span>{savedNoticeText}</span>
-        </div>
-      )}
+      {/* ── Resume Workspace Header (Sibling to SOP WorkspaceHeader) ── */}
+      <ResumeWorkspaceHeader
+        documentTitle="Europass Resume"
+        studentName={studentFullName || "Student"}
+        destinationSummary={destinationSummary}
+        isStudentLoaded={isStudentActive}
+        availablePrograms={availablePrograms}
+        selectedProgramId={selectedProgramId}
+        onProgramChange={handleProgramChange}
+        onOpenStudentSelect={() => setStudentSelectOpen(true)}
+        onClearStudent={handleClearStudent}
+        filledSectionsCount={filledCount}
+        totalSectionsCount={totalCount}
+        isSavingDraft={isSavingDraft}
+        savedNoticeText={savedNoticeText}
+        onSaveDraft={handleSaveDraft}
+        onOpenDrafts={() => setDraftsModalOpen(true)}
+        draftCount={draftCount}
+        onNewResume={handleNewResume}
+        onOpenRawData={() => setStudentDetailsOpen(true)}
+        onOpenDevTools={() => setDevToolsOpen(true)}
+        onGeneratePdf={handleGeneratePdf}
+        isGeneratingPdf={isGeneratingPdf}
+        pdfErrorMessage={pdfErrorMessage}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        isContextOpen={isContextOpen}
+        onToggleContext={() => setIsContextOpen((v) => !v)}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={() => setIsSidebarCollapsed((v) => !v)}
+      />
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* ── Editor Panel ──────────────────────────────────────────────── */}
-        <aside
-          className="w-[400px] xl:w-[440px] flex-shrink-0 overflow-y-auto bg-editor-bg border-r border-slate-200"
-          aria-label="Document editor"
-        >
-          <div className="p-4 flex flex-col gap-2.5">
+      {/* ── Main Multi-Panel Workspace ── */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* ── Left: Resume Structure Navigation Sidebar ── */}
+        <ResumeSectionSidebar
+          data={data}
+          guidance={guidance}
+          selectedSectionId={selectedSectionId}
+          onSelectSection={setSelectedSectionId}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)}
+        />
 
-            {/* Editor header */}
-            <div className="px-1 pb-1">
-              <h1 className="text-sm font-bold text-slate-700">
-                Document Editor
-              </h1>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Fill in sections below — the preview updates live.
-              </p>
-            </div>
-
-            {/* ── Webhook toolbar — loads live student from CRM, auto-fills target ── */}
-            <WebhookToolbar
-              onTargetDetected={setApplicationTarget}
-              onRawSnapshot={handleRawSnapshot}
-              onStudentLoaded={handleToolbarStudentLoaded}
-            />
-
-            {/* ── Raw Data Panel — shows all CRM fields (editor-only) ── */}
-            <RawDataPanel snapshot={rawSnapshot} source={rawSource} />
-
-            {/* 0. Application Target (editor-only — never in PDF) */}
-            <SectionAccordion
-              title="Application Target"
-              icon="🎯"
-              defaultOpen={true}
+        {/* ── Center: Split Workspace (Section Editor + Live Resume Preview) ── */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Section Editor (hidden when in preview-only mode on small screens) */}
+          {viewMode !== "preview" && (
+            <div
+              className={`flex flex-col h-full ${
+                viewMode === "editor"
+                  ? "flex-1"
+                  : "w-full md:w-[460px] lg:w-[480px] xl:w-[500px] flex-shrink-0"
+              }`}
             >
-              <ApplicationTargetForm
-                value={applicationTarget}
-                onChange={setApplicationTarget}
+              <ResumeSectionEditor
+                selectedSectionId={selectedSectionId}
+                guidance={guidance}
+                onSelectSection={setSelectedSectionId}
               />
-            </SectionAccordion>
-
-            {/* Guidance Summary Panel — appears when target is set */}
-            <GuidanceSummaryPanel
-              target={applicationTarget}
-              guidance={guidance}
-            />
-
-            {/* Profile Suggestions Panel — editor-only suggestion builder */}
-            <ProfileSuggestionsPanel target={applicationTarget} />
-
-            {/* 1. Personal Details */}
-            <SectionAccordion
-              title="Personal Details"
-              icon="👤"
-              defaultOpen={true}
-            >
-              <PersonalDetailsForm />
-            </SectionAccordion>
-
-            {/* 2. Academic Profile */}
-            <SectionAccordion
-              title="Academic Profile"
-              icon="📝"
-              defaultOpen={true}
-              guidance={sg("aboutMe")}
-            >
-              <AboutMeForm />
-            </SectionAccordion>
-
-            {/* 3. Education & Training */}
-            <SectionAccordion
-              title="Education & Training"
-              icon="🎓"
-              defaultOpen={true}
-              badge={edCount > 0 ? String(edCount) : undefined}
-              guidance={sg("education")}
-            >
-              <EducationForm />
-            </SectionAccordion>
-
-            {/* 3.5. Internships & Work Experience */}
-            <SectionAccordion
-              title="Internships & Work Experience"
-              icon="💼"
-              badge={internCount > 0 ? String(internCount) : undefined}
-            >
-              <InternshipsForm />
-            </SectionAccordion>
-
-            {/* 4. Academic Interests */}
-            <SectionAccordion
-              title="Academic Interests"
-              icon="🔬"
-              badge={interestCount > 0 ? String(interestCount) : undefined}
-              guidance={sg("academicInterests")}
-            >
-              <AcademicInterestsForm />
-            </SectionAccordion>
-
-            {/* 5. Academic Projects */}
-            <SectionAccordion
-              title="Academic Projects"
-              icon="📋"
-              badge={projectCount > 0 ? String(projectCount) : undefined}
-              guidance={sg("academicProjects")}
-            >
-              <AcademicProjectsForm />
-            </SectionAccordion>
-
-            {/* 6. Achievements & Awards */}
-            <SectionAccordion
-              title="Achievements & Awards"
-              icon="🏆"
-              badge={achvCount > 0 ? String(achvCount) : undefined}
-              guidance={sg("achievements")}
-            >
-              <AchievementsForm />
-            </SectionAccordion>
-
-            {/* 7. Leadership & Extracurricular */}
-            <SectionAccordion
-              title="Leadership & Extracurricular"
-              icon="🌟"
-              badge={leadCount > 0 ? String(leadCount) : undefined}
-              guidance={sg("leadershipActivities")}
-            >
-              <LeadershipForm />
-            </SectionAccordion>
-
-            {/* 8. Volunteering */}
-            <SectionAccordion
-              title="Volunteering"
-              icon="🤝"
-              badge={volCount > 0 ? String(volCount) : undefined}
-              guidance={sg("volunteering")}
-            >
-              <VolunteeringForm />
-            </SectionAccordion>
-
-            {/* 9. Certifications */}
-            <SectionAccordion
-              title="Certifications"
-              icon="📜"
-              badge={certCount > 0 ? String(certCount) : undefined}
-              guidance={sg("certifications")}
-            >
-              <CertificationsForm />
-            </SectionAccordion>
-
-            {/* 10. Language Skills */}
-            <SectionAccordion
-              title="Language Skills"
-              icon="🌍"
-              badge={langCount > 0 ? String(langCount) : undefined}
-              guidance={sg("languages")}
-            >
-              <LanguagesForm />
-            </SectionAccordion>
-
-            {/* 11. English Certificate / IELTS */}
-            <SectionAccordion
-              title="English Certificate / IELTS"
-              icon="🗂️"
-            >
-              <EnglishCertificateForm />
-            </SectionAccordion>
-
-            {/* 12. Academic & Transferable Skills */}
-            <SectionAccordion
-              title="Academic & Transferable Skills"
-              icon="⚡"
-              badge={skillCount > 0 ? String(skillCount) : undefined}
-              guidance={sg("skills")}
-            >
-              <SkillsForm />
-            </SectionAccordion>
-
-            {/* 13. Hobbies & Personal Interests */}
-            <SectionAccordion
-              title="Hobbies & Personal Interests"
-              icon="🎯"
-              badge={hobbyCount > 0 ? String(hobbyCount) : undefined}
-              guidance={sg("hobbies")}
-            >
-              <HobbiesForm />
-            </SectionAccordion>
-
-            {/* 14. Recommendations */}
-            <SectionAccordion
-              title="Recommendations"
-              icon="💬"
-              badge={recCount > 0 ? String(recCount) : undefined}
-              guidance={sg("recommendations")}
-            >
-              <RecommendationsForm />
-            </SectionAccordion>
-
-            {/* 15. Declaration */}
-            <SectionAccordion title="Declaration" icon="✍️">
-              <DeclarationForm />
-            </SectionAccordion>
-
-            {/* Bottom spacer */}
-            <div className="h-4" />
-          </div>
-        </aside>
-
-        {/* ── Preview Panel ─────────────────────────────────────────────── */}
-        <section
-          className="flex-1 overflow-y-auto bg-preview-bg"
-          aria-label="Document preview"
-        >
-          <div className="p-6 xl:p-10 flex flex-col items-center">
-            {/* Preview label */}
-            <div className="w-full max-w-[794px] mb-3 flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                Live Preview
-              </span>
-              <span className="text-[11px] text-slate-400">
-                Europass · A4
-              </span>
             </div>
+          )}
 
-            {/* Scaled A4 page */}
-            <div className="w-full max-w-[794px]">
-              <DocumentPreview />
-            </div>
-          </div>
-        </section>
+          {/* Live Document Preview (hidden when in editor-only mode) */}
+          {viewMode !== "editor" && (
+            <section
+              className="flex-1 overflow-y-auto overflow-x-hidden bg-preview-bg flex flex-col items-center"
+              aria-label="Live A4 resume document preview"
+            >
+              {/* Document Preview Meta Header */}
+              <div className="w-full max-w-[794px] px-6 pt-5 pb-2.5 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
+                    Live Preview
+                  </span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/80 font-medium">
+                    Updates live
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  Europass · A4 Standard
+                </span>
+              </div>
+
+              {/* Scaled A4 Document Page */}
+              <div className="w-full max-w-[794px] px-4 pb-12 flex justify-center">
+                <PreviewScaler contentWidth={794}>
+                  <EuropassTemplate data={data} />
+                </PreviewScaler>
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* ── Right: Profile & Target Context Drawer (Slide-Over, 0px in flow) ── */}
+        <ResumeContextPanel
+          isOpen={isContextOpen}
+          onClose={() => setIsContextOpen(false)}
+          data={data}
+          target={applicationTarget}
+          onTargetChange={setApplicationTarget}
+          guidance={guidance}
+          availablePrograms={availablePrograms}
+          selectedProgramId={selectedProgramId}
+          onProgramChange={handleProgramChange}
+          onOpenStudentDetails={() => setStudentDetailsOpen(true)}
+          onOpenStudentSelect={() => setStudentSelectOpen(true)}
+        />
       </div>
 
-      {/* Saved Resume Drafts Modal */}
+      {/* ── Modal: Select Student from CRM ── */}
+      <StudentSelectModal
+        isOpen={studentSelectOpen}
+        onClose={() => setStudentSelectOpen(false)}
+        onSelectStudent={(id) => {
+          selectStudent(id);
+          setStudentSelectOpen(false);
+        }}
+        selectedStudentId={selectedStudentId}
+        onClearStudent={handleClearStudent}
+      />
+
+      {/* ── Modal: View Complete Raw Student Data ── */}
+      <ResumeStudentDetailsModal
+        snapshot={currentSnapshot}
+        isOpen={studentDetailsOpen}
+        onClose={() => setStudentDetailsOpen(false)}
+      />
+
+      {/* ── Modal: Developer Tools & Webhook Testing ── */}
+      <ResumeDeveloperToolsModal
+        isOpen={devToolsOpen}
+        onClose={() => setDevToolsOpen(false)}
+        onStudentLoaded={() => {
+          setActiveDraftId(null);
+          setActiveDraftStudentName(null);
+        }}
+      />
+
+      {/* ── Modal: Saved Resume Drafts ── */}
       <ResumeDraftsModal
         isOpen={draftsModalOpen}
         onClose={() => setDraftsModalOpen(false)}
@@ -509,7 +500,6 @@ function GeneratorLayout() {
 
 /**
  * Top-level shell that wraps the generator in the DocumentProvider.
- * This is the component imported by app/page.tsx.
  */
 export function DocumentGeneratorShell() {
   return (

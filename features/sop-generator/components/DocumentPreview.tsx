@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import type { TemplateSection, StudentDocumentContext } from "../types/sop-generator";
 import { interpolate } from "../lib/interpolateTemplate";
+import { calculateDocumentWordCount } from "../lib/wordCount";
 
 interface DocumentPreviewProps {
   sections: TemplateSection[];
@@ -49,6 +51,11 @@ export function DocumentPreview({
 }: DocumentPreviewProps) {
   const sorted = [...sections].sort((a, b) => a.order - b.order);
 
+  const totalWordCount = useMemo(
+    () => calculateDocumentWordCount(sections, sectionContents, ctx),
+    [sections, sectionContents, ctx]
+  );
+
   return (
     <>
       {/* Backdrop */}
@@ -65,9 +72,14 @@ export function DocumentPreview({
           {/* Preview toolbar */}
           <div className="flex items-center justify-between mb-3 px-1">
             <div>
-              <span className="text-[12px] font-bold text-white tracking-wider uppercase">
-                Document Preview (Single-Page Embassy Standard)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-bold text-white tracking-wider uppercase">
+                  Document Preview (Single-Page Embassy Standard)
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/15 text-white text-[10px] font-semibold border border-white/20">
+                  {totalWordCount} words
+                </span>
+              </div>
               <p className="text-[11px] text-white/60">
                 Official A4 Letter · Compact On-Point Format · Zero Overflow
               </p>
@@ -102,7 +114,7 @@ export function DocumentPreview({
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         />
                       </svg>
-                      Generating PDF…
+                      <span>Generating PDF ({totalWordCount} words)…</span>
                     </>
                   ) : (
                     <>
@@ -239,7 +251,7 @@ export function DocumentPreview({
           </div>
 
           <p className="text-center text-[11px] text-white/50 mt-2.5">
-            Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.23 line-height)
+            Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.23 line-height · {totalWordCount} words)
           </p>
         </div>
       </div>
