@@ -12,6 +12,8 @@
  * 7. Student not found (404 STUDENT_NOT_FOUND)
  */
 
+(process.env as Record<string, string | undefined>).NODE_ENV = "test";
+
 import test, { describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
@@ -45,9 +47,9 @@ function makeRequest(
 }
 
 describe("Unified Document Generation Webhook", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env.DOCUMENT_WEBHOOK_API_KEY = TEST_API_KEY;
-    clearAllDocuments();
+    await clearAllDocuments();
   });
 
   test("Scenario 1: Valid SOP generation request returns 200, documentId, and reviewUrl", async () => {

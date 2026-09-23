@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
   // 4. Idempotency Check
   if (externalRefId) {
-    const existing = findByExternalRef(externalRefId);
+    const existing = await findByExternalRef(externalRefId);
     if (existing) {
       return NextResponse.json<GenerateDocumentSuccessResponse>(
         {
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
     reviewUrl = `/lor-generator?studentId=${studentId}&docId=${documentId}`;
   }
 
-  const record = saveDocument({
+  const record = await saveDocument({
     id: documentId,
     externalReferenceId: externalRefId || undefined,
     studentId,

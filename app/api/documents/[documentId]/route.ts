@@ -27,14 +27,14 @@ export async function GET(
     );
   }
 
-  const document = findById(trimmedId);
+  const document = await findById(trimmedId);
   if (!document) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "DOCUMENT_NOT_FOUND",
-          message: `Document with ID "${trimmedId}" was not found. Note that documents are stored in-memory and will reset if the server restarts.`,
+          message: `Document with ID "${trimmedId}" was not found.`,
         },
       },
       { status: 404 }

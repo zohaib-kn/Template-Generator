@@ -1,106 +1,298 @@
 /**
  * services/webhook/documentStore.ts
  *
- * In-memory document store for generated documents (Phase 2).
+ * Production Document Storage Layer backed by MongoDB Atlas (Mongoose).
  *
- * Architecture note:
- * - Module-level / global singleton Map<string, DocumentRecord>.
- * - Persisted across HMR reloads in Next.js dev server via globalThis.
- * - Idempotency lookup by externalReferenceId.
- * - When upgrading to an external database (e.g. Postgres / MongoDB),
- *   only this file needs to be replaced.
+ * Architecture:
+ * - Backed by MongoDB Atlas via DocumentModel.
+ * - Idempotency handled via unique index on externalReferenceId and findByExternalRef.
+ * - PDF Base64 isolation: excluded from standard document lookups, loaded only in getPdf.
+ * - Safe PDF size limits (10MB binary threshold) to prevent BSON document size overflows.
+ * - Safe unit test mode: when running under test runner (NODE_ENV=test or --test),
+ *   operates in-memory to prevent mutating the live production Atlas database.
  */
 
 import type { DocumentRecord } from "./types";
 import { generateId } from "@/lib/generateId";
+import { connectToDatabase } from "@/lib/db";
+import { DocumentModel } from "@/models/Document";
 
-const globalForStore = globalThis as unknown as {
-  __documentStoreMap?: Map<string, DocumentRecord>;
-  __externalRefIndex?: Map<string, string>; // externalReferenceId -> documentId
-};
+/** Maximum allowed PDF binary size: 10 MB (safe below 16MB BSON limit) */
+export const MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024;
 
-const store: Map<string, DocumentRecord> =
-  globalForStore.__documentStoreMap ?? new Map<string, DocumentRecord>();
-const refIndex: Map<string, string> =
-  globalForStore.__externalRefIndex ?? new Map<string, string>();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForStore.__documentStoreMap = store;
-  globalForStore.__externalRefIndex = refIndex;
+export class PdfSizeLimitError extends Error {
+  constructor(message: string = "PDF file exceeds the maximum allowed size limit of 10MB.") {
+    super(message);
+    this.name = "PdfSizeLimitError";
+  }
 }
+
+/**
+ * Strips internal MongoDB metadata (_id, __v) and returns a clean DocumentRecord.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripMongoMeta(doc: any): DocumentRecord {
+  if (!doc) return doc;
+  const obj = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+  delete obj._id;
+  delete obj.__v;
+  return obj as DocumentRecord;
+}
+
+// ---------------------------------------------------------------------------
+// In-Memory Test Mode Store (isolated for unit tests only)
+// ---------------------------------------------------------------------------
+
+function isTestEnvironment(): boolean {
+  if (process.env.FORCE_MONGO === "true") return false;
+  return (
+    process.env.NODE_ENV === "test" ||
+    process.argv.some(
+      (arg) =>
+        arg.includes("--test") ||
+        arg.includes("__tests__") ||
+        arg.includes(".test.ts") ||
+        arg.includes(".test.js")
+    ) ||
+    process.execArgv.some((arg) => arg.includes("--test"))
+  );
+}
+
+const memoryStore: Map<string, DocumentRecord> = new Map<string, DocumentRecord>();
+const memoryRefIndex: Map<string, string> = new Map<string, string>();
+
+// ---------------------------------------------------------------------------
+// Public Store API
+// ---------------------------------------------------------------------------
 
 export function generateDocumentId(): string {
   return `DOC-${generateId()}`;
 }
 
-export function saveDocument(record: DocumentRecord): DocumentRecord {
-  store.set(record.id, record);
-  if (record.externalReferenceId?.trim()) {
-    refIndex.set(record.externalReferenceId.trim(), record.id);
+/**
+ * Saves a new DocumentRecord.
+ * In MongoDB, if a concurrent request attempts to insert the same externalReferenceId,
+ * handles duplicate key errors gracefully by returning the existing document.
+ */
+export async function saveDocument(record: DocumentRecord): Promise<DocumentRecord> {
+  if (isTestEnvironment()) {
+    memoryStore.set(record.id, record);
+    if (record.externalReferenceId?.trim()) {
+      memoryRefIndex.set(record.externalReferenceId.trim(), record.id);
+    }
+    return record;
   }
-  return record;
+
+  await connectToDatabase();
+
+  try {
+    const created = await DocumentModel.create(record);
+    return stripMongoMeta(created);
+  } catch (err: unknown) {
+    // Handle concurrent duplicate externalReferenceId (E11000)
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: number }).code === 11000
+    ) {
+      if (record.externalReferenceId) {
+        const existing = await findByExternalRef(record.externalReferenceId);
+        if (existing) return existing;
+      }
+    }
+    throw err;
+  }
 }
 
-export function findById(id: string): DocumentRecord | null {
+/**
+ * Retrieves a document by its DOC-* identifier.
+ * Note: pdfBase64 is excluded by default for performance.
+ */
+export async function findById(id: string): Promise<DocumentRecord | null> {
   if (!id) return null;
-  return store.get(id.trim()) ?? null;
+  const trimmed = id.trim();
+
+  if (isTestEnvironment()) {
+    return memoryStore.get(trimmed) ?? null;
+  }
+
+  await connectToDatabase();
+  const doc = await DocumentModel.findOne({ id: trimmed }).lean();
+  if (!doc) return null;
+
+  return stripMongoMeta(doc);
 }
 
-export function findByExternalRef(externalRefId: string): DocumentRecord | null {
+/**
+ * Retrieves a document by upstream CRM externalReferenceId (for idempotency).
+ */
+export async function findByExternalRef(externalRefId: string): Promise<DocumentRecord | null> {
   if (!externalRefId?.trim()) return null;
-  const docId = refIndex.get(externalRefId.trim());
-  if (!docId) return null;
-  return store.get(docId) ?? null;
+  const trimmed = externalRefId.trim();
+
+  if (isTestEnvironment()) {
+    const docId = memoryRefIndex.get(trimmed);
+    if (!docId) return null;
+    return memoryStore.get(docId) ?? null;
+  }
+
+  await connectToDatabase();
+  const doc = await DocumentModel.findOne({ externalReferenceId: trimmed }).lean();
+  if (!doc) return null;
+
+  return stripMongoMeta(doc);
 }
 
-export function getAllDocuments(): DocumentRecord[] {
-  return Array.from(store.values());
+/**
+ * Retrieves all documents ordered by creation date descending.
+ */
+export async function getAllDocuments(): Promise<DocumentRecord[]> {
+  if (isTestEnvironment()) {
+    return Array.from(memoryStore.values());
+  }
+
+  await connectToDatabase();
+  const docs = await DocumentModel.find({}).sort({ createdAt: -1 }).lean();
+  return docs.map(stripMongoMeta);
 }
 
-export function updateDocument(
+/**
+ * Updates an existing document with partial fields.
+ */
+export async function updateDocument(
   id: string,
   updates: Partial<DocumentRecord>
-): DocumentRecord | null {
-  const existing = findById(id);
-  if (!existing) return null;
+): Promise<DocumentRecord | null> {
+  if (!id) return null;
+  const trimmed = id.trim();
 
-  const updated: DocumentRecord = {
-    ...existing,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  };
+  if (isTestEnvironment()) {
+    const existing = memoryStore.get(trimmed);
+    if (!existing) return null;
 
-  store.set(existing.id, updated);
-  return updated;
+    const updated: DocumentRecord = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    memoryStore.set(trimmed, updated);
+    return updated;
+  }
+
+  await connectToDatabase();
+  const updated = await DocumentModel.findOneAndUpdate(
+    { id: trimmed },
+    {
+      $set: {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "after" }
+  ).lean();
+
+  if (!updated) return null;
+  return stripMongoMeta(updated);
 }
 
-export function savePdf(
+/**
+ * Persists finalized PDF base64 binary and marks document as FINALIZED.
+ * Validates and enforces maximum PDF size limit (10MB).
+ */
+export async function savePdf(
   documentId: string,
   pdfBase64: string,
   fileName?: string
-): DocumentRecord | null {
-  const existing = findById(documentId);
-  if (!existing) return null;
+): Promise<DocumentRecord | null> {
+  if (!documentId || !pdfBase64) return null;
+  const trimmedId = documentId.trim();
 
   const cleanBase64 = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
 
-  const updated: DocumentRecord = {
-    ...existing,
-    status: "FINALIZED",
-    pdfBase64: cleanBase64,
-    pdfFileName: fileName || `${existing.studentName || "Document"}_Final.pdf`,
-    pdfGeneratedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  // Enforce binary size limit: Base64 length * (3/4) = approximate byte size
+  const estimatedBytes = Math.ceil((cleanBase64.length * 3) / 4);
+  if (estimatedBytes > MAX_PDF_SIZE_BYTES) {
+    throw new PdfSizeLimitError(
+      `PDF size of ${(estimatedBytes / (1024 * 1024)).toFixed(
+        2
+      )}MB exceeds maximum allowed limit of 10MB.`
+    );
+  }
 
-  store.set(existing.id, updated);
-  return updated;
+  const now = new Date().toISOString();
+
+  if (isTestEnvironment()) {
+    const existing = memoryStore.get(trimmedId);
+    if (!existing) return null;
+
+    const updated: DocumentRecord = {
+      ...existing,
+      status: "FINALIZED",
+      pdfBase64: cleanBase64,
+      pdfFileName: fileName || `${existing.studentName || "Document"}_Final.pdf`,
+      pdfGeneratedAt: now,
+      updatedAt: now,
+    };
+    memoryStore.set(trimmedId, updated);
+    return updated;
+  }
+
+  await connectToDatabase();
+  const existing = await DocumentModel.findOne({ id: trimmedId }).lean();
+  if (!existing) return null;
+
+  const pdfFileName = fileName || `${existing.studentName || "Document"}_Final.pdf`;
+
+  const updated = await DocumentModel.findOneAndUpdate(
+    { id: trimmedId },
+    {
+      $set: {
+        status: "FINALIZED",
+        pdfBase64: cleanBase64,
+        pdfFileName,
+        pdfGeneratedAt: now,
+        updatedAt: now,
+      },
+    },
+    { returnDocument: "after" }
+  ).lean();
+
+  if (!updated) return null;
+  return stripMongoMeta(updated);
 }
 
-export function getPdf(
+/**
+ * Retrieves the raw PDF binary buffer and metadata.
+ * Explicitly includes the pdfBase64 field which is omitted by default.
+ */
+export async function getPdf(
   documentId: string
-): { buffer: Buffer; fileName: string; status: string } | null {
-  const doc = findById(documentId);
+): Promise<{ buffer: Buffer; fileName: string; status: string; pdfBase64: string } | null> {
+  if (!documentId) return null;
+  const trimmedId = documentId.trim();
+
+  if (isTestEnvironment()) {
+    const doc = memoryStore.get(trimmedId);
+    if (!doc || !doc.pdfBase64) return null;
+
+    const cleanBase64 = doc.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+    const buffer = Buffer.from(cleanBase64, "base64");
+    const fileName = doc.pdfFileName || `${doc.studentName || "Document"}_Final.pdf`;
+
+    return {
+      buffer,
+      fileName,
+      status: doc.status,
+      pdfBase64: cleanBase64,
+    };
+  }
+
+  await connectToDatabase();
+  const doc = await DocumentModel.findOne({ id: trimmedId })
+    .select("+pdfBase64")
+    .lean();
+
   if (!doc || !doc.pdfBase64) return null;
 
   const cleanBase64 = doc.pdfBase64.replace(/^data:application\/pdf;base64,/, "");
@@ -111,11 +303,16 @@ export function getPdf(
     buffer,
     fileName,
     status: doc.status,
+    pdfBase64: cleanBase64,
   };
 }
 
-/** Clears all stored documents (primarily used for test cleanup). */
-export function clearAllDocuments(): void {
-  store.clear();
-  refIndex.clear();
+/**
+ * Clears stored documents.
+ * Safeguard: NEVER drops or deletes from live MongoDB Atlas database.
+ * Only clears the in-memory test store during automated test runs.
+ */
+export async function clearAllDocuments(): Promise<void> {
+  memoryStore.clear();
+  memoryRefIndex.clear();
 }

@@ -16,4 +16,9 @@ export interface ResumeDraftRecord {
   savedAt: string; // ISO string
   data: DocumentData;
   applicationTarget?: ApplicationTarget;
+  origin?: "MANUAL" | "CRM" | "IMPORTED";
+  sourceFileName?: string;
+  importId?: string;
+  dbId?: string;
 }
+

@@ -24,6 +24,7 @@ import { ResumeSectionEditor } from "./ResumeSectionEditor";
 import { ResumeContextPanel } from "./ResumeContextPanel";
 import { ResumeStudentDetailsModal } from "./ResumeStudentDetailsModal";
 import { ResumeDeveloperToolsModal } from "./ResumeDeveloperToolsModal";
+import { ResumeImportModal } from "./ResumeImportModal";
 import { StudentSelectModal } from "@/features/sop-generator/components/StudentSelectModal";
 import { PreviewScaler } from "../preview/PreviewScaler";
 import { EuropassTemplate } from "@/templates/europass/EuropassTemplate";
@@ -63,20 +64,15 @@ function GeneratorLayout() {
   const [studentSelectOpen, setStudentSelectOpen] = useState(false);
   const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
   const [devToolsOpen, setDevToolsOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   // ── Collapsible sidebars & responsive layout state ─────────────────────────
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"split" | "editor" | "preview">("split");
 
-  // ── Application Target (editor-only metadata) ──────────────────────────────
-  const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({
-    destinationCountry: "United Kingdom",
-    degreeLevel: "Master's",
-    courseCategory: "Business / Management",
-    intendedCourse: "MSc Business Analytics",
-    universityName: "University of Manchester",
-  });
+  // ── Application Target (No Assumptions: empty until explicitly set by CRM or user) ──
+  const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({});
 
   const guidance = useMemo(
     () => getAdmissionsGuidance(applicationTarget),
@@ -224,6 +220,15 @@ function GeneratorLayout() {
     setTimeout(() => setSavedNoticeText(null), 3000);
   }
 
+  function handleImportApplied(importedData: import("@/types").DocumentData) {
+    loadStudent(importedData);
+    setActiveDraftId(null);
+    setActiveDraftStudentName(importedData.personal?.fullName?.trim() || null);
+    setRecoveryBanner(null);
+    setSavedNoticeText("✓ Imported resume successfully loaded into workspace.");
+    setTimeout(() => setSavedNoticeText(null), 3500);
+  }
+
   // ── PDF Generation ─────────────────────────────────────────────────────────
   const { status: pdfStatus, errorMessage: pdfErrorMessage, generate } = usePdfGenerator();
   const isGeneratingPdf = pdfStatus === "generating";
@@ -358,6 +363,7 @@ function GeneratorLayout() {
         onProgramChange={handleProgramChange}
         onOpenStudentSelect={() => setStudentSelectOpen(true)}
         onClearStudent={handleClearStudent}
+        onOpenImport={() => setImportModalOpen(true)}
         filledSectionsCount={filledCount}
         totalSectionsCount={totalCount}
         isSavingDraft={isSavingDraft}
@@ -493,6 +499,17 @@ function GeneratorLayout() {
         onLoadDraft={handleRestoreDraft}
         onNewResume={handleNewResume}
         onDraftsChange={() => setDraftCount(getAllResumeDrafts().length)}
+      />
+
+      {/* ── Modal: Import Existing Resume (PDF / DOCX) ── */}
+      <ResumeImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImportApplied={handleImportApplied}
+        onSaveCurrentDraft={handleSaveDraft}
+        hasUnsavedChanges={filledCount > 0}
+        crmSnapshot={currentSnapshot}
+        applicationTarget={applicationTarget}
       />
     </div>
   );
