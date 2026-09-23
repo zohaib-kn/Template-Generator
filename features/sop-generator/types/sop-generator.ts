@@ -102,14 +102,34 @@ export interface TemplateSection {
 }
 
 // ---------------------------------------------------------------------------
+// Document type
+// ---------------------------------------------------------------------------
+
+export type SopDocumentType = "VISA_COVER_LETTER" | "UNIVERSITY_SOP";
+
+export interface SectionGroup {
+  id: string;
+  title: string;
+  sectionIds: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Template definition
 // ---------------------------------------------------------------------------
 
 export interface SopTemplate {
   id: string;
   name: string;
+  documentType: SopDocumentType;
   country: string;
-  visaType: string;
+  visaType?: string;
+  documentHeaderTitle: string;
+  canvasMasthead: string;
+  salutation?: string;
+  closingSignoff?: string;
+  sidebarGroups: SectionGroup[];
+  pdfDocumentType: string;
+  showLogisticsInContext?: boolean;
   sections: TemplateSection[];
 }
 
@@ -232,6 +252,18 @@ export interface StudentDocumentContext {
     pnr: string;
     returnDate?: string;
   };
+
+  /**
+   * Optional academic story and narrative context for University SOPs.
+   */
+  story?: {
+    academicInterest?: string;
+    motivation?: string;
+    careerGoal?: string;
+    relevantExperience?: string;
+    strengths?: string;
+    futureVision?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +302,7 @@ export type DataSource = "live-crm" | "cached-crm" | "test-data";
 /** Persisted draft record for localStorage or backend store. */
 export interface SopDraftRecord {
   id: string;
+  documentType?: SopDocumentType;
   studentName: string;
   course: string;
   university: string;

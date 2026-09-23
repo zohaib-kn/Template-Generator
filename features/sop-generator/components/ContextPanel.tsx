@@ -4,6 +4,7 @@ import { useState } from "react";
 import type {
   StudentDocumentContext,
   ValidationIssue,
+  SopDocumentType,
 } from "../types/sop-generator";
 
 interface ContextPanelProps {
@@ -14,6 +15,8 @@ interface ContextPanelProps {
   onOpenStudentDetails?: () => void;
   onSelectSection?: (sectionId: string) => void;
   onRefreshValidation?: () => void;
+  showLogistics?: boolean;
+  activeDocumentType?: SopDocumentType;
 }
 
 interface TargetSectionInfo {
@@ -22,9 +25,25 @@ interface TargetSectionInfo {
   sectionNumber: string;
 }
 
-function getSectionForIssue(issue: ValidationIssue): TargetSectionInfo {
+function getSectionForIssue(issue: ValidationIssue, isUniversitySop?: boolean): TargetSectionInfo {
   const field = issue.field?.toLowerCase() || "";
   const id = issue.id?.toLowerCase() || "";
+
+  if (isUniversitySop) {
+    if (field.startsWith("student.")) {
+      return { sectionId: "student-introduction", sectionTitle: "Student Introduction", sectionNumber: "01" };
+    }
+    if (field === "destination.course" || id.includes("course")) {
+      return { sectionId: "why-course", sectionTitle: "Academic Motivation & Course Choice", sectionNumber: "04" };
+    }
+    if (field === "destination.university" || id.includes("university")) {
+      return { sectionId: "why-university", sectionTitle: "Why This University", sectionNumber: "05" };
+    }
+    if (field.startsWith("academics.") || field.startsWith("tests.") || id.includes("academic") || id.includes("ielts")) {
+      return { sectionId: "academic-background", sectionTitle: "Academic Background & Preparedness", sectionNumber: "02" };
+    }
+    return { sectionId: "student-introduction", sectionTitle: "Student Introduction", sectionNumber: "01" };
+  }
 
   if (field.startsWith("student.")) {
     return { sectionId: "student-introduction", sectionTitle: "Student Introduction", sectionNumber: "03" };
@@ -78,7 +97,10 @@ export function ContextPanel({
   onOpenStudentDetails,
   onSelectSection,
   onRefreshValidation,
+  showLogistics = true,
+  activeDocumentType = "VISA_COVER_LETTER",
 }: ContextPanelProps) {
+  const isUniversitySop = activeDocumentType === "UNIVERSITY_SOP";
   const [activeTab, setActiveTab] = useState<PanelTab>("student");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
@@ -334,43 +356,47 @@ export function ContextPanel({
               </div>
             </div>
 
-            {/* Financial Sponsorship Card */}
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Sponsorship & Funds
-              </span>
-              <div className="text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Sponsor</span>
-                  <span className="font-medium text-slate-800">{ctx.sponsor.name} ({ctx.sponsor.relationship})</span>
+            {/* Financial Sponsorship Card & Logistics (Visa letters only) */}
+            {showLogistics && (
+              <>
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Sponsorship & Funds
+                  </span>
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Sponsor</span>
+                      <span className="font-medium text-slate-800">{ctx.sponsor.name} ({ctx.sponsor.relationship})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Total Funds</span>
+                      <span className="font-semibold text-slate-900">{ctx.finance.totalFundsAvailable}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-400">Bank Balance</span>
+                      <span className="text-slate-600">{ctx.finance.availableBalance}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Total Funds</span>
-                  <span className="font-semibold text-slate-900">{ctx.finance.totalFundsAvailable}</span>
-                </div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-slate-400">Bank Balance</span>
-                  <span className="text-slate-600">{ctx.finance.availableBalance}</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Logistics Summary */}
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2 text-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Accommodation & Flight
-              </span>
-              <div className="space-y-1 text-[11px]">
-                <p className="text-slate-700">
-                  <strong className="font-medium text-slate-800">Stay: </strong>
-                  {ctx.accommodation.name} ({ctx.accommodation.bookingReference})
-                </p>
-                <p className="text-slate-700">
-                  <strong className="font-medium text-slate-800">Flight: </strong>
-                  {ctx.travel.airline} {ctx.travel.flightNumber} on {ctx.travel.travelDate}
-                </p>
-              </div>
-            </div>
+                {/* Logistics Summary */}
+                <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2 text-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Accommodation & Flight
+                  </span>
+                  <div className="space-y-1 text-[11px]">
+                    <p className="text-slate-700">
+                      <strong className="font-medium text-slate-800">Stay: </strong>
+                      {ctx.accommodation.name} ({ctx.accommodation.bookingReference})
+                    </p>
+                    <p className="text-slate-700">
+                      <strong className="font-medium text-slate-800">Flight: </strong>
+                      {ctx.travel.airline} {ctx.travel.flightNumber} on {ctx.travel.travelDate}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -399,7 +425,7 @@ export function ContextPanel({
                 <p className="text-base text-emerald-600">✓</p>
                 <p className="text-xs font-semibold text-emerald-900">All checks passed</p>
                 <p className="text-[11px] text-emerald-700">
-                  Student record and destination data are verified for visa submission.
+                  Student record and destination data are verified for submission.
                 </p>
               </div>
             ) : (
@@ -411,7 +437,7 @@ export function ContextPanel({
                 <div className="space-y-2">
                   {validationIssues.map((issue) => {
                     const isError = issue.severity === "error";
-                    const target = getSectionForIssue(issue);
+                    const target = getSectionForIssue(issue, isUniversitySop);
 
                     return (
                       <button

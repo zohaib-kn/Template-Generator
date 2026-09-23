@@ -12,7 +12,6 @@
 import type { SopTemplate } from "../types/sop-generator";
 import type { StudentDocumentContext } from "../types/sop-generator";
 import { buildStudentDocumentContext } from "./buildStudentDocumentContext";
-import { italyTypeDCoverLetter } from "../templates/italy-type-d-cover-letter";
 
 // ---------------------------------------------------------------------------
 // Application record
@@ -42,22 +41,8 @@ export function getApplication(): ApplicationRecord {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Template
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the SOP template for the given template ID.
- * Phase 1: only supports "italy-type-d-student-visa-cover-letter".
- */
-export function getTemplate(
-  templateId: string = "italy-type-d-student-visa-cover-letter"
-): SopTemplate {
-  if (templateId === "italy-type-d-student-visa-cover-letter") {
-    return italyTypeDCoverLetter;
-  }
-  throw new Error(`Unknown template ID: ${templateId}`);
-}
+import { getTemplate } from "./templateRegistry";
+export { getTemplate };
 
 // ---------------------------------------------------------------------------
 // Student document context

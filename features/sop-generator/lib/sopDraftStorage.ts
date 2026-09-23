@@ -6,12 +6,14 @@
  * Safe for Next.js SSR / client boundary.
  */
 
-import { SopDraftRecord } from "../types/sop-generator";
+import { SopDraftRecord, SopDocumentType } from "../types/sop-generator";
 
 const DRAFTS_STORAGE_KEY = "sop_saved_drafts_v1";
 
 /**
  * Returns all saved drafts ordered by most recently saved first.
+ * Backwards compatibility: drafts without documentType are assigned a default
+ * based on templateId ("UNIVERSITY_SOP" if templateId indicates SOP, else "VISA_COVER_LETTER").
  */
 export function getAllDrafts(): SopDraftRecord[] {
   if (typeof window === "undefined") return [];
@@ -22,13 +24,31 @@ export function getAllDrafts(): SopDraftRecord[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
 
-    return (parsed as SopDraftRecord[]).sort(
-      (a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()
-    );
+    return (parsed as SopDraftRecord[])
+      .map((draft) => {
+        if (!draft.documentType) {
+          const isSop =
+            draft.templateId === "university-statement-of-purpose" ||
+            draft.templateId?.includes("sop");
+          return {
+            ...draft,
+            documentType: (isSop ? "UNIVERSITY_SOP" : "VISA_COVER_LETTER") as SopDocumentType,
+          };
+        }
+        return draft;
+      })
+      .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
   } catch (err) {
     console.error("[sopDraftStorage] Error reading drafts from localStorage:", err);
     return [];
   }
+}
+
+/**
+ * Returns drafts filtered by a specific document type.
+ */
+export function getDraftsByDocumentType(docType: SopDocumentType): SopDraftRecord[] {
+  return getAllDrafts().filter((d) => d.documentType === docType);
 }
 
 /**
@@ -68,8 +88,15 @@ export function saveDraft(
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "-")}-${Date.now()}`;
 
+  const documentType: SopDocumentType =
+    draftInput.documentType ||
+    (draftInput.templateId === "university-statement-of-purpose" || draftInput.templateId?.includes("sop")
+      ? "UNIVERSITY_SOP"
+      : "VISA_COVER_LETTER");
+
   const record: SopDraftRecord = {
     ...draftInput,
+    documentType,
     id,
     savedAt: now,
   };

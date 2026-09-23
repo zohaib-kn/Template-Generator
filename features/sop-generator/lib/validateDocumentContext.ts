@@ -18,15 +18,21 @@
 import type {
   StudentDocumentContext,
   ValidationIssue,
+  SopDocumentType,
 } from "../types/sop-generator";
 import { lookupUniversity } from "../data/mock-verified-destination";
 
 /**
  * Validate a StudentDocumentContext.
+ * Respects documentType:
+ *  - VISA_COVER_LETTER validates embassy requirements (sponsor, finance, travel, accommodation, insurance).
+ *  - UNIVERSITY_SOP validates academic qualifications and destination without blocking on visa logistics.
+ *
  * Returns an array of issues (empty array means all checks passed).
  */
 export function validateDocumentContext(
-  ctx: StudentDocumentContext
+  ctx: StudentDocumentContext,
+  documentType: SopDocumentType = "VISA_COVER_LETTER"
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -120,87 +126,129 @@ export function validateDocumentContext(
     }
   }
 
-  // ── Sponsor ──────────────────────────────────────────────────────────────
-  if (!ctx.sponsor.name?.trim()) {
+  // ── Academics ───────────────────────────────────────────────────────────
+  if (!ctx.academics.latestQualification?.trim()) {
     issues.push({
-      id: "sponsor-name-missing",
-      field: "sponsor.name",
-      severity: "error",
-      message: "Sponsor name is missing.",
+      id: "academic-qualification-missing",
+      field: "academics.latestQualification",
+      severity: documentType === "UNIVERSITY_SOP" ? "error" : "warning",
+      message: "Latest academic qualification is missing.",
     });
   }
 
-  // ── Finance ──────────────────────────────────────────────────────────────
-  if (!ctx.finance.totalFundsAvailable?.trim()) {
-    issues.push({
-      id: "finance-total-missing",
-      field: "finance.totalFundsAvailable",
-      severity: "error",
-      message: "Total available funds amount is missing.",
-    });
+  if (documentType === "UNIVERSITY_SOP") {
+    if (!ctx.academics.institution?.trim()) {
+      issues.push({
+        id: "academic-institution-missing",
+        field: "academics.institution",
+        severity: "warning",
+        message: "Previous academic institution is missing.",
+      });
+    }
+
+    if (!ctx.academics.subjects?.trim()) {
+      issues.push({
+        id: "academic-subjects-missing",
+        field: "academics.subjects",
+        severity: "warning",
+        message: "Core academic subjects are missing; needed to contextualize course motivation and academic fit.",
+      });
+    }
+
+    if (!ctx.academics.percentage?.trim()) {
+      issues.push({
+        id: "academic-score-missing",
+        field: "academics.percentage",
+        severity: "warning",
+        message: "Academic aggregate score or percentage is missing.",
+      });
+    }
   }
 
-  if (!ctx.finance.bankName?.trim()) {
-    issues.push({
-      id: "finance-bank-missing",
-      field: "finance.bankName",
-      severity: "warning",
-      message: "Bank name for financial statement is missing.",
-    });
-  }
+  // ── Visa-Specific Logistics (Strictly skipped for UNIVERSITY_SOP) ─────────
+  if (documentType === "VISA_COVER_LETTER") {
+    // ── Sponsor ────────────────────────────────────────────────────────────
+    if (!ctx.sponsor.name?.trim()) {
+      issues.push({
+        id: "sponsor-name-missing",
+        field: "sponsor.name",
+        severity: "error",
+        message: "Sponsor name is missing.",
+      });
+    }
 
-  // ── Accommodation ────────────────────────────────────────────────────────
-  if (!ctx.accommodation.name?.trim()) {
-    issues.push({
-      id: "accommodation-name-missing",
-      field: "accommodation.name",
-      severity: "warning",
-      message: "Accommodation name requires confirmation.",
-    });
-  }
+    // ── Finance ────────────────────────────────────────────────────────────
+    if (!ctx.finance.totalFundsAvailable?.trim()) {
+      issues.push({
+        id: "finance-total-missing",
+        field: "finance.totalFundsAvailable",
+        severity: "error",
+        message: "Total available funds amount is missing.",
+      });
+    }
 
-  if (!ctx.accommodation.fromDate?.trim() || !ctx.accommodation.toDate?.trim()) {
-    issues.push({
-      id: "accommodation-dates-missing",
-      field: "accommodation.fromDate",
-      severity: "warning",
-      message: "Accommodation booking dates are incomplete.",
-    });
-  }
+    if (!ctx.finance.bankName?.trim()) {
+      issues.push({
+        id: "finance-bank-missing",
+        field: "finance.bankName",
+        severity: "warning",
+        message: "Bank name for financial statement is missing.",
+      });
+    }
 
-  // ── Insurance ────────────────────────────────────────────────────────────
-  if (!ctx.insurance.provider?.trim()) {
-    issues.push({
-      id: "insurance-provider-missing",
-      field: "insurance.provider",
-      severity: "warning",
-      message: "Travel insurance provider is missing.",
-    });
-  }
+    // ── Accommodation ──────────────────────────────────────────────────────
+    if (!ctx.accommodation.name?.trim()) {
+      issues.push({
+        id: "accommodation-name-missing",
+        field: "accommodation.name",
+        severity: "warning",
+        message: "Accommodation name requires confirmation.",
+      });
+    }
 
-  if (!ctx.insurance.policyNumber?.trim()) {
-    issues.push({
-      id: "insurance-policy-missing",
-      field: "insurance.policyNumber",
-      severity: "warning",
-      message: "Insurance policy number is missing.",
-    });
-  }
+    if (!ctx.accommodation.fromDate?.trim() || !ctx.accommodation.toDate?.trim()) {
+      issues.push({
+        id: "accommodation-dates-missing",
+        field: "accommodation.fromDate",
+        severity: "warning",
+        message: "Accommodation booking dates are incomplete.",
+      });
+    }
 
-  // ── Travel ───────────────────────────────────────────────────────────────
-  const travelIncomplete =
-    !ctx.travel.airline?.trim() ||
-    !ctx.travel.travelDate?.trim() ||
-    !ctx.travel.pnr?.trim();
+    // ── Insurance ──────────────────────────────────────────────────────────
+    if (!ctx.insurance.provider?.trim()) {
+      issues.push({
+        id: "insurance-provider-missing",
+        field: "insurance.provider",
+        severity: "warning",
+        message: "Travel insurance provider is missing.",
+      });
+    }
 
-  if (travelIncomplete) {
-    issues.push({
-      id: "travel-incomplete",
-      field: "travel.pnr",
-      severity: "warning",
-      message:
-        "Travel information is incomplete. Airline, travel date, or PNR reference is missing.",
-    });
+    if (!ctx.insurance.policyNumber?.trim()) {
+      issues.push({
+        id: "insurance-policy-missing",
+        field: "insurance.policyNumber",
+        severity: "warning",
+        message: "Insurance policy number is missing.",
+      });
+    }
+
+    // ── Travel ─────────────────────────────────────────────────────────────
+    const travelIncomplete =
+      !ctx.travel.airline?.trim() ||
+      !ctx.travel.travelDate?.trim() ||
+      !ctx.travel.pnr?.trim();
+
+    if (travelIncomplete) {
+      issues.push({
+        id: "travel-incomplete",
+        field: "travel.pnr",
+        severity: "warning",
+        message:
+          "Travel information is incomplete. Airline, travel date, or PNR reference is missing.",
+      });
+    }
   }
 
   return issues;
