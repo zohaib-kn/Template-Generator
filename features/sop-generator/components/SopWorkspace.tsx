@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import type { ReviewStatus, StudentDocumentContext, SopDraftRecord, DataSource } from "../types/sop-generator";
+import type {
+  ReviewStatus,
+  StudentDocumentContext,
+  SopDraftRecord,
+  DataSource,
+  SopDocumentType,
+} from "../types/sop-generator";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { WorkspaceHeader } from "./WorkspaceHeader";
@@ -11,7 +17,8 @@ import { ContextPanel } from "./ContextPanel";
 import { DocumentPreview } from "./DocumentPreview";
 import { StudentDetailsModal } from "./StudentDetailsModal";
 import type { SopStudentLoadedPayload } from "./SopStudentLoader";
-import { getApplication, getTemplate, getStudentDocumentContext } from "../lib/applicationService";
+import { getApplication, getStudentDocumentContext } from "../lib/applicationService";
+import { getDefaultTemplate, getTemplate } from "../lib/templateRegistry";
 import { validateDocumentContext, hasErrors } from "../lib/validateDocumentContext";
 import { interpolate } from "../lib/interpolateTemplate";
 import { useSopPdfGenerator } from "../hooks/useSopPdfGenerator";
@@ -46,11 +53,26 @@ export interface SopWorkspaceProps {
 }
 
 export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
-  // ── Static fixtures (template & initial test ctx) ────────────────────────
-  const application = useMemo(() => getApplication(), []);
-  const template    = useMemo(() => getTemplate(application.templateId), [application]);
-  const testCtx     = useMemo(() => getStudentDocumentContext(), []);
+  // ── Document Type & Template ──────────────────────────────────────────────
+  const [activeDocumentType, setActiveDocumentType] = useState<SopDocumentType>(() => {
+    if (initialDraft?.documentType) return initialDraft.documentType;
+    if (initialDraft?.templateId === "university-sop-standard") return "UNIVERSITY_SOP";
+    return "VISA_COVER_LETTER";
+  });
 
+  const application = useMemo(() => getApplication(), []);
+  const template = useMemo(() => {
+    if (initialDraft?.templateId && initialDraft.documentType === activeDocumentType) {
+      try {
+        return getTemplate(initialDraft.templateId);
+      } catch {
+        return getDefaultTemplate(activeDocumentType);
+      }
+    }
+    return getDefaultTemplate(activeDocumentType);
+  }, [activeDocumentType, initialDraft]);
+
+  const testCtx = useMemo(() => getStudentDocumentContext(), []);
   const sections = template.sections;
   const firstSectionId = sections.slice().sort((a, b) => a.order - b.order)[0]?.id ?? null;
 
@@ -100,25 +122,37 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     message: string;
   } | null>(null);
 
-  // Per-section content
-  const [sectionContents, setSectionContents] = useState<Record<string, string>>(() => {
-    const base = Object.fromEntries(sections.map((s) => [s.id, s.content]));
-    if (initialDraft?.sectionContents) {
-      return { ...base, ...initialDraft.sectionContents };
-    }
-    return base;
+  // Per-document-type isolated session storage
+  const [sectionContentsByType, setSectionContentsByType] = useState<Record<SopDocumentType, Record<string, string>>>(() => {
+    const visaTemplate = getDefaultTemplate("VISA_COVER_LETTER");
+    const sopTemplate = getDefaultTemplate("UNIVERSITY_SOP");
+    const visaBase = Object.fromEntries(visaTemplate.sections.map((s) => [s.id, s.content]));
+    const sopBase = Object.fromEntries(sopTemplate.sections.map((s) => [s.id, s.content]));
+
+    const isSopDraft = initialDraft?.documentType === "UNIVERSITY_SOP" || initialDraft?.templateId === "university-sop-standard";
+    return {
+      VISA_COVER_LETTER: isSopDraft ? visaBase : { ...visaBase, ...(initialDraft?.sectionContents ?? {}) },
+      UNIVERSITY_SOP: isSopDraft ? { ...sopBase, ...(initialDraft?.sectionContents ?? {}) } : sopBase,
+    };
   });
 
-  // Per-section review status
-  const [sectionStatuses, setSectionStatuses] = useState<Record<string, ReviewStatus>>(() => {
-    const base = Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
-    if (initialDraft?.sectionStatuses) {
-      return { ...base, ...initialDraft.sectionStatuses };
-    }
-    return base;
+  const [sectionStatusesByType, setSectionStatusesByType] = useState<Record<SopDocumentType, Record<string, ReviewStatus>>>(() => {
+    const visaTemplate = getDefaultTemplate("VISA_COVER_LETTER");
+    const sopTemplate = getDefaultTemplate("UNIVERSITY_SOP");
+    const visaBase = Object.fromEntries(visaTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
+    const sopBase = Object.fromEntries(sopTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
+
+    const isSopDraft = initialDraft?.documentType === "UNIVERSITY_SOP" || initialDraft?.templateId === "university-sop-standard";
+    return {
+      VISA_COVER_LETTER: isSopDraft ? visaBase : { ...visaBase, ...(initialDraft?.sectionStatuses ?? {}) },
+      UNIVERSITY_SOP: isSopDraft ? { ...sopBase, ...(initialDraft?.sectionStatuses ?? {}) } : sopBase,
+    };
   });
 
-  // Has counsellor made any edits?
+  const sectionContents = sectionContentsByType[activeDocumentType] ?? {};
+  const sectionStatuses = sectionStatusesByType[activeDocumentType] ?? {};
+
+  // Has counsellor made any edits in active document?
   const hasEdits = useMemo(() => {
     return sections.some(
       (s) =>
@@ -127,12 +161,12 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     );
   }, [sections, sectionStatuses, sectionContents]);
 
-  // ── Validation (reactive on ctx) ──────────────────────────────────────────
+  // ── Validation (reactive on ctx & activeDocumentType) ─────────────────────
   const [validationRefreshKey, setValidationRefreshKey] = useState(0);
   const validation = useMemo(
-    () => validateDocumentContext(ctx),
+    () => validateDocumentContext(ctx, activeDocumentType),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ctx, validationRefreshKey]
+    [ctx, activeDocumentType, validationRefreshKey]
   );
 
   const handleRefreshValidation = useCallback(() => {
@@ -181,24 +215,30 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       setSelectedProgramId(payload.selectedProgramId ?? "");
       setUseSampleData(true);
 
-      // Reset narrative sections to fresh template values for the new course
-      setSectionContents((prev) => {
-        const next = { ...prev };
+      // Reset narrative sections to fresh template values for active document type
+      setSectionContentsByType((prev) => {
+        const nextActive = { ...prev[activeDocumentType] };
         sections.forEach((s) => {
           if (s.regeneratable || s.source === "AI_SUGGESTED" || s.source === "HYBRID") {
-            next[s.id] = s.content;
+            nextActive[s.id] = s.content;
           }
         });
-        return next;
+        return {
+          ...prev,
+          [activeDocumentType]: nextActive,
+        };
       });
 
       // Reset section review statuses on new student load
-      setSectionStatuses(
-        Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
-      );
+      setSectionStatusesByType((prev) => ({
+        ...prev,
+        [activeDocumentType]: Object.fromEntries(
+          sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus])
+        ),
+      }));
       setDocApproved(false);
     },
-    [sections]
+    [sections, activeDocumentType]
   );
 
   // ── React to Global Student Context Selection ─────────────────────────────
@@ -257,17 +297,26 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     setLoadedStudentName(undefined);
     setUseSampleData(false);
     setActiveDraftId(null);
-    setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
-    setSectionStatuses(
-      Object.fromEntries(sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]))
-    );
+    const visaTemplate = getDefaultTemplate("VISA_COVER_LETTER");
+    const sopTemplate = getDefaultTemplate("UNIVERSITY_SOP");
+    setSectionContentsByType({
+      VISA_COVER_LETTER: Object.fromEntries(visaTemplate.sections.map((s) => [s.id, s.content])),
+      UNIVERSITY_SOP: Object.fromEntries(sopTemplate.sections.map((s) => [s.id, s.content])),
+    });
+    setSectionStatusesByType({
+      VISA_COVER_LETTER: Object.fromEntries(visaTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus])),
+      UNIVERSITY_SOP: Object.fromEntries(sopTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus])),
+    });
     setDocApproved(false);
   }
 
   function handleConfirmOverwrite() {
     if (pendingPayload) {
       setActiveDraftId(null);
-      setSectionContents(Object.fromEntries(sections.map((s) => [s.id, s.content])));
+      setSectionContentsByType((prev) => ({
+        ...prev,
+        [activeDocumentType]: Object.fromEntries(sections.map((s) => [s.id, s.content])),
+      }));
       applyStudentPayload(pendingPayload);
     }
     setPendingPayload(null);
@@ -281,11 +330,24 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
   // ── Section handlers ──────────────────────────────────────────────────────
   function handleContentChange(sectionId: string, newContent: string) {
-    setSectionContents((prev) => ({ ...prev, [sectionId]: newContent }));
+    setSectionContentsByType((prev) => ({
+      ...prev,
+      [activeDocumentType]: {
+        ...prev[activeDocumentType],
+        [sectionId]: newContent,
+      },
+    }));
     // Auto-revert APPROVED → NEEDS_REVIEW on edit
-    setSectionStatuses((prev) => {
-      if (prev[sectionId] === "APPROVED") {
-        return { ...prev, [sectionId]: "NEEDS_REVIEW" };
+    setSectionStatusesByType((prev) => {
+      const current = prev[activeDocumentType];
+      if (current[sectionId] === "APPROVED") {
+        return {
+          ...prev,
+          [activeDocumentType]: {
+            ...current,
+            [sectionId]: "NEEDS_REVIEW",
+          },
+        };
       }
       return prev;
     });
@@ -293,27 +355,54 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
   function handleReset(sectionId: string) {
     const original = sections.find((s) => s.id === sectionId)?.content ?? "";
-    setSectionContents((prev) => ({ ...prev, [sectionId]: original }));
-    setSectionStatuses((prev) => ({
+    setSectionContentsByType((prev) => ({
       ...prev,
-      [sectionId]: "NOT_REVIEWED",
+      [activeDocumentType]: {
+        ...prev[activeDocumentType],
+        [sectionId]: original,
+      },
+    }));
+    setSectionStatusesByType((prev) => ({
+      ...prev,
+      [activeDocumentType]: {
+        ...prev[activeDocumentType],
+        [sectionId]: "NOT_REVIEWED",
+      },
     }));
   }
 
   function handleApproveSection(sectionId: string) {
-    setSectionStatuses((prev) => ({ ...prev, [sectionId]: "APPROVED" }));
+    setSectionStatusesByType((prev) => ({
+      ...prev,
+      [activeDocumentType]: {
+        ...prev[activeDocumentType],
+        [sectionId]: "APPROVED",
+      },
+    }));
   }
 
   function handleUndoApprove(sectionId: string) {
-    setSectionStatuses((prev) => ({ ...prev, [sectionId]: "NEEDS_REVIEW" }));
+    setSectionStatusesByType((prev) => ({
+      ...prev,
+      [activeDocumentType]: {
+        ...prev[activeDocumentType],
+        [sectionId]: "NEEDS_REVIEW",
+      },
+    }));
     setDocApproved(false);
   }
 
   function handleToggleSectionStatus(sectionId: string) {
-    setSectionStatuses((prev) => {
-      const current = prev[sectionId] ?? "NOT_REVIEWED";
+    setSectionStatusesByType((prev) => {
+      const current = prev[activeDocumentType][sectionId] ?? "NOT_REVIEWED";
       const next = current === "APPROVED" ? "NEEDS_REVIEW" : "APPROVED";
-      return { ...prev, [sectionId]: next };
+      return {
+        ...prev,
+        [activeDocumentType]: {
+          ...prev[activeDocumentType],
+          [sectionId]: next,
+        },
+      };
     });
     if (sectionStatuses[sectionId] === "APPROVED") {
       setDocApproved(false);
@@ -321,9 +410,12 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   }
 
   function handleApproveAll() {
-    setSectionStatuses(
-      Object.fromEntries(sections.map((s) => [s.id, "APPROVED" as ReviewStatus]))
-    );
+    setSectionStatusesByType((prev) => ({
+      ...prev,
+      [activeDocumentType]: Object.fromEntries(
+        sections.map((s) => [s.id, "APPROVED" as ReviewStatus])
+      ),
+    }));
   }
 
   async function handleRegenerateSection(
@@ -345,19 +437,26 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           context: ctx,
           currentContent: sectionContents[sectionId] ?? targetSection.content,
           mode,
+          documentType: activeDocumentType,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success && data.text) {
-        setSectionContents((prev) => ({
+        setSectionContentsByType((prev) => ({
           ...prev,
-          [sectionId]: data.text,
+          [activeDocumentType]: {
+            ...prev[activeDocumentType],
+            [sectionId]: data.text,
+          },
         }));
-        setSectionStatuses((prev) => ({
+        setSectionStatusesByType((prev) => ({
           ...prev,
-          [sectionId]: "NEEDS_REVIEW",
+          [activeDocumentType]: {
+            ...prev[activeDocumentType],
+            [sectionId]: "NEEDS_REVIEW",
+          },
         }));
         setDocApproved(false);
       } else {
@@ -398,18 +497,25 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
             sectionTitle: sec.title,
             context: ctx,
             currentContent: sectionContents[sec.id] ?? sec.content,
+            documentType: activeDocumentType,
           }),
         });
 
         const data = await res.json();
         if (res.ok && data.success && data.text) {
-          setSectionContents((prev) => ({
+          setSectionContentsByType((prev) => ({
             ...prev,
-            [sec.id]: data.text,
+            [activeDocumentType]: {
+              ...prev[activeDocumentType],
+              [sec.id]: data.text,
+            },
           }));
-          setSectionStatuses((prev) => ({
+          setSectionStatusesByType((prev) => ({
             ...prev,
-            [sec.id]: "NEEDS_REVIEW" as ReviewStatus,
+            [activeDocumentType]: {
+              ...prev[activeDocumentType],
+              [sec.id]: "NEEDS_REVIEW" as ReviewStatus,
+            },
           }));
           completedCount++;
         } else {
@@ -450,6 +556,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         course: targetCourse,
         university: targetUni,
         templateId: template.id,
+        documentType: activeDocumentType,
         sectionContents,
         sectionStatuses,
         docApproved,
@@ -478,11 +585,19 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   }
 
   function handleRestoreDraft(draft: SopDraftRecord) {
+    const docType: SopDocumentType = draft.documentType || (draft.templateId === "university-sop-standard" ? "UNIVERSITY_SOP" : "VISA_COVER_LETTER");
+    setActiveDocumentType(docType);
     setCtx(draft.ctx);
     setCurrentSource(draft.currentSource || "test-data");
     setLoadedStudentName(draft.loadedStudentName || draft.studentName);
-    setSectionContents(draft.sectionContents);
-    setSectionStatuses(draft.sectionStatuses);
+    setSectionContentsByType((prev) => ({
+      ...prev,
+      [docType]: draft.sectionContents,
+    }));
+    setSectionStatusesByType((prev) => ({
+      ...prev,
+      [docType]: draft.sectionStatuses,
+    }));
     setDocApproved(draft.docApproved);
     setActiveDraftId(draft.id);
     setRecoveryBanner(null);
@@ -511,8 +626,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const result = await downloadPdf(target, {
       studentName: displayName,
       country: ctx.destination.country,
-      documentType: "Visa_Cover_Letter",
-      year: 2026,
+      documentType: template.pdfDocumentType || (activeDocumentType === "UNIVERSITY_SOP" ? "University_Statement_of_Purpose" : "Visa_Cover_Letter"),
+      year: ctx.destination.intakeYear || new Date().getFullYear(),
     });
 
     if (result.success && result.pdfBase64) {
@@ -548,8 +663,15 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
-  // Selected section
-  const selectedSection = sections.find((s) => s.id === selectedSectionId) ?? null;
+  // Selected section (falls back to first section if current selection doesn't exist in active template)
+  const effectiveSelectedId = useMemo(() => {
+    if (selectedSectionId && sections.some((s) => s.id === selectedSectionId)) {
+      return selectedSectionId;
+    }
+    return sections[0]?.id ?? null;
+  }, [selectedSectionId, sections]);
+
+  const selectedSection = sections.find((s) => s.id === effectiveSelectedId) ?? null;
   const displayStudentName = loadedStudentName || (useSampleData ? application.studentName : "No Student Selected");
 
   const destinationSummary = useMemo(() => {
@@ -561,6 +683,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   // Show empty state if no student has been loaded and counsellor hasn't chosen to view sample
   const showEmptyState = !isStudentLoaded && !loadedStudentName && !useSampleData;
 
+  const isUniversitySop = activeDocumentType === "UNIVERSITY_SOP";
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Slim Calm App Navigation */}
@@ -568,6 +692,10 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
       {/* Editorial Workspace Header */}
       <WorkspaceHeader
+        activeDocumentType={activeDocumentType}
+        onDocumentTypeChange={(type) => {
+          setActiveDocumentType(type);
+        }}
         templateName={template.name}
         studentName={displayStudentName}
         destinationSummary={destinationSummary}
@@ -675,7 +803,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           <div className="flex items-center gap-2">
             <span className="font-semibold">✓ Document Approved.</span>
             <span className="opacity-90 text-[11px]">
-              All required sections have been reviewed and verified for embassy submission.
+              All required sections have been reviewed and verified for submission.
             </span>
           </div>
           <button
@@ -694,10 +822,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         {/* Left: Story Structure Navigation */}
         <SectionSidebar
           sections={sections}
-          selectedId={selectedSectionId}
+          selectedId={effectiveSelectedId}
           statuses={sectionStatuses}
           onSelectSection={setSelectedSectionId}
           onToggleStatus={handleToggleSectionStatus}
+          groups={template.sidebarGroups}
         />
 
         {/* Center: Document Canvas or Empty State */}
@@ -716,7 +845,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">
-                    Review a Student&apos;s Visa Letter
+                    Review a Student&apos;s {isUniversitySop ? "Statement of Purpose" : "Visa Letter"}
                   </h2>
                   <p className="text-xs text-slate-500 leading-relaxed mt-1.5 max-w-sm mx-auto">
                     Select a student to load their academic credentials, course destination, and personal story into the workspace.
@@ -757,6 +886,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
               onUndoApprove={() => handleUndoApprove(selectedSection.id)}
               onRegenerate={handleRegenerateSection}
               isRegenerating={regeneratingSectionId === selectedSection.id}
+              canvasMasthead={template.canvasMasthead}
+              totalSections={sections.length}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-center px-8">
@@ -774,6 +905,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           onOpenStudentDetails={() => setStudentDetailsOpen(true)}
           onSelectSection={setSelectedSectionId}
           onRefreshValidation={handleRefreshValidation}
+          showLogistics={template.showLogisticsInContext !== false}
+          activeDocumentType={activeDocumentType}
         />
       </div>
 
@@ -786,6 +919,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           onClose={() => setPreviewOpen(false)}
           onDownloadPdf={handleDownloadPdf}
           isGeneratingPdf={isGeneratingPdf}
+          template={template}
         />
       )}
 
@@ -873,18 +1007,48 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         id="sop-printable-letter"
         aria-hidden="true"
       >
-        <div style={{ textAlign: "center", marginBottom: "12px" }}>
+        <div style={{ textAlign: "center", marginBottom: isUniversitySop ? "8px" : "12px" }}>
           <span
             style={{
-              fontSize: "14px",
+              fontSize: isUniversitySop ? "15px" : "14px",
               fontWeight: "bold",
               textDecoration: "underline",
               letterSpacing: "0.08em",
             }}
           >
-            COVER LETTER
+            {template.documentHeaderTitle || "COVER LETTER"}
           </span>
         </div>
+
+        {/* Applicant metadata header for University SOP */}
+        {isUniversitySop && (
+          <div
+            style={{
+              textAlign: "center",
+              marginBottom: "14px",
+              color: "#374151",
+              fontSize: "12px",
+              borderBottom: "1px solid #e5e7eb",
+              paddingBottom: "8px",
+            }}
+          >
+            <strong>{ctx.student.fullName || "Student Name"}</strong> · {ctx.destination.course || "Target Program"} · {ctx.destination.university || "Target Institution"}
+          </div>
+        )}
+
+        {/* Salutation if configured on template (e.g., Dear Admissions Committee,) */}
+        {template.salutation && (
+          <div
+            style={{
+              marginBottom: "10px",
+              textAlign: "left",
+              fontWeight: 700,
+              fontSize: "13px",
+            }}
+          >
+            {template.salutation}
+          </div>
+        )}
 
         {sections
           .slice()
@@ -945,11 +1109,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
               <div
                 key={section.id}
                 style={{
-                  marginBottom: "5.5px",
+                  marginBottom: isUniversitySop ? "10px" : "5.5px",
                   textIndent: "0",
                 }}
               >
-                <p style={{ margin: 0, padding: 0 }}>
+                <p style={{ margin: 0, padding: 0, whiteSpace: "pre-line" }}>
                   {renderFormatted(rendered)}
                 </p>
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { TemplateSection, StudentDocumentContext } from "../types/sop-generator";
+import type { TemplateSection, StudentDocumentContext, SopTemplate } from "../types/sop-generator";
 import { interpolate } from "../lib/interpolateTemplate";
 import { calculateDocumentWordCount } from "../lib/wordCount";
 
@@ -12,6 +12,7 @@ interface DocumentPreviewProps {
   onClose: () => void;
   onDownloadPdf?: () => void;
   isGeneratingPdf?: boolean;
+  template?: SopTemplate;
 }
 
 /**
@@ -33,13 +34,13 @@ function renderFormatted(text: string) {
 }
 
 /**
- * Full A4 single-page letter preview modal.
+ * Full A4 letter preview modal.
  *
- * Strict single-page embassy format (matching Images 3 & 4):
- * - Centered COVER LETTER title
- * - Recipient & bold subject line
+ * Supports single-page embassy format or university statement of purpose:
+ * - Centered title (from template config: COVER LETTER or STATEMENT OF PURPOSE)
+ * - Configurable salutation and signoff
  * - Natural human student prose with bold factual highlights
- * - Calibrated density (line-height 1.23, 13px serif font) fitting easily within 1 A4 page
+ * - Calibrated typography and safe inline styles
  */
 export function DocumentPreview({
   sections,
@@ -48,8 +49,12 @@ export function DocumentPreview({
   onClose,
   onDownloadPdf,
   isGeneratingPdf = false,
+  template,
 }: DocumentPreviewProps) {
   const sorted = [...sections].sort((a, b) => a.order - b.order);
+  const headerTitle = template?.documentHeaderTitle || "COVER LETTER";
+  const isUniversitySop = template?.documentType === "UNIVERSITY_SOP";
+  const salutation = template?.salutation;
 
   const totalWordCount = useMemo(
     () => calculateDocumentWordCount(sections, sectionContents, ctx),
@@ -74,14 +79,16 @@ export function DocumentPreview({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-bold text-white tracking-wider uppercase">
-                  Document Preview (Single-Page Embassy Standard)
+                  Document Preview ({headerTitle})
                 </span>
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-white/15 text-white text-[10px] font-semibold border border-white/20">
                   {totalWordCount} words
                 </span>
               </div>
               <p className="text-[11px] text-white/60">
-                Official A4 Letter · Compact On-Point Format · Zero Overflow
+                {isUniversitySop
+                  ? "Official Academic Statement · Formatted Standard"
+                  : "Official A4 Letter · Compact On-Point Format · Zero Overflow"}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -167,18 +174,48 @@ export function DocumentPreview({
             }}
           >
             {/* Centered Document Header */}
-            <div style={{ textAlign: "center", marginBottom: "12px" }}>
+            <div style={{ textAlign: "center", marginBottom: isUniversitySop ? "8px" : "12px" }}>
               <span
                 style={{
-                  fontSize: "14px",
+                  fontSize: isUniversitySop ? "15px" : "14px",
                   fontWeight: "bold",
                   textDecoration: "underline",
                   letterSpacing: "0.08em",
                 }}
               >
-                COVER LETTER
+                {headerTitle}
               </span>
             </div>
+
+            {/* Applicant metadata header for University SOP */}
+            {isUniversitySop && (
+              <div
+                style={{
+                  textAlign: "center",
+                  marginBottom: "14px",
+                  color: "#374151",
+                  fontSize: "12px",
+                  borderBottom: "1px solid #e5e7eb",
+                  paddingBottom: "8px",
+                }}
+              >
+                <strong>{ctx.student.fullName || "Student Name"}</strong> · {ctx.destination.course || "Target Program"} · {ctx.destination.university || "Target Institution"}
+              </div>
+            )}
+
+            {/* Salutation if configured on template (e.g., Dear Admissions Committee,) */}
+            {salutation && (
+              <div
+                style={{
+                  marginBottom: "10px",
+                  textAlign: "left",
+                  fontWeight: 700,
+                  fontSize: "13px",
+                }}
+              >
+                {salutation}
+              </div>
+            )}
 
             {/* Sections in flowing letter format */}
             {sorted.map((section) => {
@@ -238,11 +275,11 @@ export function DocumentPreview({
                 <div
                   key={section.id}
                   style={{
-                    marginBottom: "5.5px",
+                    marginBottom: isUniversitySop ? "10px" : "5.5px",
                     textIndent: "0",
                   }}
                 >
-                  <p style={{ margin: 0, padding: 0 }}>
+                  <p style={{ margin: 0, padding: 0, whiteSpace: "pre-line" }}>
                     {renderFormatted(rendered)}
                   </p>
                 </div>
@@ -251,7 +288,9 @@ export function DocumentPreview({
           </div>
 
           <p className="text-center text-[11px] text-white/50 mt-2.5">
-            Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.23 line-height · {totalWordCount} words)
+            {isUniversitySop
+              ? `University Statement of Purpose · Academic Standard (${totalWordCount} words)`
+              : `Single-Page A4 Embassy Standard (Times New Roman · 13px / 1.23 line-height · ${totalWordCount} words)`}
           </p>
         </div>
       </div>

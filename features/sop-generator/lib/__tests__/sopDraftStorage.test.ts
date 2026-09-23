@@ -156,3 +156,46 @@ test("SOP Draft Storage — deletes draft by id", () => {
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0].id, "draft-2");
 });
+
+test("SOP Draft Storage — distinguishes and filters by documentType", () => {
+  mockStorage.clear();
+
+  saveDraft({
+    id: "visa-draft-1",
+    documentType: "VISA_COVER_LETTER",
+    studentName: "Student Visa",
+    course: "Information Engineering",
+    university: "Padua",
+    templateId: "italy-type-d-student-visa-cover-letter",
+    sectionContents: {},
+    sectionStatuses: {},
+    docApproved: false,
+    ctx: mockCtx,
+    currentSource: "test-data" as DataSource,
+  });
+
+  saveDraft({
+    id: "sop-draft-1",
+    documentType: "UNIVERSITY_SOP",
+    studentName: "Student SOP",
+    course: "MSc Computer Science",
+    university: "Technical University of Munich",
+    templateId: "university-statement-of-purpose",
+    sectionContents: {},
+    sectionStatuses: {},
+    docApproved: false,
+    ctx: mockCtx,
+    currentSource: "test-data" as DataSource,
+  });
+
+  const all = getAllDrafts();
+  assert.equal(all.length, 2);
+
+  const visaOnly = all.filter((d) => d.documentType === "VISA_COVER_LETTER");
+  const sopOnly = all.filter((d) => d.documentType === "UNIVERSITY_SOP");
+
+  assert.equal(visaOnly.length, 1);
+  assert.equal(visaOnly[0].id, "visa-draft-1");
+  assert.equal(sopOnly.length, 1);
+  assert.equal(sopOnly[0].id, "sop-draft-1");
+});

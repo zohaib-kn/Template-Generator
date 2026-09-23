@@ -10,7 +10,7 @@
  * academic consultant, marketing writer, professor, or corporate AI.
  */
 
-import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
+import type { StudentDocumentContext, SopDocumentType } from "@/features/sop-generator/types/sop-generator";
 
 // ---------------------------------------------------------------------------
 // Core Reusable Guidelines
@@ -195,7 +195,8 @@ APPLICANT LEVEL: Advanced / Mature applicant.
 export function getSectionVoiceInstruction(
   sectionId: string,
   ctx: StudentDocumentContext,
-  domain: string
+  domain: string,
+  documentType: SopDocumentType = "VISA_COVER_LETTER"
 ): string {
   const { student, academics, destination, career, sponsor } = ctx;
 
@@ -239,17 +240,44 @@ CRITICAL RULES:
 - Avoid tourism-style language (do NOT talk about food, scenery, vacation spots, or generic "rich cultural tapestry").
 - Focus on why this country is the right place for this student's specific academic goals.`;
 
+    case "interest-motivation":
+      return `
+SECTION: INTEREST / MOTIVATION
+Target length: 90–125 words.
+Audience: Academic Admissions Committee.
+Focus strictly on:
+1. How prior coursework and subjects (${academics.subjects || "prior studies"}) sparked genuine academic curiosity.
+2. The logical progression from foundational concepts to deciding to pursue higher studies in "${destination.course}".
+3. What specific questions, problems, or academic areas within this discipline the student wants to explore.
+CRITICAL RULES:
+- Do NOT invent childhood stories (e.g. repairing household gadgets, fascinated since age five).
+- Do NOT invent unverified competitions, school clubs, or dramatic turning points.
+- Keep the reasoning direct, sincere, and intellectually grounded.`;
+
+    case "academic-fit":
+      return `
+SECTION: ACADEMIC FIT
+Target length: 90–120 words.
+Audience: Academic Admissions Committee.
+Focus strictly on:
+1. Demonstrating preparedness for the academic rigor of "${destination.course}" at "${destination.university}".
+2. Citing verified previous qualifications (${academics.latestQualification || "prior studies"}), subjects (${academics.subjects || "core coursework"}), and performance (${academics.percentage || "academic standing"}).
+3. Readiness to engage with university-level coursework, analytical assignments, and peer collaboration.
+CRITICAL RULES:
+- Ground in verified academic facts; never invent research papers, unverified internships, or awards.`;
+
+    case "career-goals":
     case "career-plan":
       return `
-SECTION: CAREER PLAN
+SECTION: CAREER GOALS / CAREER PLAN
 Target length: 80–110 words.
 Focus strictly on:
-1. Realistic next steps appropriate for the student's current stage upon returning to their home country (${student.country || "India"}).
+1. Realistic next steps appropriate for the student's current stage upon graduation.
 2. Concrete early-career roles appropriate for ${domain} (e.g. entry-level developer, technical associate, business analyst).
-3. How the knowledge gained during the degree will help them succeed in the domestic industry.
+3. How the knowledge gained during the degree will help them succeed professionally.
 CRITICAL RULES:
 - A bachelor's applicant must NOT sound like an enterprise architect or corporate executive.
-- Prefer: "After completing my studies, I plan to return to India and begin my career in the technology sector. I would like to gain practical experience in software and systems development, and gradually take on more responsibility as my skills grow."
+- Prefer: "After completing my studies, I plan to begin my career in the technology sector. I would like to gain practical experience in software and systems development, and gradually take on more responsibility as my skills grow."
 - Never use buzzwords like "spearhead digital transformation" or "orchestrate strategic synergies".`;
 
     case "future-academic-plan":
@@ -269,14 +297,54 @@ Focus strictly on:
 - Concrete reasons to return: family roots (supported by sponsor ${sponsor.name || "family"}), familiarity with the expanding domestic job market, and personal career goals at home.
 - Respectful, firm, and convincing student voice.`;
 
-    case "student-introduction":
+    case "contribution-vision":
       return `
-SECTION: STUDENT INTRODUCTION
+SECTION: CONTRIBUTION / FUTURE VISION
+Target length: 60–90 words.
+Audience: Academic Admissions Committee.
+Focus strictly on:
+- Realistic student contribution to the university environment: active participation in seminars, collaborative coursework with peers, and contribution to departmental academic activities.
+- Applying international training responsibly in future professional endeavours.
+CRITICAL RULES:
+- Do NOT invent grandiose social-impact crusades or philanthropic campaigns.`;
+
+    case "student-introduction":
+      if (documentType === "UNIVERSITY_SOP") {
+        const intakePart = [destination.intakeMonth, destination.intakeYear].filter(Boolean).join(" ");
+        return `
+SECTION: STUDENT INTRODUCTION (University SOP)
+Target length: 75–100 words.
+Audience: Academic Admissions Committee.
+Focus strictly on:
+- Stating the applicant's name (${student.fullName}), home city and country (${student.city || ""}, ${student.country || ""}), and current academic background (${academics.latestQualification || ""} from ${academics.institution || ""}).
+- Formally stating the purpose: applying for admission to the "${destination.course}" programme at "${destination.university}"${intakePart ? ` for ${intakePart}` : ""}.
+- Articulating clear intent to pursue higher education in this discipline.
+CRITICAL RULES:
+- Address the Academic Admissions Committee; NEVER mention visa officer, consulate, passport number, or visa types.`;
+      }
+      return `
+SECTION: STUDENT INTRODUCTION (Visa Cover Letter)
 Target length: 75–100 words.
 Focus strictly on:
 - Stating the applicant's name (${student.fullName}), citizenship (${student.nationality || "Indian"}, ${student.country || "India"}), passport number (${student.passportNumber || ""}), and residential address (${student.address || ""}).
-- Respectfully explaining the purpose: applying for a Long-Term Student Visa to study "${destination.course}" at "${destination.university}", commencing ${destination.intakeMonth || ""} ${destination.intakeYear || ""}.
+- Respectfully explaining the purpose: applying for a Long-Term Student Visa to study "${destination.course}" at "${destination.university}"${[destination.intakeMonth, destination.intakeYear].filter(Boolean).length > 0 ? `, commencing ${[destination.intakeMonth, destination.intakeYear].filter(Boolean).join(" ")}` : ""}.
 - Respectful, formal, clear, and direct.`;
+
+    case "closing-statement":
+      if (documentType === "UNIVERSITY_SOP") {
+        return `
+SECTION: CLOSING (University SOP)
+Target length: 40–60 words.
+Audience: Academic Admissions Committee.
+Focus strictly on:
+- Polite, professional expression of gratitude to the Admissions Committee for considering the application.
+- Affirming readiness to meet the academic standards of "${destination.university}" in "${destination.course}".
+- Do NOT summarize or re-hash the entire essay.`;
+      }
+      return `
+SECTION: CLOSING STATEMENT (Visa Cover Letter)
+Target length: 40–60 words.
+- Professional closing thanking the visa officer and stating availability for any further documentation.`;
 
     default:
       return `
@@ -313,6 +381,7 @@ export interface NaturalStudentPromptOptions {
   context: StudentDocumentContext;
   currentContent?: string;
   mode?: "generate" | "rewrite-natural";
+  documentType?: SopDocumentType;
 }
 
 /**
@@ -328,10 +397,19 @@ export function buildNaturalStudentPrompt(
     context,
     currentContent,
     mode = "generate",
+    documentType = "VISA_COVER_LETTER",
   } = options;
 
-  const { student, academics, destination, career, sponsor } = context;
+  const student = context.student ?? ({} as any);
+  const academics = context.academics ?? ({} as any);
+  const destination = context.destination ?? ({} as any);
+  const career = (context as any).career ?? {};
+  const sponsor = context.sponsor ?? ({} as any);
   const levelInfo = detectEducationLevel(context);
+  const isUniversitySop = documentType === "UNIVERSITY_SOP";
+
+  const intakeParts = [destination.intakeMonth, destination.intakeYear].filter(Boolean);
+  const intakeLine = intakeParts.length > 0 ? `- Target Intake: ${intakeParts.join(" ")}\n` : "";
 
   const verifiedStudentContext = `
 VERIFIED STUDENT CONTEXT (PRESERVE ALL FACTS EXACTLY):
@@ -343,17 +421,13 @@ VERIFIED STUDENT CONTEXT (PRESERVE ALL FACTS EXACTLY):
 - Language Proficiency: IELTS Overall ${context.tests?.ielts?.overall || "N/A"} (L: ${context.tests?.ielts?.listening || "N/A"}, R: ${context.tests?.ielts?.reading || "N/A"}, W: ${context.tests?.ielts?.writing || "N/A"}, S: ${context.tests?.ielts?.speaking || "N/A"})
 - Target Course & Degree: ${destination.degreeLevel || "Degree"} in "${destination.course || ""}" (${destination.duration || "Full-time"})
 - Target University: "${destination.university || ""}", ${destination.city || "City"}, ${destination.country || "Destination Country"}
-- Target Intake: ${destination.intakeMonth || "Autumn"} ${destination.intakeYear || "2026"}
-- Passport Number: ${student.passportNumber || ""}
-- Address: ${student.address || ""}
-- Career Aspirations: ${career.shortTermGoal || "Work in the field"}${career.longTermGoal ? `; ${career.longTermGoal}` : ""}
-- Return Intention: ${career.returnIntention || "Return home immediately after graduation"}
-- Sponsor: ${sponsor.name || "Parents"} (${sponsor.relationship || "Father"}${sponsor.occupation ? `, ${sponsor.occupation}` : ""})
+${intakeLine}- Career Aspirations: ${career?.shortTermGoal || "Work in the field"}${career?.longTermGoal ? `; ${career.longTermGoal}` : ""}
+${isUniversitySop ? "" : `- Return Intention: ${career?.returnIntention || "Return home immediately after graduation"}\n- Sponsor: ${sponsor?.name || "Parents"} (${sponsor?.relationship || "Father"}${sponsor?.occupation ? `, ${sponsor.occupation}` : ""})`}
 `.trim();
 
   // Mode: "rewrite-natural"
   if (mode === "rewrite-natural" && currentContent && currentContent.trim().length > 0) {
-    return `You are helping a real international student rewrite an existing Statement of Purpose / Cover Letter paragraph so that it sounds authentically student-written.
+    return `You are helping a real international student rewrite an existing ${isUniversitySop ? "Statement of Purpose" : "Visa Cover Letter"} paragraph so that it sounds authentically student-written.
 
 ${verifiedStudentContext}
 
@@ -364,6 +438,8 @@ ${currentContent.trim()}
 
 YOUR TASK:
 Rewrite the above paragraph in a genuine, believable student voice for the section "${sectionTitle}" (${sectionId}).
+
+${isUniversitySop ? 'AUDIENCE: Academic Admissions Committee. NEVER mention visa officers, consulates, embassy submissions, or financial sponsorship.' : 'AUDIENCE: Visa / Consular Officer.'}
 
 REWRITE RULES:
 1. Strip away all overly academic, consultant, brochure-like, or AI-generated jargon (e.g. "rigorous analytical foundation", "comprehensive training tailored to contemporary technical standards", "complex infrastructural networks", "multidisciplinary ecosystem", "transformative journey").
@@ -402,10 +478,11 @@ FINAL OUTPUT INSTRUCTIONS:
   const sectionVoice = getSectionVoiceInstruction(
     sectionId,
     context,
-    destination.course || "the target discipline"
+    destination.course || "the target discipline",
+    documentType
   );
 
-  return `You are generating a Statement of Purpose / Visa Cover Letter section for an international student.
+  return `You are generating a ${isUniversitySop ? "Statement of Purpose" : "Visa Cover Letter"} section for an international student.
 Write from the perspective of the STUDENT themself.
 
 ${verifiedStudentContext}

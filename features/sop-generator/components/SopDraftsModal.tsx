@@ -123,9 +123,18 @@ export function SopDraftsModal({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-900">
-                        {draft.studentName || "Unnamed Student"}
-                      </h4>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-slate-900">
+                          {draft.studentName || "Unnamed Student"}
+                        </h4>
+                        <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full border ${
+                          draft.documentType === "UNIVERSITY_SOP"
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        }`}>
+                          {draft.documentType === "UNIVERSITY_SOP" ? "University SOP" : "Visa Cover Letter"}
+                        </span>
+                      </div>
                       <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
                         {draft.course || "Course not specified"}{" "}
                         {draft.university && `• ${draft.university}`}

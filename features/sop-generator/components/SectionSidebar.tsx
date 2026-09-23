@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { TemplateSection, ReviewStatus } from "../types/sop-generator";
+import type { TemplateSection, ReviewStatus, SectionGroup } from "../types/sop-generator";
 
 interface SectionSidebarProps {
   sections: TemplateSection[];
@@ -9,12 +9,7 @@ interface SectionSidebarProps {
   statuses: Record<string, ReviewStatus>;
   onSelectSection: (id: string) => void;
   onToggleStatus?: (sectionId: string) => void;
-}
-
-interface SectionGroup {
-  id: string;
-  title: string;
-  sectionIds: string[];
+  groups?: SectionGroup[];
 }
 
 const SECTION_GROUPS: SectionGroup[] = [
@@ -46,7 +41,12 @@ export function SectionSidebar({
   statuses,
   onSelectSection,
   onToggleStatus,
+  groups,
 }: SectionSidebarProps) {
+  const effectiveGroups = useMemo(() => {
+    return groups && groups.length > 0 ? groups : SECTION_GROUPS;
+  }, [groups]);
+
   // Map sections by id for fast group lookup
   const sectionsById = useMemo(() => {
     return new Map(sections.map((s) => [s.id, s]));
@@ -55,7 +55,7 @@ export function SectionSidebar({
   // Track approved count per group
   const groupStats = useMemo(() => {
     const stats: Record<string, { total: number; approved: number }> = {};
-    for (const group of SECTION_GROUPS) {
+    for (const group of effectiveGroups) {
       let total = 0;
       let approved = 0;
       for (const id of group.sectionIds) {
@@ -68,7 +68,7 @@ export function SectionSidebar({
       stats[group.id] = { total, approved };
     }
     return stats;
-  }, [sectionsById, statuses]);
+  }, [sectionsById, statuses, effectiveGroups]);
 
   return (
     <aside
@@ -87,7 +87,7 @@ export function SectionSidebar({
 
       {/* Nav Groups */}
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-4">
-        {SECTION_GROUPS.map((group) => {
+        {effectiveGroups.map((group) => {
           const groupSecs = group.sectionIds
             .map((id) => sectionsById.get(id))
             .filter((s): s is TemplateSection => Boolean(s));

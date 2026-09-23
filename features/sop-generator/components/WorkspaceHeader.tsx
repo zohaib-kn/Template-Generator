@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import type { SopDocumentType } from "../types/sop-generator";
 
 interface WorkspaceHeaderProps {
   templateName: string;
@@ -26,6 +27,9 @@ interface WorkspaceHeaderProps {
   onDownloadPdf?: () => void;
   isGeneratingPdf?: boolean;
   totalWordCount?: number;
+  // Document Type Switching
+  activeDocumentType?: SopDocumentType;
+  onDocumentTypeChange?: (type: SopDocumentType) => void;
   // Student selection & program switching
   isStudentLoaded?: boolean;
   availablePrograms?: NormalizedAppliedProgram[];
@@ -64,6 +68,8 @@ export function WorkspaceHeader({
   onDownloadPdf,
   isGeneratingPdf = false,
   totalWordCount,
+  activeDocumentType,
+  onDocumentTypeChange,
   isStudentLoaded = false,
   availablePrograms = [],
   selectedProgramId,
@@ -111,21 +117,53 @@ export function WorkspaceHeader({
   return (
     <header className="flex-shrink-0 border-b border-slate-200/90 bg-white">
       {/* Top Bar: Breadcrumb + Document Title + Auto-save + Actions */}
-      <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 text-xs gap-4">
-        {/* Breadcrumb + Document Title */}
-        <div className="flex items-center gap-2 min-w-0">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-shrink-0">
-            <span>Documents</span>
-            <span className="text-slate-300">/</span>
-            <span className="text-slate-500 font-medium">SOP Generator</span>
-          </nav>
-          <span className="text-slate-300 select-none text-xs">/</span>
-          <h1
-            className="text-xs md:text-sm font-semibold text-slate-900 tracking-tight truncate max-w-md lg:max-w-xl"
-            title={templateName}
-          >
-            {templateName}
-          </h1>
+      <div className="px-6 py-2.5 flex items-center justify-between border-b border-slate-100 text-xs gap-4 flex-wrap">
+        {/* Breadcrumb + Document Title + Document Type Toggle */}
+        <div className="flex items-center gap-3 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[11px] text-slate-400 flex-shrink-0">
+              <span>Documents</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-500 font-medium">SOP Generator</span>
+            </nav>
+            <span className="text-slate-300 select-none text-xs">/</span>
+            <h1
+              className="text-xs md:text-sm font-semibold text-slate-900 tracking-tight truncate max-w-xs md:max-w-sm lg:max-w-md"
+              title={templateName}
+            >
+              {templateName}
+            </h1>
+          </div>
+
+          {/* Document Type Switcher */}
+          {onDocumentTypeChange && (
+            <div className="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200/90 text-xs flex-shrink-0">
+              <button
+                type="button"
+                id="sop-doc-type-visa-btn"
+                onClick={() => onDocumentTypeChange("VISA_COVER_LETTER")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  activeDocumentType === "VISA_COVER_LETTER"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Visa Cover Letter
+              </button>
+              <button
+                type="button"
+                id="sop-doc-type-sop-btn"
+                onClick={() => onDocumentTypeChange("UNIVERSITY_SOP")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  activeDocumentType === "UNIVERSITY_SOP"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                University SOP
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right: Saved state notice + Action Buttons */}

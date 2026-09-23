@@ -140,6 +140,8 @@ interface SectionEditorProps {
   onUndoApprove?: () => void;
   onRegenerate?: (sectionId: string, mode?: "generate" | "rewrite-natural") => Promise<void>;
   isRegenerating?: boolean;
+  canvasMasthead?: string;
+  totalSections?: number;
 }
 
 /**
@@ -176,6 +178,8 @@ export function SectionEditor({
   onUndoApprove,
   onRegenerate,
   isRegenerating = false,
+  canvasMasthead,
+  totalSections,
 }: SectionEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState(content);
@@ -460,10 +464,10 @@ export function SectionEditor({
             {/* Paper Header / Document Masthead */}
             <div className="px-8 pt-8 pb-4 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
               <span className="uppercase tracking-wider font-semibold">
-                Visa Cover Letter · Embassy Submission
+                {canvasMasthead || "Visa Cover Letter · Embassy Submission"}
               </span>
               <span>
-                Section {section.order} of 16
+                Section {section.order} of {totalSections || 16}
               </span>
             </div>
 

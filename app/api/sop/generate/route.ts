@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
+import type { StudentDocumentContext, SopDocumentType } from "@/features/sop-generator/types/sop-generator";
 import {
   buildNaturalStudentPrompt,
   STUDENT_VOICE_GUIDELINES,
@@ -16,6 +16,7 @@ export interface GenerateSectionRequest {
   context: StudentDocumentContext;
   currentContent?: string;
   mode?: "generate" | "rewrite-natural";
+  documentType?: SopDocumentType;
 }
 
 // Fast, verified Gemini Flash models (flash-lite first for high-throughput & generous quota)
@@ -60,7 +61,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { sectionId, sectionTitle, context, currentContent, mode = "generate" } = body;
+  const {
+    sectionId,
+    sectionTitle,
+    context,
+    currentContent,
+    mode = "generate",
+    documentType = "VISA_COVER_LETTER",
+  } = body;
 
   if (!sectionId || !context) {
     return NextResponse.json(
@@ -99,6 +107,7 @@ export async function POST(req: NextRequest) {
     context,
     currentContent,
     mode,
+    documentType,
   });
 
   // Try fast Flash models in sequence with a tight 10s timeout safeguard

@@ -19,8 +19,35 @@ import type { SopTemplate } from "../types/sop-generator";
 export const italyTypeDCoverLetter: SopTemplate = {
   id: "italy-type-d-student-visa-cover-letter",
   name: "Italy – Long-Term Type D Student Visa Cover Letter",
+  documentType: "VISA_COVER_LETTER",
   country: "Italy",
   visaType: "Type D Long-Stay Student Visa",
+  documentHeaderTitle: "COVER LETTER",
+  canvasMasthead: "Visa Cover Letter · Embassy Submission",
+  pdfDocumentType: "Visa_Cover_Letter",
+  showLogisticsInContext: true,
+  sidebarGroups: [
+    {
+      id: "document",
+      title: "Document",
+      sectionIds: ["recipient", "subject", "student-introduction"],
+    },
+    {
+      id: "academics",
+      title: "Academic Motivation",
+      sectionIds: ["academic-background", "why-course", "why-university", "why-italy"],
+    },
+    {
+      id: "future-finance",
+      title: "Future & Finance",
+      sectionIds: ["future-academic-plan", "career-plan", "return-intent", "financial-sponsorship"],
+    },
+    {
+      id: "closing",
+      title: "Logistics & Closing",
+      sectionIds: ["accommodation", "insurance", "travel", "closing-statement", "signature"],
+    },
+  ],
   sections: [
     // ── 1. Recipient / Consulate ────────────────────────────────────────────
     {
