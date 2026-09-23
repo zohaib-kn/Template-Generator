@@ -22,6 +22,7 @@ import {
   savePdf,
   saveDocument,
   generateDocumentId,
+  PdfSizeLimitError,
 } from "@/services/webhook/documentStore";
 import type { WebhookErrorResponse } from "@/services/webhook/types";
 
@@ -69,7 +70,7 @@ export async function GET(
   }
 
   // 2. Lookup document
-  const doc = findById(trimmedId);
+  const doc = await findById(trimmedId);
   if (!doc) {
     return NextResponse.json<WebhookErrorResponse>(
       {
@@ -81,8 +82,8 @@ export async function GET(
     );
   }
 
-  // 3. Verify finalization status & PDF availability
-  if (doc.status !== "FINALIZED" || !doc.pdfBase64) {
+  // 3. Verify finalization status
+  if (doc.status !== "FINALIZED") {
     return NextResponse.json<WebhookErrorResponse>(
       {
         success: false,
@@ -99,7 +100,7 @@ export async function GET(
     );
   }
 
-  const pdfData = getPdf(trimmedId);
+  const pdfData = await getPdf(trimmedId);
   if (!pdfData) {
     return NextResponse.json<WebhookErrorResponse>(
       {
@@ -120,7 +121,7 @@ export async function GET(
         documentId: trimmedId,
         status: "FINALIZED",
         fileName: pdfData.fileName,
-        pdfBase64: doc.pdfBase64,
+        pdfBase64: pdfData.pdfBase64,
         generatedAt: doc.pdfGeneratedAt,
       },
       { status: 200, headers: CORS_HEADERS }
@@ -186,10 +187,10 @@ export async function POST(
   }
 
   // If document does not exist yet (e.g. cold start across serverless containers), create a placeholder record
-  let doc = findById(trimmedId);
+  let doc = await findById(trimmedId);
   if (!doc) {
     const now = new Date().toISOString();
-    doc = saveDocument({
+    doc = await saveDocument({
       id: trimmedId,
       studentId: "unknown",
       studentName: body.fileName ? body.fileName.replace(/\.pdf$/i, "") : "Student",
@@ -213,7 +214,22 @@ export async function POST(
     });
   }
 
-  const updated = savePdf(trimmedId, body.pdfBase64, body.fileName);
+  let updated;
+  try {
+    updated = await savePdf(trimmedId, body.pdfBase64, body.fileName);
+  } catch (err: unknown) {
+    if (err instanceof PdfSizeLimitError) {
+      return NextResponse.json<WebhookErrorResponse>(
+        {
+          success: false,
+          code: "INVALID_REQUEST",
+          message: err.message,
+        },
+        { status: 413, headers: CORS_HEADERS }
+      );
+    }
+    throw err;
+  }
 
   return NextResponse.json(
     {

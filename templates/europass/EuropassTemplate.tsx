@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   useMemo,
+  useCallback,
   type ReactNode,
 } from "react";
 import type { DocumentData } from "@/types";
@@ -34,9 +35,12 @@ interface EuropassTemplateProps {
   data: DocumentData;
 }
 
-interface PageItem {
+interface PageItemAssignment {
   key: string;
-  node: ReactNode;
+  secKey: string;
+  title?: string;
+  startIndex?: number;
+  endIndex?: number;
 }
 
 const useIsomorphicLayoutEffect =
@@ -50,12 +54,20 @@ function getElementHeightWithMargins(el: HTMLElement): number {
   return el.offsetHeight + marginTop + marginBottom;
 }
 
-function arePagesEqual(a: PageItem[][] | null, b: PageItem[][]): boolean {
+function arePagesEqual(
+  a: PageItemAssignment[][] | null,
+  b: PageItemAssignment[][]
+): boolean {
   if (!a || a.length !== b.length) return false;
   return a.every(
     (page, i) =>
       page.length === b[i].length &&
-      page.every((item, j) => item.key === b[i][j].key)
+      page.every(
+        (item, j) =>
+          item.key === b[i][j].key &&
+          item.startIndex === b[i][j].startIndex &&
+          item.endIndex === b[i][j].endIndex
+      )
   );
 }
 
@@ -119,105 +131,95 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
   const englishCertificate = useMemo(() => data.englishCertificate ?? null, [data.englishCertificate]);
 
   // Fallback initial distribution before layout measurement runs
-  const fallbackPages = useMemo<PageItem[][]>(() => {
-    const p1: PageItem[] = [];
-    const p2: PageItem[] = [];
+  const fallbackPages = useMemo<PageItemAssignment[][]>(() => {
+    const p1: PageItemAssignment[] = [];
+    const p2: PageItemAssignment[] = [];
 
     if (aboutMe && aboutMe.trim().length > 0) {
-      p1.push({
-        key: "about",
-        node: <AboutSection text={aboutMe} />,
-      });
+      p1.push({ key: "about", secKey: "about" });
     }
     if (educationEntries.length > 0) {
       p1.push({
         key: "education_all",
-        node: <EducationSection entries={educationEntries} />,
+        secKey: "education",
+        startIndex: 0,
+        endIndex: educationEntries.length,
       });
     }
     if (internshipEntries.length > 0) {
       p1.push({
         key: "internships_all",
-        node: <InternshipSection entries={internshipEntries} />,
+        secKey: "internships",
+        startIndex: 0,
+        endIndex: internshipEntries.length,
       });
     }
     if (academicInterests && academicInterests.length > 0) {
-      p1.push({
-        key: "academicInterests",
-        node: <AcademicInterestsSection entries={academicInterests} />,
-      });
+      p1.push({ key: "academicInterests", secKey: "academicInterests" });
     }
     if (projectEntries.length > 0) {
       p2.push({
         key: "academicProjects_all",
-        node: <AcademicProjectsSection entries={projectEntries} />,
+        secKey: "academicProjects",
+        startIndex: 0,
+        endIndex: projectEntries.length,
       });
     }
     if (achievementEntries.length > 0) {
       p2.push({
         key: "achievements_all",
-        node: <AchievementsSection entries={achievementEntries} />,
+        secKey: "achievements",
+        startIndex: 0,
+        endIndex: achievementEntries.length,
       });
     }
     if (leadershipEntries.length > 0) {
       p2.push({
         key: "leadership_all",
-        node: <LeadershipSection entries={leadershipEntries} />,
+        secKey: "leadership",
+        startIndex: 0,
+        endIndex: leadershipEntries.length,
       });
     }
     if (volunteeringEntries.length > 0) {
       p2.push({
         key: "volunteering_all",
-        node: <VolunteeringSection entries={volunteeringEntries} />,
+        secKey: "volunteering",
+        startIndex: 0,
+        endIndex: volunteeringEntries.length,
       });
     }
     if (certificationEntries.length > 0) {
       p2.push({
         key: "certifications_all",
-        node: <CertificationsSection entries={certificationEntries} />,
+        secKey: "certifications",
+        startIndex: 0,
+        endIndex: certificationEntries.length,
       });
     }
     if (languages && languages.length > 0) {
-      p2.push({
-        key: "languages",
-        node: <LanguageSkillsSection entries={languages} />,
-      });
+      p2.push({ key: "languages", secKey: "languages" });
     }
     if (
       englishCertificate &&
       (englishCertificate.examName || englishCertificate.score)
     ) {
-      p2.push({
-        key: "englishCertificate",
-        node: <EnglishCertificateSection cert={englishCertificate} />,
-      });
+      p2.push({ key: "englishCertificate", secKey: "englishCertificate" });
     }
     if (skills && skills.length > 0) {
-      p2.push({
-        key: "skills",
-        node: <SkillsSection entries={skills} />,
-      });
+      p2.push({ key: "skills", secKey: "skills" });
     }
     if (hobbies && hobbies.length > 0) {
-      p2.push({
-        key: "hobbies",
-        node: <HobbiesSection entries={hobbies} />,
-      });
+      p2.push({ key: "hobbies", secKey: "hobbies" });
     }
     if (recommendations && recommendations.length > 0) {
-      p2.push({
-        key: "recommendations",
-        node: <RecommendationsSection entries={recommendations} />,
-      });
+      p2.push({ key: "recommendations", secKey: "recommendations" });
     }
     if (declaration && declaration.trim().length > 0) {
-      p2.push({
-        key: "declaration",
-        node: <DeclarationSection text={declaration} />,
-      });
+      p2.push({ key: "declaration", secKey: "declaration" });
     }
 
-    const pages: PageItem[][] = [p1];
+    const pages: PageItemAssignment[][] = [p1];
     if (p2.length > 0) pages.push(p2);
     return pages;
   }, [
@@ -229,17 +231,135 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     hobbies,
     recommendations,
     declaration,
-    educationEntries,
-    internshipEntries,
-    projectEntries,
-    achievementEntries,
-    leadershipEntries,
-    volunteeringEntries,
-    certificationEntries,
+    educationEntries.length,
+    internshipEntries.length,
+    projectEntries.length,
+    achievementEntries.length,
+    leadershipEntries.length,
+    volunteeringEntries.length,
+    certificationEntries.length,
   ]);
 
-  const [pageAssignments, setPageAssignments] = useState<PageItem[][] | null>(
-    null
+  const [pageAssignments, setPageAssignments] = useState<
+    PageItemAssignment[][] | null
+  >(null);
+
+  const renderPageItem = useCallback(
+    (item: PageItemAssignment) => {
+      switch (item.secKey) {
+        case "about":
+          return aboutMe.trim().length > 0 ? (
+            <AboutSection text={aboutMe} />
+          ) : null;
+        case "education": {
+          const slice = educationEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? educationEntries.length
+          );
+          return slice.length > 0 ? (
+            <EducationSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "internships": {
+          const slice = internshipEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? internshipEntries.length
+          );
+          return slice.length > 0 ? (
+            <InternshipSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "academicInterests":
+          return academicInterests.length > 0 ? (
+            <AcademicInterestsSection entries={academicInterests} />
+          ) : null;
+        case "academicProjects": {
+          const slice = projectEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? projectEntries.length
+          );
+          return slice.length > 0 ? (
+            <AcademicProjectsSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "achievements": {
+          const slice = achievementEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? achievementEntries.length
+          );
+          return slice.length > 0 ? (
+            <AchievementsSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "leadership": {
+          const slice = leadershipEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? leadershipEntries.length
+          );
+          return slice.length > 0 ? (
+            <LeadershipSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "volunteering": {
+          const slice = volunteeringEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? volunteeringEntries.length
+          );
+          return slice.length > 0 ? (
+            <VolunteeringSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "certifications": {
+          const slice = certificationEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? certificationEntries.length
+          );
+          return slice.length > 0 ? (
+            <CertificationsSection entries={slice} title={item.title} />
+          ) : null;
+        }
+        case "languages":
+          return languages.length > 0 ? (
+            <LanguageSkillsSection entries={languages} />
+          ) : null;
+        case "englishCertificate":
+          return englishCertificate &&
+            (englishCertificate.examName || englishCertificate.score) ? (
+            <EnglishCertificateSection cert={englishCertificate} />
+          ) : null;
+        case "skills":
+          return skills.length > 0 ? <SkillsSection entries={skills} /> : null;
+        case "hobbies":
+          return hobbies.length > 0 ? <HobbiesSection entries={hobbies} /> : null;
+        case "recommendations":
+          return recommendations.length > 0 ? (
+            <RecommendationsSection entries={recommendations} />
+          ) : null;
+        case "declaration":
+          return declaration.trim().length > 0 ? (
+            <DeclarationSection text={declaration} />
+          ) : null;
+        default:
+          return null;
+      }
+    },
+    [
+      aboutMe,
+      declaration,
+      englishCertificate,
+      educationEntries,
+      internshipEntries,
+      academicInterests,
+      projectEntries,
+      achievementEntries,
+      leadershipEntries,
+      volunteeringEntries,
+      certificationEntries,
+      languages,
+      skills,
+      hobbies,
+      recommendations,
+    ]
   );
 
   useIsomorphicLayoutEffect(() => {
@@ -264,7 +384,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     const maxPage1 = Math.max(100, usableHeight - headerHeight);
     const maxPageN = usableHeight;
 
-    const computedPages: PageItem[][] = [[]];
+    const computedPages: PageItemAssignment[][] = [[]];
     let pageIdx = 0;
     let remainingHeight = maxPage1;
 
@@ -276,18 +396,18 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     };
 
     // Helper: place an atomic section
-    const placeAtomic = (key: string, node: ReactNode) => {
+    const placeAtomic = (key: string) => {
       const el = container.querySelector(
         `[data-measure="${key}"]`
       ) as HTMLElement | null;
       const h = el ? getElementHeightWithMargins(el) : 80;
 
       if (h <= remainingHeight || computedPages[pageIdx].length === 0) {
-        computedPages[pageIdx].push({ key, node });
+        computedPages[pageIdx].push({ key, secKey: key });
         remainingHeight -= h;
       } else {
         advanceToNextPage();
-        computedPages[pageIdx].push({ key, node });
+        computedPages[pageIdx].push({ key, secKey: key });
         remainingHeight = maxPageN - h;
       }
     };
@@ -296,8 +416,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     function placeSplittable<T>(
       secKey: string,
       defaultTitle: string,
-      entries: T[],
-      renderSection: (subEntries: T[], title?: string) => ReactNode
+      entries: T[]
     ) {
       if (entries.length === 0) return;
 
@@ -320,7 +439,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       if (totalHeight <= remainingHeight) {
         computedPages[pageIdx].push({
           key: `${secKey}_all`,
-          node: renderSection(entries, defaultTitle),
+          secKey,
+          title: defaultTitle,
+          startIndex: 0,
+          endIndex: entries.length,
         });
         remainingHeight -= totalHeight;
         return;
@@ -338,7 +460,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         if (k > 0) {
           computedPages[pageIdx].push({
             key: `${secKey}_part1`,
-            node: renderSection(entries.slice(0, k), defaultTitle),
+            secKey,
+            title: defaultTitle,
+            startIndex: 0,
+            endIndex: k,
           });
 
           // Move remaining entries to next page
@@ -351,10 +476,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           if (remTotal <= maxPageN) {
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
-              node: renderSection(
-                remEntries,
-                `${defaultTitle} (Continued)`
-              ),
+              secKey,
+              title: `${defaultTitle} (Continued)`,
+              startIndex: k,
+              endIndex: entries.length,
             });
             remainingHeight = maxPageN - remTotal;
           } else {
@@ -366,18 +491,18 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
             }
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
-              node: renderSection(
-                remEntries.slice(0, k2),
-                `${defaultTitle} (Continued)`
-              ),
+              secKey,
+              title: `${defaultTitle} (Continued)`,
+              startIndex: k,
+              endIndex: k + k2,
             });
             advanceToNextPage();
             computedPages[pageIdx].push({
               key: `${secKey}_part3`,
-              node: renderSection(
-                remEntries.slice(k2),
-                `${defaultTitle} (Continued)`
-              ),
+              secKey,
+              title: `${defaultTitle} (Continued)`,
+              startIndex: k + k2,
+              endIndex: entries.length,
             });
             const remHeights3 = remHeights.slice(k2);
             remainingHeight =
@@ -393,7 +518,10 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       if (totalHeight <= maxPageN) {
         computedPages[pageIdx].push({
           key: `${secKey}_all`,
-          node: renderSection(entries, defaultTitle),
+          secKey,
+          title: defaultTitle,
+          startIndex: 0,
+          endIndex: entries.length,
         });
         remainingHeight = maxPageN - totalHeight;
       } else {
@@ -405,15 +533,18 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         }
         computedPages[pageIdx].push({
           key: `${secKey}_part1`,
-          node: renderSection(entries.slice(0, k), defaultTitle),
+          secKey,
+          title: defaultTitle,
+          startIndex: 0,
+          endIndex: k,
         });
         advanceToNextPage();
         computedPages[pageIdx].push({
           key: `${secKey}_part2`,
-          node: renderSection(
-            entries.slice(k),
-            `${defaultTitle} (Continued)`
-          ),
+          secKey,
+          title: `${defaultTitle} (Continued)`,
+          startIndex: k,
+          endIndex: entries.length,
         });
         const remHeights = entryHeights.slice(k);
         remainingHeight =
@@ -424,102 +555,80 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
 
     // Sequence of sections to place:
     if (aboutMe && aboutMe.trim().length > 0) {
-      placeAtomic("about", <AboutSection text={aboutMe} />);
+      placeAtomic("about");
     }
 
     placeSplittable(
       "education",
       "EDUCATION AND TRAINING",
-      educationEntries,
-      (sub, t) => <EducationSection entries={sub} title={t} />
+      educationEntries
     );
 
     placeSplittable(
       "internships",
       "WORK EXPERIENCE / INTERNSHIPS",
-      internshipEntries,
-      (sub, t) => <InternshipSection entries={sub} title={t} />
+      internshipEntries
     );
 
     if (academicInterests && academicInterests.length > 0) {
-      placeAtomic(
-        "academicInterests",
-        <AcademicInterestsSection entries={academicInterests} />
-      );
+      placeAtomic("academicInterests");
     }
 
     placeSplittable(
       "academicProjects",
       "ACADEMIC PROJECTS",
-      projectEntries,
-      (sub, t) => <AcademicProjectsSection entries={sub} title={t} />
+      projectEntries
     );
 
     placeSplittable(
       "achievements",
       "ACHIEVEMENTS & AWARDS",
-      achievementEntries,
-      (sub, t) => <AchievementsSection entries={sub} title={t} />
+      achievementEntries
     );
 
     placeSplittable(
       "leadership",
       "LEADERSHIP & EXTRACURRICULAR",
-      leadershipEntries,
-      (sub, t) => <LeadershipSection entries={sub} title={t} />
+      leadershipEntries
     );
 
     placeSplittable(
       "volunteering",
       "VOLUNTEERING / COMMUNITY ENGAGEMENT",
-      volunteeringEntries,
-      (sub, t) => <VolunteeringSection entries={sub} title={t} />
+      volunteeringEntries
     );
 
     placeSplittable(
       "certifications",
       "CERTIFICATIONS",
-      certificationEntries,
-      (sub, t) => <CertificationsSection entries={sub} title={t} />
+      certificationEntries
     );
 
     if (languages && languages.length > 0) {
-      placeAtomic(
-        "languages",
-        <LanguageSkillsSection entries={languages} />
-      );
+      placeAtomic("languages");
     }
 
     if (
       englishCertificate &&
       (englishCertificate.examName || englishCertificate.score)
     ) {
-      placeAtomic(
-        "englishCertificate",
-        <EnglishCertificateSection cert={englishCertificate} />
-      );
+      placeAtomic("englishCertificate");
     }
 
     if (skills && skills.length > 0) {
-      placeAtomic("skills", <SkillsSection entries={skills} />);
+      placeAtomic("skills");
     }
 
     if (hobbies && hobbies.length > 0) {
-      placeAtomic("hobbies", <HobbiesSection entries={hobbies} />);
+      placeAtomic("hobbies");
     }
 
     if (recommendations && recommendations.length > 0) {
-      placeAtomic(
-        "recommendations",
-        <RecommendationsSection entries={recommendations} />
-      );
+      placeAtomic("recommendations");
     }
 
     if (declaration && declaration.trim().length > 0) {
-      placeAtomic(
-        "declaration",
-        <DeclarationSection text={declaration} />
-      );
+      placeAtomic("declaration");
     }
 
     setPageAssignments((prev) =>
@@ -694,7 +803,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           <EuropassPage key={pageNumber} pageNumber={pageNumber}>
             {pageNumber === 1 && <EuropassHeader personal={data.personal} />}
             {pageItems.map((item) => (
-              <Fragment key={item.key}>{item.node}</Fragment>
+              <Fragment key={item.key}>{renderPageItem(item)}</Fragment>
             ))}
           </EuropassPage>
         );

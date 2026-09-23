@@ -79,13 +79,15 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
     (c) => c.toLowerCase() === (activeProg?.country || "").toLowerCase()
   );
 
-  const target: Partial<ApplicationTarget> = {
-    destinationCountry: matchedCountry ?? "Other",
-    degreeLevel: (activeProg?.degreeLevel as ApplicationTarget["degreeLevel"]) ?? "Master's",
-    courseCategory: (activeProg?.courseCategory as ApplicationTarget["courseCategory"]) ?? "Other",
-    intendedCourse: activeProg?.course || undefined,
-    universityName: activeProg?.university || undefined,
-  };
+  const target: Partial<ApplicationTarget> = activeProg
+    ? {
+        destinationCountry: matchedCountry || (activeProg.country as DestinationCountry) || undefined,
+        degreeLevel: (activeProg.degreeLevel as ApplicationTarget["degreeLevel"]) || undefined,
+        courseCategory: (activeProg.courseCategory as ApplicationTarget["courseCategory"]) || undefined,
+        intendedCourse: activeProg.course || undefined,
+        universityName: activeProg.university || undefined,
+      }
+    : {};
 
   const student: DocumentData = {
     personal: {

@@ -90,6 +90,15 @@ export function saveResumeDraft(
       RESUME_DRAFTS_STORAGE_KEY,
       JSON.stringify(updatedDrafts)
     );
+
+    // Fire-and-forget background sync to MongoDB Atlas
+    fetch("/api/resume/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    }).catch((err) => {
+      console.warn("[resumeDraftStorage] Background MongoDB sync failed:", err);
+    });
   } catch (err) {
     console.error("[resumeDraftStorage] Error saving draft to localStorage:", err);
     throw err;

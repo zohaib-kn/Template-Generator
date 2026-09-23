@@ -14,6 +14,7 @@ interface ResumeWorkspaceHeaderProps {
   onProgramChange?: (programId: string) => void;
   onOpenStudentSelect?: () => void;
   onClearStudent?: () => void;
+  onOpenImport?: () => void;
   filledSectionsCount: number;
   totalSectionsCount: number;
   isSavingDraft?: boolean;
@@ -46,6 +47,7 @@ export function ResumeWorkspaceHeader({
   onProgramChange,
   onOpenStudentSelect,
   onClearStudent,
+  onOpenImport,
   filledSectionsCount,
   totalSectionsCount,
   isSavingDraft = false,
@@ -181,6 +183,19 @@ export function ResumeWorkspaceHeader({
                   ✕
                 </button>
               )}
+
+              {onOpenImport && (
+                <button
+                  type="button"
+                  id="resume-import-btn-loaded"
+                  onClick={onOpenImport}
+                  className="h-7 px-2.5 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-[11px] font-medium transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  title="Import resume for this student"
+                >
+                  <span>📥</span>
+                  <span className="hidden md:inline">Import</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -193,6 +208,19 @@ export function ResumeWorkspaceHeader({
                 >
                   <span>+</span>
                   <span>Select Student from CRM</span>
+                </button>
+              )}
+
+              {onOpenImport && (
+                <button
+                  type="button"
+                  id="resume-import-btn"
+                  onClick={onOpenImport}
+                  className="h-7.5 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Import existing resume (PDF / DOCX)"
+                >
+                  <span>📥</span>
+                  <span>Import Resume</span>
                 </button>
               )}
             </div>
@@ -401,6 +429,22 @@ export function ResumeWorkspaceHeader({
                     >
                       <span>＋</span>
                       <span>New Blank Resume</span>
+                    </button>
+                  )}
+
+                  {onOpenImport && (
+                    <button
+                      type="button"
+                      id="resume-menu-import-btn"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenImport();
+                      }}
+                      className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 cursor-pointer"
+                      role="menuitem"
+                    >
+                      <span>📥</span>
+                      <span>Import Existing Resume</span>
                     </button>
                   )}
                 </div>

@@ -16,7 +16,7 @@ interface PageProps {
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { documentId } = await params;
   const query = await searchParams;
-  const doc = findById(documentId);
+  const doc = await findById(documentId);
   const title = doc
     ? `Review: ${doc.studentName} — SOP Generator`
     : query?.studentId
@@ -32,7 +32,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function SopDocumentReviewPage({ params, searchParams }: PageProps) {
   const { documentId } = await params;
   const query = await searchParams;
-  let doc: DocumentRecord | null = findById(documentId);
+  let doc: DocumentRecord | null = await findById(documentId);
 
   // Auto-recovery for Vercel serverless where memory store resets across lambda instances:
   if (!doc && query?.studentId?.trim()) {
