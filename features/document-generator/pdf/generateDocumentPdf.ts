@@ -16,6 +16,7 @@
  */
 
 import type { DocumentData } from "@/types";
+import { encodeEmbeddedData, type EmbeddedPdfPayload } from "@/services/pdf/pdfMetadata";
 
 /** A4 dimensions in millimetres. */
 const A4_W_MM = 210;
@@ -258,13 +259,39 @@ export async function generateDocumentPdf(
       pdf.addPage("a4", "portrait");
     }
 
+    // Embed invisible text layer behind the image for searchability and text extraction
+    const pageEl = pageElements[i];
+    const pageText = pageEl?.innerText || "";
+    if (pageText.trim()) {
+      pdf.setFontSize(2);
+      pdf.setTextColor(255, 255, 255);
+      const lines = pdf.splitTextToSize(pageText, A4_W_MM - 20);
+      pdf.text(lines, 10, 10);
+    }
+
     // Fill the entire A4 PDF page with the captured image (no added margins —
     // the A4 page component already contains its own internal margins)
     pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "FAST");
   });
 
-  // --- 6. Download ------------------------------------------------------------
+  // --- 6. Set Metadata & Download ---------------------------------------------
   const filename = buildFilename(data, options);
+  const embeddedPayload: EmbeddedPdfPayload<DocumentData> = {
+    generator: "templete-generator",
+    version: 1,
+    type: options?.documentType || "Resume",
+    timestamp: new Date().toISOString(),
+    data,
+  };
+
+  pdf.setProperties({
+    title: filename,
+    subject: encodeEmbeddedData(embeddedPayload),
+    author: data.personal?.fullName?.trim() || "Candidate",
+    keywords: "templete-generator,resume,v1",
+    creator: "TempleteGenerator",
+  });
+
   const pdfBase64 = pdf.output("datauristring");
   pdf.save(filename);
   return { filename, pdfBase64 };

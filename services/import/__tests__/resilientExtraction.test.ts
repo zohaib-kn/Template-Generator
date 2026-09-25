@@ -59,4 +59,37 @@ test("PDF Parser: cleanly extracts text from valid PDF buffer without DOM depend
   assert.ok(res.numPages >= 1);
 });
 
+test("PDF Parser: detects and parses embedded structured document data without ScannedPdfError", async () => {
+  const { encodeEmbeddedData } = await import("@/services/pdf/pdfMetadata");
+
+  const doc = new jsPDF();
+  const sampleData = {
+    personal: { fullName: "Aarav Sharma", email: "aarav@example.com", phone: "+91 9876543210" },
+    aboutMe: "Aspiring AI researcher",
+    education: [{ institution: "IIT Bombay", degree: "B.Tech Computer Science", year: "2024" }],
+  };
+
+  const payload = {
+    generator: "templete-generator" as const,
+    version: 1,
+    type: "Resume",
+    timestamp: new Date().toISOString(),
+    data: sampleData,
+  };
+
+  doc.setProperties({
+    title: "Aarav_Resume.pdf",
+    subject: encodeEmbeddedData(payload),
+    author: "Aarav Sharma",
+  });
+
+  // Note: No text is written to the PDF (simulating an image/empty canvas PDF)
+  const embeddedPdf = Buffer.from(doc.output("arraybuffer"));
+
+  const res = await parsePdfBuffer(embeddedPdf);
+  assert.ok(res.embeddedData, "Expected embeddedData to be extracted");
+  assert.equal(res.embeddedData.personal.fullName, "Aarav Sharma");
+  assert.equal(res.embeddedData.education[0].institution, "IIT Bombay");
+});
+
 

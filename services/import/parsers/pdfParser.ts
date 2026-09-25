@@ -12,6 +12,7 @@
  */
 
 import { extractText, getDocumentProxy } from "unpdf";
+import { decodeEmbeddedData } from "@/services/pdf/pdfMetadata";
 
 export class ScannedPdfError extends Error {
   constructor(
@@ -32,6 +33,7 @@ export class PasswordProtectedPdfError extends Error {
 export interface PdfParseResult {
   text: string;
   numPages: number;
+  embeddedData?: any;
 }
 
 export async function parsePdfBuffer(
@@ -42,11 +44,18 @@ export async function parsePdfBuffer(
     try {
       const uint8 = new Uint8Array(buffer);
       const pdf = await getDocumentProxy(uint8);
-      const { totalPages, text } = await extractText(pdf, { mergePages: true });
+      const [meta, textResult] = await Promise.all([
+        pdf.getMetadata().catch(() => null),
+        extractText(pdf, { mergePages: true }),
+      ]);
+
+      const subject = (meta?.info as Record<string, unknown> | undefined)?.Subject as string | undefined;
+      const embeddedPayload = decodeEmbeddedData(subject);
 
       return {
-        text: text || "",
-        numPages: totalPages || 1,
+        text: textResult?.text || "",
+        numPages: textResult?.totalPages || 1,
+        embeddedData: embeddedPayload?.data || null,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -75,7 +84,7 @@ export async function parsePdfBuffer(
 
   const result = await Promise.race([parsePromise, timeoutPromise]);
 
-  if (!result.text || result.text.trim().length < 50) {
+  if ((!result.text || result.text.trim().length < 50) && !result.embeddedData) {
     throw new ScannedPdfError();
   }
 

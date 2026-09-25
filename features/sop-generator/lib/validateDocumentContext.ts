@@ -22,6 +22,10 @@ import type {
 } from "../types/sop-generator";
 import { lookupUniversity } from "../data/mock-verified-destination";
 
+export interface ValidateContextOptions {
+  isImported?: boolean;
+}
+
 /**
  * Validate a StudentDocumentContext.
  * Respects documentType:
@@ -32,7 +36,8 @@ import { lookupUniversity } from "../data/mock-verified-destination";
  */
 export function validateDocumentContext(
   ctx: StudentDocumentContext,
-  documentType: SopDocumentType = "VISA_COVER_LETTER"
+  documentType: SopDocumentType = "VISA_COVER_LETTER",
+  options?: ValidateContextOptions
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -172,8 +177,10 @@ export function validateDocumentContext(
       issues.push({
         id: "sponsor-name-missing",
         field: "sponsor.name",
-        severity: "error",
-        message: "Sponsor name is missing.",
+        severity: options?.isImported ? "warning" : "error",
+        message: options?.isImported
+          ? "Sponsor name was not detected in imported SOP. Please confirm sponsor before embassy submission."
+          : "Sponsor name is missing.",
       });
     }
 
@@ -182,8 +189,10 @@ export function validateDocumentContext(
       issues.push({
         id: "finance-total-missing",
         field: "finance.totalFundsAvailable",
-        severity: "error",
-        message: "Total available funds amount is missing.",
+        severity: options?.isImported ? "warning" : "error",
+        message: options?.isImported
+          ? "Available funds amount was not detected in imported SOP. Please confirm financial balance before embassy submission."
+          : "Total available funds amount is missing.",
       });
     }
 

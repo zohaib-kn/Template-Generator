@@ -263,16 +263,25 @@ export function ContextPanel({
               </span>
               <div>
                 <p className="text-xs font-semibold text-slate-900">
-                  {ctx.academics.latestQualification}
+                  {ctx.academics.latestQualification || ctx.academics.institution || "Academic background not specified"}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {ctx.academics.board} · {ctx.academics.completionYear} · {ctx.academics.percentage}
-                </p>
+                {ctx.academics.institution && ctx.academics.latestQualification && (
+                  <p className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                    {ctx.academics.institution}
+                  </p>
+                )}
+                {([ctx.academics.board, ctx.academics.completionYear, ctx.academics.percentage].filter(Boolean).length > 0) && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {[ctx.academics.board, ctx.academics.completionYear, ctx.academics.percentage].filter(Boolean).join(" · ")}
+                  </p>
+                )}
               </div>
-              <div className="text-[11px] text-slate-600 pt-1.5 border-t border-slate-100">
-                <span className="text-slate-400">Key Subjects: </span>
-                <span>{ctx.academics.subjects}</span>
-              </div>
+              {ctx.academics.subjects && (
+                <div className="text-[11px] text-slate-600 pt-1.5 border-t border-slate-100">
+                  <span className="text-slate-400">Key Subjects: </span>
+                  <span>{ctx.academics.subjects}</span>
+                </div>
+              )}
             </div>
 
             {/* IELTS Score */}
@@ -281,28 +290,34 @@ export function ContextPanel({
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   English Language (IELTS)
                 </span>
-                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
-                  Band {ctx.tests.ielts.overall}
-                </span>
+                {ctx.tests.ielts.overall ? (
+                  <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                    Band {ctx.tests.ielts.overall}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 italic">Not specified</span>
+                )}
               </div>
-              <div className="grid grid-cols-4 gap-1 pt-1 text-center">
-                <div className="p-1 rounded bg-slate-50">
-                  <span className="block text-[9px] text-slate-400">L</span>
-                  <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.listening}</span>
+              {ctx.tests.ielts.overall ? (
+                <div className="grid grid-cols-4 gap-1 pt-1 text-center">
+                  <div className="p-1 rounded bg-slate-50">
+                    <span className="block text-[9px] text-slate-400">L</span>
+                    <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.listening || "—"}</span>
+                  </div>
+                  <div className="p-1 rounded bg-slate-50">
+                    <span className="block text-[9px] text-slate-400">R</span>
+                    <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.reading || "—"}</span>
+                  </div>
+                  <div className="p-1 rounded bg-slate-50">
+                    <span className="block text-[9px] text-slate-400">W</span>
+                    <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.writing || "—"}</span>
+                  </div>
+                  <div className="p-1 rounded bg-slate-50">
+                    <span className="block text-[9px] text-slate-400">S</span>
+                    <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.speaking || "—"}</span>
+                  </div>
                 </div>
-                <div className="p-1 rounded bg-slate-50">
-                  <span className="block text-[9px] text-slate-400">R</span>
-                  <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.reading}</span>
-                </div>
-                <div className="p-1 rounded bg-slate-50">
-                  <span className="block text-[9px] text-slate-400">W</span>
-                  <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.writing}</span>
-                </div>
-                <div className="p-1 rounded bg-slate-50">
-                  <span className="block text-[9px] text-slate-400">S</span>
-                  <span className="text-xs font-semibold text-slate-700">{ctx.tests.ielts.speaking}</span>
-                </div>
-              </div>
+              ) : null}
             </div>
 
             {/* View Full Profile CTA */}

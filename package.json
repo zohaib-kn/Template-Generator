@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test services/ai/__tests__/*.test.ts features/**/__tests__/*.test.ts services/webhook/__tests__/*.test.ts"
+    "test": "npx tsx --test services/ai/__tests__/*.test.ts services/import/__tests__/*.test.ts features/**/__tests__/*.test.ts services/webhook/__tests__/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
