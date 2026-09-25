@@ -134,8 +134,14 @@ export function SopDraftsModal({
                         }`}>
                           {draft.documentType === "UNIVERSITY_SOP" ? "University SOP" : "Visa Cover Letter"}
                         </span>
+                        {draft.origin === "IMPORTED" && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full border bg-sky-50 text-sky-700 border-sky-200">
+                            Imported
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate-600 line-clamp-1 mt-0.5">
+                        {draft.sourceFileName ? `Source: ${draft.sourceFileName} · ` : ""}
                         {draft.course || "Course not specified"}{" "}
                         {draft.university && `• ${draft.university}`}
                       </p>

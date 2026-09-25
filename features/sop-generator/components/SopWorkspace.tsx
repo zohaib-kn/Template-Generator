@@ -30,6 +30,8 @@ import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 import { mapCrmToNormalizedStudent, mapNormalizedToSop } from "@/services/normalization";
 import { StudentDropdown } from "@/components/common/StudentDropdown";
 import { StudentSelectModal } from "./StudentSelectModal";
+import { SopImportModal } from "./SopImportModal";
+import { buildImportedStudentContext } from "../lib/buildImportedStudentContext";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -105,6 +107,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
   const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [isContextCollapsed, setIsContextCollapsed] = useState(false);
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
     initialDraft ? `Document ${initialDraft.id} loaded` : null
@@ -164,9 +167,12 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   // ── Validation (reactive on ctx & activeDocumentType) ─────────────────────
   const [validationRefreshKey, setValidationRefreshKey] = useState(0);
   const validation = useMemo(
-    () => validateDocumentContext(ctx, activeDocumentType),
+    () =>
+      validateDocumentContext(ctx, activeDocumentType, {
+        isImported: currentSource === "imported-sop",
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ctx, activeDocumentType, validationRefreshKey]
+    [ctx, activeDocumentType, currentSource, validationRefreshKey]
   );
 
   const handleRefreshValidation = useCallback(() => {
@@ -239,6 +245,73 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       setDocApproved(false);
     },
     [sections, activeDocumentType]
+  );
+
+  // ── Apply imported SOP payload ────────────────────────────────────────────
+  const handleImportApplied = useCallback(
+    (
+      importedContents: Record<string, string>,
+      approvedFacts?: Record<string, string>,
+      importMeta?: { importId?: string; fileName?: string; studentName?: string }
+    ) => {
+      // 1. Determine student candidate name
+      const candidateName =
+        approvedFacts?.fullName?.trim() ||
+        importMeta?.studentName?.trim() ||
+        loadedStudentName?.trim() ||
+        "Imported Student";
+
+      // 2. Load section contents for activeDocumentType AND VISA_COVER_LETTER
+      setSectionContentsByType((prev) => ({
+        ...prev,
+        [activeDocumentType]: {
+          ...prev[activeDocumentType],
+          ...importedContents,
+        },
+        VISA_COVER_LETTER: {
+          ...prev.VISA_COVER_LETTER,
+          ...importedContents,
+        },
+      }));
+
+      // 3. Set all sections that have imported content or are required to NEEDS_REVIEW
+      setSectionStatusesByType((prev) => {
+        const nextStatuses = { ...prev[activeDocumentType] };
+        for (const [secId, content] of Object.entries(importedContents)) {
+          if (content && content.trim().length > 0) {
+            nextStatuses[secId] = "NEEDS_REVIEW";
+          }
+        }
+        return {
+          ...prev,
+          [activeDocumentType]: nextStatuses,
+          VISA_COVER_LETTER: nextStatuses,
+        };
+      });
+
+      // 4. Update ctx cleanly - purge mock data if we were on test-data
+      setCtx((prev) => {
+        const isCurrentlyLiveCrm = currentSource === "live-crm";
+        return buildImportedStudentContext(
+          approvedFacts || {},
+          isCurrentlyLiveCrm ? prev : undefined,
+          candidateName
+        );
+      });
+
+      // 5. Update loaded student identity & data source
+      setLoadedStudentName(candidateName);
+      if (currentSource === "test-data") {
+        setCurrentSource("imported-sop");
+      }
+
+      setUseSampleData(true);
+      setDocApproved(false);
+      setActiveDraftId(null);
+      setSavedNoticeText("✓ Imported SOP loaded into workspace.");
+      setTimeout(() => setSavedNoticeText(null), 3500);
+    },
+    [currentSource, loadedStudentName]
   );
 
   // ── React to Global Student Context Selection ─────────────────────────────
@@ -416,6 +489,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         sections.map((s) => [s.id, "APPROVED" as ReviewStatus])
       ),
     }));
+    if (!documentHasErrors) {
+      setDocApproved(true);
+      setSavedNoticeText("✓ All sections & document approved");
+      setTimeout(() => setSavedNoticeText(null), 3500);
+    }
   }
 
   async function handleRegenerateSection(
@@ -459,6 +537,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           },
         }));
         setDocApproved(false);
+        setSavedNoticeText(`✓ Generated AI narrative for ${targetSection.title}`);
+        setTimeout(() => setSavedNoticeText(null), 3500);
       } else {
         throw new Error(data?.error?.message || "Failed to generate AI response.");
       }
@@ -718,11 +798,13 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         isGeneratingPdf={isGeneratingPdf}
         totalWordCount={totalWordCount}
         isStudentLoaded={isStudentLoaded}
+        currentSource={currentSource}
         availablePrograms={availablePrograms}
         selectedProgramId={selectedProgramId}
         onProgramChange={handleProgramChange}
         onClearStudent={handleClearStudent}
         onOpenStudentSelect={() => setIsStudentSelectOpen(true)}
+        onOpenImport={() => setImportModalOpen(true)}
       />
 
       {/* Quick recovery banner */}
@@ -856,10 +938,19 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                   <button
                     type="button"
                     onClick={() => setIsStudentSelectOpen(true)}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs transition-colors"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs transition-colors cursor-pointer"
                   >
                     <span>👥</span>
                     <span>Select Student from CRM</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImportModalOpen(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <span>📥</span>
+                    <span>Import Existing SOP (PDF / DOCX)</span>
                   </button>
                 </div>
 
@@ -983,6 +1074,19 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         }}
         selectedStudentId={selectedStudentId}
         onClearStudent={handleClearStudent}
+      />
+
+      {/* SOP Import Modal */}
+      <SopImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImportApplied={handleImportApplied}
+        onSaveCurrentDraft={handleSaveDraft}
+        hasUnsavedChanges={hasEdits}
+        crmSnapshot={currentSnapshot}
+        studentId={selectedStudentId || undefined}
+        studentName={loadedStudentName || ctx.student.fullName}
+        ctx={ctx}
       />
 
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}

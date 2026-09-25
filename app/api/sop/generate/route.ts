@@ -19,11 +19,15 @@ export interface GenerateSectionRequest {
   documentType?: SopDocumentType;
 }
 
-// Fast, verified Gemini Flash models (flash-lite first for high-throughput & generous quota)
+// Fast, verified Gemini Flash models cascading across available endpoints
 const FAST_FLASH_MODELS = [
   "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-3.5-flash",
   "gemini-3.6-flash",
 ];
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ---------------------------------------------------------------------------
 // POST /api/sop/generate
@@ -110,13 +114,13 @@ export async function POST(req: NextRequest) {
     documentType,
   });
 
-  // Try fast Flash models in sequence with a tight 10s timeout safeguard
+  // Try fast Flash models in sequence with a 15s timeout safeguard
   let lastError: unknown = null;
 
   for (const modelName of FAST_FLASH_MODELS) {
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("TIMEOUT")), 10_000)
+        setTimeout(() => reject(new Error("TIMEOUT")), 15_000)
       );
 
       const generatePromise = ai.models.generateContent({
@@ -146,12 +150,15 @@ export async function POST(req: NextRequest) {
       // On temporary unavailable (503), timeout, not found (404), or quota limit (429), try next Flash model in cascade
       if (
         errStr.includes("503") ||
+        errStr.includes("UNAVAILABLE") ||
+        errStr.includes("high demand") ||
         errStr.includes("TIMEOUT") ||
         errStr.includes("404") ||
         errStr.includes("429") ||
         errStr.includes("quota") ||
         errStr.includes("RESOURCE_EXHAUSTED")
       ) {
+        await delay(800);
         continue;
       }
       break;
@@ -165,7 +172,15 @@ export async function POST(req: NextRequest) {
   let message = "Unable to generate narrative with Gemini.";
   let status = 502;
 
-  if (errMessage.includes("429") || errMessage.includes("quota")) {
+  if (
+    errMessage.includes("503") ||
+    errMessage.includes("UNAVAILABLE") ||
+    errMessage.includes("high demand")
+  ) {
+    code = "MODEL_OVERLOADED";
+    message = "Google AI is currently experiencing high demand. Please try again in a few seconds.";
+    status = 503;
+  } else if (errMessage.includes("429") || errMessage.includes("quota")) {
     code = "QUOTA_EXCEEDED";
     message = "Gemini API rate limit or quota exceeded. Please try again in a moment.";
     status = 429;

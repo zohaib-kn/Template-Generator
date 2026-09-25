@@ -15,14 +15,14 @@ import { GridFSBucket, ObjectId } from "mongodb";
 import { connectToDatabase } from "@/lib/db";
 import { Readable } from "node:stream";
 
-const BUCKET_NAME = "resume_files";
+const DEFAULT_BUCKET_NAME = "document_files";
 
-function getGridFSBucket(): GridFSBucket {
+function getGridFSBucket(bucketName: string = DEFAULT_BUCKET_NAME): GridFSBucket {
   if (!mongoose.connection.db) {
     throw new Error("MongoDB connection is not established.");
   }
   return new GridFSBucket(mongoose.connection.db, {
-    bucketName: BUCKET_NAME,
+    bucketName,
   });
 }
 
@@ -33,10 +33,11 @@ function getGridFSBucket(): GridFSBucket {
 export async function saveFileToGridFS(
   buffer: Buffer,
   fileName: string,
-  mimeType: string
+  mimeType: string,
+  bucketName: string = DEFAULT_BUCKET_NAME
 ): Promise<string> {
   await connectToDatabase();
-  const bucket = getGridFSBucket();
+  const bucket = getGridFSBucket(bucketName);
 
   return new Promise((resolve, reject) => {
     const readable = Readable.from(buffer);
@@ -60,15 +61,42 @@ export async function saveFileToGridFS(
  * Retrieves a file from MongoDB GridFS as a Buffer.
  */
 export async function getFileFromGridFS(
-  fileId: string
+  fileId: string,
+  bucketName: string = DEFAULT_BUCKET_NAME
 ): Promise<{ buffer: Buffer; fileName: string; contentType: string } | null> {
   await connectToDatabase();
-  const bucket = getGridFSBucket();
+  const bucket = getGridFSBucket(bucketName);
 
   try {
     const objectId = new ObjectId(fileId);
     const files = await bucket.find({ _id: objectId }).toArray();
     if (!files || files.length === 0) {
+      // Fallback check in resume_files legacy bucket if not found in default
+      if (bucketName !== "resume_files") {
+        const legacyBucket = getGridFSBucket("resume_files");
+        const legacyFiles = await legacyBucket.find({ _id: objectId }).toArray();
+        if (legacyFiles && legacyFiles.length > 0) {
+          const fileMeta = legacyFiles[0];
+          const downloadStream = legacyBucket.openDownloadStream(objectId);
+          const chunks: Buffer[] = [];
+          const contentType =
+            (fileMeta.metadata as { contentType?: string } | undefined)?.contentType ||
+            "application/octet-stream";
+
+          return new Promise((resolve, reject) => {
+            downloadStream
+              .on("data", (chunk: Buffer) => chunks.push(chunk))
+              .on("error", (err) => reject(err))
+              .on("end", () => {
+                resolve({
+                  buffer: Buffer.concat(chunks),
+                  fileName: fileMeta.filename,
+                  contentType,
+                });
+              });
+          });
+        }
+      }
       return null;
     }
 
@@ -101,9 +129,12 @@ export async function getFileFromGridFS(
 /**
  * Deletes a file from MongoDB GridFS.
  */
-export async function deleteFileFromGridFS(fileId: string): Promise<boolean> {
+export async function deleteFileFromGridFS(
+  fileId: string,
+  bucketName: string = DEFAULT_BUCKET_NAME
+): Promise<boolean> {
   await connectToDatabase();
-  const bucket = getGridFSBucket();
+  const bucket = getGridFSBucket(bucketName);
 
   try {
     const objectId = new ObjectId(fileId);
@@ -114,3 +145,4 @@ export async function deleteFileFromGridFS(fileId: string): Promise<boolean> {
     return false;
   }
 }
+

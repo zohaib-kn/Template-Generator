@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
-import type { SopDocumentType } from "../types/sop-generator";
+import type { DataSource, SopDocumentType } from "../types/sop-generator";
 
 interface WorkspaceHeaderProps {
   templateName: string;
@@ -32,11 +32,13 @@ interface WorkspaceHeaderProps {
   onDocumentTypeChange?: (type: SopDocumentType) => void;
   // Student selection & program switching
   isStudentLoaded?: boolean;
+  currentSource?: DataSource;
   availablePrograms?: NormalizedAppliedProgram[];
   selectedProgramId?: string;
   onProgramChange?: (programId: string) => void;
   onClearStudent?: () => void;
   onOpenStudentSelect?: () => void;
+  onOpenImport?: () => void;
 }
 
 const DOC_STATUS_LABELS: Record<string, { label: string; colors: string }> = {
@@ -71,11 +73,13 @@ export function WorkspaceHeader({
   activeDocumentType,
   onDocumentTypeChange,
   isStudentLoaded = false,
+  currentSource,
   availablePrograms = [],
   selectedProgramId,
   onProgramChange,
   onClearStudent,
   onOpenStudentSelect,
+  onOpenImport,
 }: WorkspaceHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -268,6 +272,22 @@ export function WorkspaceHeader({
                 className="absolute right-0 top-full mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-40 text-xs text-slate-700"
                 role="menu"
               >
+                {/* Import Existing SOP */}
+                {onOpenImport && (
+                  <button
+                    type="button"
+                    id="sop-menu-import-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onOpenImport();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700"
+                    role="menuitem"
+                  >
+                    <span>📥</span>
+                    <span>Import Existing SOP</span>
+                  </button>
+                )}
                 {/* Save Draft */}
                 <button
                   type="button"
@@ -350,17 +370,21 @@ export function WorkspaceHeader({
                 {onDownloadPdf && !isApproved && (
                   <button
                     type="button"
+                    id="sop-menu-download-pdf-btn"
                     onClick={() => {
                       setMenuOpen(false);
+                      if (canApprove) {
+                        onApproveDocument();
+                      }
                       onDownloadPdf();
                     }}
                     disabled={isGeneratingPdf}
-                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-400 disabled:opacity-50 cursor-not-allowed"
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 disabled:opacity-50 cursor-pointer"
                     role="menuitem"
-                    title="Approve document first to download official PDF"
+                    title={canApprove ? "Download official PDF" : "Download PDF draft"}
                   >
                     <span>📥</span>
-                    <span>Download PDF (Locked)</span>
+                    <span>{canApprove ? "Download PDF" : "Download PDF (Draft)"}</span>
                   </button>
                 )}
               </div>
@@ -383,23 +407,41 @@ export function WorkspaceHeader({
                   {studentName}
                 </span>
                 <span
-                  className={`text-[10px] font-medium px-1.5 py-0.2 rounded-full border ${statusCfg.colors}`}
+                  className={`text-[10px] font-medium px-1.5 py-0.2 rounded-full border ${
+                    currentSource === "imported-sop"
+                      ? "bg-sky-50 text-sky-800 border-sky-200 font-semibold"
+                      : statusCfg.colors
+                  }`}
                 >
-                  {statusCfg.label}
+                  {currentSource === "imported-sop" ? "Imported SOP" : statusCfg.label}
                 </span>
               </div>
 
-              {/* Explicit Switch Student Button */}
+              {/* Link / Switch Student Button */}
               {onOpenStudentSelect && (
                 <button
                   type="button"
                   id="sop-switch-student-btn"
                   onClick={onOpenStudentSelect}
                   className="h-7 px-2.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
-                  title="Select a different student from CRM"
+                  title={currentSource === "imported-sop" ? "Link this imported SOP to a student in CRM" : "Select a different student from CRM"}
                 >
-                  <span>⇄</span>
-                  <span>Switch Student</span>
+                  <span>{currentSource === "imported-sop" ? "🔗" : "⇄"}</span>
+                  <span>{currentSource === "imported-sop" ? "Link to CRM" : "Switch Student"}</span>
+                </button>
+              )}
+
+              {/* Import SOP Button for this Student */}
+              {onOpenImport && (
+                <button
+                  type="button"
+                  id="sop-import-btn-loaded"
+                  onClick={onOpenImport}
+                  className="h-7 px-2.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-[11px] font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Import existing SOP for this student"
+                >
+                  <span>📥</span>
+                  <span>Import SOP</span>
                 </button>
               )}
 
@@ -449,6 +491,19 @@ export function WorkspaceHeader({
                 >
                   <span>+</span>
                   <span>Select Student from CRM</span>
+                </button>
+              )}
+
+              {onOpenImport && (
+                <button
+                  type="button"
+                  id="sop-import-btn"
+                  onClick={onOpenImport}
+                  className="h-7 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Import existing SOP (PDF / DOCX)"
+                >
+                  <span>📥</span>
+                  <span>Import Existing SOP</span>
                 </button>
               )}
             </div>

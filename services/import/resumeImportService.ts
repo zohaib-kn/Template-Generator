@@ -88,9 +88,10 @@ export async function processResumeUpload(
     console.warn("[resumeImportService] GridFS storage warning:", err);
   }
 
-  // 2. Extract raw text & embedded candidate photo
+  // 2. Extract raw text & embedded candidate photo & structured data
   let rawText = "";
   let extractedPhotoUrl: string | undefined;
+  let embeddedDocumentData: DocumentData | null = null;
   const isDocx =
     fileName.toLowerCase().endsWith(".docx") ||
     mimeType.includes("wordprocessingml");
@@ -110,52 +111,74 @@ export async function processResumeUpload(
     if (pdfPhoto) {
       extractedPhotoUrl = pdfPhoto;
     }
+    if (pdfResult.embeddedData) {
+      embeddedDocumentData = pdfResult.embeddedData as DocumentData;
+    }
   }
 
-  // 3. Deterministic Extraction
-  const deterministic = parseDocumentDeterministically(rawText);
+  let mergedData: DocumentData;
+  let ambiguousItems: import("@/features/document-generator/types/import").AmbiguousItem[] = [];
+  let unmappedSnippets: string[] = [];
 
-  // 4. Gemini Semantic Classification (with retries & fallback)
-  const aiResult = await classifyResumeWithGemini(rawText);
+  if (embeddedDocumentData) {
+    mergedData = {
+      ...embeddedDocumentData,
+      personal: {
+        ...(embeddedDocumentData.personal || {}),
+        photoUrl:
+          extractedPhotoUrl ||
+          embeddedDocumentData.personal?.photoUrl ||
+          crmProfile?.personal?.photoUrl,
+      },
+    };
+  } else {
+    // 3. Deterministic Extraction
+    const deterministic = parseDocumentDeterministically(rawText);
 
-  // 5. Merge Deterministic + AI Results (AI takes precedence for lists, deterministic for contacts)
-  const mergedData: DocumentData = {
-    personal: {
-      ...deterministic.personal,
-      ...(aiResult.data.personal || {}),
-      // Prefer deterministic non-empty email/phone if AI missed them
-      email: deterministic.personal.email || aiResult.data.personal?.email,
-      phone: deterministic.personal.phone || aiResult.data.personal?.phone,
-      photoUrl:
-        extractedPhotoUrl ||
-        aiResult.data.personal?.photoUrl ||
-        crmProfile?.personal?.photoUrl,
-    },
-    aboutMe: aiResult.data.aboutMe || deterministic.candidateData.aboutMe,
-    education:
-      aiResult.data.education && aiResult.data.education.length > 0
-        ? aiResult.data.education
-        : deterministic.candidateData.education,
-    internships:
-      aiResult.data.internships && aiResult.data.internships.length > 0
-        ? aiResult.data.internships
-        : deterministic.candidateData.internships,
-    academicProjects: aiResult.data.academicProjects,
-    certifications: aiResult.data.certifications,
-    achievements: aiResult.data.achievements,
-    leadershipActivities: aiResult.data.leadershipActivities,
-    volunteering: aiResult.data.volunteering,
-    languages:
-      aiResult.data.languages && aiResult.data.languages.length > 0
-        ? aiResult.data.languages
-        : deterministic.candidateData.languages,
-    skills:
-      aiResult.data.skills && aiResult.data.skills.length > 0
-        ? aiResult.data.skills
-        : deterministic.candidateData.skills,
-    englishCertificate: aiResult.data.englishCertificate,
-    declaration: deterministic.candidateData.declaration,
-  };
+    // 4. Gemini Semantic Classification (with retries & fallback)
+    const aiResult = await classifyResumeWithGemini(rawText);
+
+    // 5. Merge Deterministic + AI Results (AI takes precedence for lists, deterministic for contacts)
+    mergedData = {
+      personal: {
+        ...deterministic.personal,
+        ...(aiResult.data.personal || {}),
+        // Prefer deterministic non-empty email/phone if AI missed them
+        email: deterministic.personal.email || aiResult.data.personal?.email,
+        phone: deterministic.personal.phone || aiResult.data.personal?.phone,
+        photoUrl:
+          extractedPhotoUrl ||
+          aiResult.data.personal?.photoUrl ||
+          crmProfile?.personal?.photoUrl,
+      },
+      aboutMe: aiResult.data.aboutMe || deterministic.candidateData.aboutMe,
+      education:
+        aiResult.data.education && aiResult.data.education.length > 0
+          ? aiResult.data.education
+          : deterministic.candidateData.education,
+      internships:
+        aiResult.data.internships && aiResult.data.internships.length > 0
+          ? aiResult.data.internships
+          : deterministic.candidateData.internships,
+      academicProjects: aiResult.data.academicProjects,
+      certifications: aiResult.data.certifications,
+      achievements: aiResult.data.achievements,
+      leadershipActivities: aiResult.data.leadershipActivities,
+      volunteering: aiResult.data.volunteering,
+      languages:
+        aiResult.data.languages && aiResult.data.languages.length > 0
+          ? aiResult.data.languages
+          : deterministic.candidateData.languages,
+      skills:
+        aiResult.data.skills && aiResult.data.skills.length > 0
+          ? aiResult.data.skills
+          : deterministic.candidateData.skills,
+      englishCertificate: aiResult.data.englishCertificate,
+      declaration: deterministic.candidateData.declaration,
+    };
+    ambiguousItems = aiResult.ambiguousItems;
+    unmappedSnippets = deterministic.unmappedLines.slice(0, 10);
+  }
 
   // 6. Section summaries
   const sectionsSummary = computeSectionsSummary(mergedData);
@@ -190,9 +213,9 @@ export async function processResumeUpload(
     status: "NEEDS_REVIEW",
     data: mergedData,
     sectionsSummary,
-    ambiguousItems: aiResult.ambiguousItems,
+    ambiguousItems,
     crmConflicts,
-    unmappedSnippets: deterministic.unmappedLines.slice(0, 10),
+    unmappedSnippets,
     gridfsFileId,
   };
 
@@ -211,7 +234,7 @@ export async function processResumeUpload(
       rawTextSnippet: rawText.slice(0, 1500),
       extractedData: mergedData,
       sectionsSummary,
-      ambiguousItems: aiResult.ambiguousItems,
+      ambiguousItems,
       crmConflicts,
       createdAt: now,
       updatedAt: now,

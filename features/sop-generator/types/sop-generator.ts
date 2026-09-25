@@ -297,7 +297,7 @@ export interface SopSectionState {
 export type SopDocumentState = Record<string, SopSectionState>;
 
 /** Where the student data in the workspace was loaded from. */
-export type DataSource = "live-crm" | "cached-crm" | "test-data";
+export type DataSource = "live-crm" | "cached-crm" | "test-data" | "imported-sop";
 
 /** Persisted draft record for localStorage or backend store. */
 export interface SopDraftRecord {
@@ -314,4 +314,8 @@ export interface SopDraftRecord {
   ctx: StudentDocumentContext;
   currentSource: DataSource;
   loadedStudentName?: string;
+  origin?: "MANUAL" | "CRM" | "IMPORTED";
+  sourceFileName?: string;
+  importId?: string;
 }
+
