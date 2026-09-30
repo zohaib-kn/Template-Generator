@@ -27,20 +27,56 @@ export function SopDraftsModal({
 }: SopDraftsModalProps) {
   const [drafts, setDrafts] = useState<SopDraftRecord[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setDrafts(getAllDrafts());
-      setConfirmDeleteId(null);
-    }
+    if (!isOpen) return;
+    setConfirmDeleteId(null);
+    setIsLoading(true);
+
+    fetch("/api/sop/drafts")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.drafts)) {
+          setDrafts(data.drafts as SopDraftRecord[]);
+        } else {
+          // Fallback: read localStorage if API fails
+          setDrafts(getAllDrafts());
+        }
+      })
+      .catch(() => {
+        // Network failure: fall back to localStorage silently
+        setDrafts(getAllDrafts());
+      })
+      .finally(() => setIsLoading(false));
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  function handleDelete(id: string) {
-    deleteDraft(id);
-    const updated = getAllDrafts();
-    setDrafts(updated);
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/sop/drafts/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Delete failed");
+      }
+    } catch {
+      // API delete failed — fall back to removing from localStorage only
+      deleteDraft(id);
+    }
+
+    // Always refresh the displayed list from MongoDB (with localStorage fallback)
+    fetch("/api/sop/drafts")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.drafts)) {
+          setDrafts(data.drafts as SopDraftRecord[]);
+        } else {
+          setDrafts(getAllDrafts());
+        }
+      })
+      .catch(() => setDrafts(getAllDrafts()));
+
     setConfirmDeleteId(null);
     if (onDraftsChange) onDraftsChange();
   }
@@ -101,7 +137,12 @@ export function SopDraftsModal({
 
         {/* Content list */}
         <div className="p-4 overflow-y-auto space-y-3 flex-1">
-          {drafts.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-10 text-slate-400">
+              <div className="text-2xl mb-2 animate-pulse">⏳</div>
+              <p className="text-xs text-slate-500">Loading drafts…</p>
+            </div>
+          ) : drafts.length === 0 ? (
             <div className="text-center py-10 text-slate-500">
               <div className="text-3xl mb-2">📭</div>
               <p className="text-xs font-semibold text-slate-700">No saved drafts yet</p>
