@@ -187,13 +187,27 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   } = useSopPdfGenerator();
   const isGeneratingPdf = pdfStatus === "generating";
 
-  // Check saved drafts on initial mount
+  // Check saved drafts on initial mount — fetches from MongoDB, falls back to localStorage
   useEffect(() => {
-    const all = getAllDrafts();
-    setDraftCount(all.length);
-    if (all.length > 0) {
-      setRecoveryBanner(all[0]);
-    }
+    fetch("/api/sop/drafts")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.drafts) && data.drafts.length > 0) {
+          setDraftCount(data.drafts.length);
+          setRecoveryBanner(data.drafts[0]);
+        } else {
+          // Fallback: read localStorage if API returns empty or fails
+          const local = getAllDrafts();
+          setDraftCount(local.length);
+          if (local.length > 0) setRecoveryBanner(local[0]);
+        }
+      })
+      .catch(() => {
+        // Network failure: fall back to localStorage silently
+        const local = getAllDrafts();
+        setDraftCount(local.length);
+        if (local.length > 0) setRecoveryBanner(local[0]);
+      });
   }, []);
 
   // Derived state
@@ -623,14 +637,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
-  function handleSaveDraft() {
+  async function handleSaveDraft() {
     setIsSavingDraft(true);
     try {
       const displayName = loadedStudentName || application.studentName;
       const targetCourse = ctx.destination.course || "General Course";
       const targetUni = ctx.destination.university || "Target University";
 
-      const saved = saveDraft({
+      const payload = {
         id: activeDraftId || undefined,
         studentName: displayName,
         course: targetCourse,
@@ -643,13 +657,38 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         ctx,
         currentSource,
         loadedStudentName,
+      };
+
+      // Primary: persist to MongoDB via API
+      const res = await fetch("/api/sop/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      setActiveDraftId(saved.id);
-      setDraftCount(getAllDrafts().length);
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Server returned an error");
+      }
+
+      // Offline backup: also mirror to localStorage
+      try {
+        saveDraft({ ...payload, id: data.draftId });
+      } catch {
+        // localStorage write failure is non-fatal
+      }
+
+      setActiveDraftId(data.draftId);
       setRecoveryBanner(null);
 
-      const timeStr = new Date().toLocaleTimeString([], {
+      // Refresh draft count from MongoDB
+      fetch("/api/sop/drafts")
+        .then((r) => r.json())
+        .then((d) => { if (d.success) setDraftCount(d.drafts.length); })
+        .catch(() => setDraftCount(getAllDrafts().length));
+
+      const timeStr = new Date(data.savedAt || Date.now()).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       });
@@ -1061,7 +1100,13 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         isOpen={draftsModalOpen}
         onClose={() => setDraftsModalOpen(false)}
         onLoadDraft={handleRestoreDraft}
-        onDraftsChange={() => setDraftCount(getAllDrafts().length)}
+        onDraftsChange={() => {
+          // Refresh draft count from MongoDB after a delete
+          fetch("/api/sop/drafts")
+            .then((r) => r.json())
+            .then((d) => { if (d.success) setDraftCount(d.drafts.length); })
+            .catch(() => setDraftCount(getAllDrafts().length));
+        }}
       />
 
       {/* Student Select Modal */}
