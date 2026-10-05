@@ -25,6 +25,7 @@ export interface GenerateGeminiOptions {
   temperature?: number;
   maxOutputTokens?: number;
   timeoutMs?: number;
+  minOutputLength?: number;
 }
 
 export interface GeminiSuccessResponse {
@@ -81,6 +82,7 @@ export class GeminiService {
       temperature = 0.3,
       maxOutputTokens = 2048,
       timeoutMs = 25000,
+      minOutputLength = 20,
     } = options;
 
     let lastError: unknown = null;
@@ -109,7 +111,7 @@ export class GeminiService {
         const response = await Promise.race([generatePromise, timeoutPromise]);
         const text = response?.text?.trim();
 
-        if (text && text.length > 20) {
+        if (text && text.length >= minOutputLength) {
           return {
             success: true,
             model: modelName,

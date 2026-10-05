@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 
 interface NavTab {
   label: string;
@@ -17,6 +18,7 @@ const NAV_TABS: NavTab[] = [
 
 export function AppHeader() {
   const pathname = usePathname();
+  const { selectedStudentId } = useGlobalStudent();
 
   return (
     <header
@@ -54,10 +56,14 @@ export function AppHeader() {
               ? pathname === "/" || pathname === "/resume-builder"
               : pathname.startsWith(tab.href);
 
+          const targetHref = selectedStudentId
+            ? `${tab.href}${tab.href.includes("?") ? "&" : "?"}studentId=${encodeURIComponent(selectedStudentId)}`
+            : tab.href;
+
           return (
             <Link
               key={tab.href}
-              href={tab.href}
+              href={targetHref}
               id={tab.id}
               style={{
                 color: isActive ? "#0f172a" : "#e2e8f0",

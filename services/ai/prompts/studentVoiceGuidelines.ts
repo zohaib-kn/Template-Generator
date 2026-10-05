@@ -11,6 +11,7 @@
  */
 
 import type { StudentDocumentContext, SopDocumentType } from "@/features/sop-generator/types/sop-generator";
+import type { SafeEvidencePacket } from "@/services/academicAlignment/types";
 
 // ---------------------------------------------------------------------------
 // Core Reusable Guidelines
@@ -382,6 +383,7 @@ export interface NaturalStudentPromptOptions {
   currentContent?: string;
   mode?: "generate" | "rewrite-natural";
   documentType?: SopDocumentType;
+  alignmentContext?: SafeEvidencePacket | null;
 }
 
 /**
@@ -398,6 +400,7 @@ export function buildNaturalStudentPrompt(
     currentContent,
     mode = "generate",
     documentType = "VISA_COVER_LETTER",
+    alignmentContext,
   } = options;
 
   const student = context.student ?? ({} as any);
@@ -410,6 +413,30 @@ export function buildNaturalStudentPrompt(
 
   const intakeParts = [destination.intakeMonth, destination.intakeYear].filter(Boolean);
   const intakeLine = intakeParts.length > 0 ? `- Target Intake: ${intakeParts.join(" ")}\n` : "";
+
+  const transitionGuidanceBlock = alignmentContext
+    ? `
+ACADEMIC TRANSITION GUIDANCE & VERIFIED BRIDGING EVIDENCE:
+The applicant is undertaking an intentional academic transition. You MUST address this transition naturally and credibly:
+- Transition Rationale / Justification: "${alignmentContext.justification}"
+- Verified Bridging Evidence (USE ONLY THESE VERIFIED CREDENTIALS/PROJECTS TO BRIDGE THE GAP):
+${
+  alignmentContext.bridgeItems.length > 0
+    ? alignmentContext.bridgeItems
+        .map(
+          (item) =>
+            `  * [${item.type}] ${item.title}${
+              item.domainRelevanceExplanation
+                ? ` - ${item.domainRelevanceExplanation}`
+                : ""
+            }`
+        )
+        .join("\n")
+    : "  * None provided"
+}
+- Guidance: Clearly connect the applicant's prior background to the target program using ONLY the verified transition rationale and bridging evidence above. Do NOT invent unrelated technical skills or claim degrees the applicant does not possess.
+`.trim()
+    : "";
 
   const verifiedStudentContext = `
 VERIFIED STUDENT CONTEXT (PRESERVE ALL FACTS EXACTLY):
@@ -430,7 +457,7 @@ ${isUniversitySop ? "" : `- Return Intention: ${career?.returnIntention || "Retu
     return `You are helping a real international student rewrite an existing ${isUniversitySop ? "Statement of Purpose" : "Visa Cover Letter"} paragraph so that it sounds authentically student-written.
 
 ${verifiedStudentContext}
-
+${transitionGuidanceBlock ? `\n${transitionGuidanceBlock}\n` : ""}
 EXISTING DRAFT TO REWRITE:
 """
 ${currentContent.trim()}
@@ -487,7 +514,7 @@ Write from the perspective of the STUDENT themself.
 
 ${verifiedStudentContext}
 ${draftContext}
-
+${transitionGuidanceBlock ? `\n${transitionGuidanceBlock}\n` : ""}
 ${levelInfo.guidance}
 
 ${sectionVoice}

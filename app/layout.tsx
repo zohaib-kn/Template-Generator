@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
 import "./globals.css";
 import { GlobalStudentProvider } from "@/lib/context/GlobalStudentContext";
+import { DocumentProvider } from "@/features/document-generator/state/DocumentContext";
 
 const openSans = Open_Sans({
   subsets: ["latin"],
@@ -25,7 +26,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${openSans.variable} h-full antialiased`}>
       <body className="h-full">
-        <GlobalStudentProvider>{children}</GlobalStudentProvider>
+        <GlobalStudentProvider>
+          <DocumentProvider>{children}</DocumentProvider>
+        </GlobalStudentProvider>
       </body>
     </html>
   );

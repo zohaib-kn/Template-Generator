@@ -39,6 +39,8 @@ interface WorkspaceHeaderProps {
   onClearStudent?: () => void;
   onOpenStudentSelect?: () => void;
   onOpenImport?: () => void;
+  isGenerationBlocked?: boolean;
+  generationBlockedReason?: string;
 }
 
 const DOC_STATUS_LABELS: Record<string, { label: string; colors: string }> = {
@@ -80,6 +82,8 @@ export function WorkspaceHeader({
   onClearStudent,
   onOpenStudentSelect,
   onOpenImport,
+  isGenerationBlocked = false,
+  generationBlockedReason,
 }: WorkspaceHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -340,8 +344,9 @@ export function WorkspaceHeader({
                       setMenuOpen(false);
                       onGenerateAllAi();
                     }}
-                    disabled={isGeneratingAllAi}
+                    disabled={isGeneratingAllAi || isGenerationBlocked}
                     className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 disabled:opacity-50"
+                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked for sensitive sections") : undefined}
                     role="menuitem"
                   >
                     <span>✨</span>

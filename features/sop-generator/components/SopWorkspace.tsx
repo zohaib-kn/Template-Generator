@@ -13,7 +13,7 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { SectionSidebar } from "./SectionSidebar";
 import { SectionEditor } from "./SectionEditor";
-import { ContextPanel } from "./ContextPanel";
+import { ContextPanel, type PanelTab } from "./ContextPanel";
 import { DocumentPreview } from "./DocumentPreview";
 import { StudentDetailsModal } from "./StudentDetailsModal";
 import type { SopStudentLoadedPayload } from "./SopStudentLoader";
@@ -27,11 +27,16 @@ import { SopDraftsModal } from "./SopDraftsModal";
 import { getAllDrafts, saveDraft } from "../lib/sopDraftStorage";
 import { calculateDocumentWordCount } from "../lib/wordCount";
 import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
+import { useDocumentState } from "@/features/document-generator/hooks/useDocumentState";
 import { mapCrmToNormalizedStudent, mapNormalizedToSop } from "@/services/normalization";
 import { StudentDropdown } from "@/components/common/StudentDropdown";
 import { StudentSelectModal } from "./StudentSelectModal";
 import { SopImportModal } from "./SopImportModal";
 import { buildImportedStudentContext } from "../lib/buildImportedStudentContext";
+import { useAcademicAlignment } from "@/features/academic-alignment/hooks/useAcademicAlignment";
+import { isSensitiveSection } from "@/services/academicAlignment/academicAlignmentEngine";
+import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
+import type { NormalizedQualification } from "@/types/normalizedStudent";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -92,11 +97,144 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
   const isStudentLoaded = currentSource !== "test-data";
 
-  // Global student context
-  const { selectedStudentData, selectedStudentId, selectStudent, clearStudent: clearGlobalStudent } = useGlobalStudent();
+  // Global student context & Resume Builder state
+  const {
+    selectedStudentData,
+    selectedStudentId,
+    selectStudent,
+    clearStudent: clearGlobalStudent,
+    applicationTarget,
+    setApplicationTarget,
+  } = useGlobalStudent();
+  const { data: resumeData } = useDocumentState();
+
   const [currentSnapshot, setCurrentSnapshot] = useState<CrmSnapshot | null>(null);
   const [availablePrograms, setAvailablePrograms] = useState<NormalizedAppliedProgram[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>("");
+
+  // ── Academic Alignment & Mismatch Engine Integration ─────────────────────
+  const normalizedStudent = useMemo(
+    () =>
+      selectedStudentData
+        ? mapCrmToNormalizedStudent(selectedStudentData, {
+            source: currentSource === "live-crm" ? "senior-crm-api" : "cached-snapshot",
+            activeProgramId: selectedProgramId,
+          })
+        : null,
+    [selectedStudentData, currentSource, selectedProgramId]
+  );
+
+  const fallbackQualifications: NormalizedQualification[] = useMemo(() => {
+    if (normalizedStudent?.academics.qualifications && normalizedStudent.academics.qualifications.length > 0) {
+      return normalizedStudent.academics.qualifications;
+    }
+    if (resumeData.education && resumeData.education.length > 0) {
+      return resumeData.education.map((edu, idx) => ({
+        id: edu.id || `edu-${idx}`,
+        qualification: edu.qualification || "Degree",
+        fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
+        institution: edu.institution,
+        completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
+      }));
+    }
+    if (ctx.academics.latestQualification) {
+      return [
+        {
+          id: "qual-fallback",
+          qualification: ctx.academics.latestQualification,
+          fieldOfStudy: ctx.academics.subjects || ctx.academics.latestQualification,
+          boardOrUniversity: ctx.academics.institution,
+          completionYear: ctx.academics.completionYear || undefined,
+        },
+      ];
+    }
+    return [];
+  }, [normalizedStudent, resumeData.education, ctx.academics]);
+
+  const targetProgram: NormalizedAppliedProgram | null = useMemo(() => {
+    if (normalizedStudent && selectedProgramId) {
+      const match = normalizedStudent.applications.all.find((p) => p.id === selectedProgramId);
+      if (match) return match;
+    }
+    if (applicationTarget.intendedCourse || applicationTarget.universityName) {
+      return {
+        id: selectedProgramId || "current-program",
+        university: applicationTarget.universityName || ctx.destination.university || "Target University",
+        course: applicationTarget.intendedCourse || ctx.destination.course || "Target Course",
+        country: applicationTarget.destinationCountry || ctx.destination.country || "Target Country",
+        degreeLevel: applicationTarget.degreeLevel || ctx.destination.degreeLevel || "Master's",
+        courseCategory: applicationTarget.courseCategory || "Other",
+      };
+    }
+    if (ctx.destination.course) {
+      return {
+        id: selectedProgramId || "current-program",
+        university: ctx.destination.university || "Target University",
+        course: ctx.destination.course,
+        country: ctx.destination.country || "Target Country",
+        degreeLevel: ctx.destination.degreeLevel || "Master's",
+        courseCategory: "Other",
+      };
+    }
+    return null;
+  }, [normalizedStudent, selectedProgramId, ctx.destination, applicationTarget]);
+
+  const effectiveStudentId = selectedStudentId || (loadedStudentName ? `student-${loadedStudentName.toLowerCase().replace(/\s+/g, "-")}` : null);
+  const effectiveProgramId = selectedProgramId || targetProgram?.id || null;
+
+  // ── Sanitized Evidence from Resume Builder ───────────────────────────────
+  const availableCertifications = useMemo(() => {
+    return (resumeData.certifications ?? [])
+      .filter((c): c is typeof c & { name: string } => Boolean(c.name && c.name.trim()))
+      .map((c) => ({ id: c.id, name: c.name, issuer: c.provider }));
+  }, [resumeData.certifications]);
+
+  const availableProjects = useMemo(() => {
+    return (resumeData.academicProjects ?? [])
+      .filter((p): p is typeof p & { title: string } => Boolean(p.title && p.title.trim()))
+      .map((p) => ({ id: p.id, title: p.title, description: p.description }));
+  }, [resumeData.academicProjects]);
+
+  const availableSkills = useMemo(() => {
+    return (resumeData.skills ?? [])
+      .filter((s): s is typeof s & { name: string } => Boolean(s.name && s.name.trim()))
+      .map((s) => ({ id: s.id, name: s.name }));
+  }, [resumeData.skills]);
+
+  const availableInternships = useMemo(() => {
+    return (resumeData.internships ?? [])
+      .filter((i): i is typeof i & { role: string } => Boolean(i.role && i.role.trim()))
+      .map((i) => ({
+        id: i.id,
+        role: i.role,
+        organization: i.company,
+        description: i.description,
+      }));
+  }, [resumeData.internships]);
+
+  const {
+    result: alignmentResult,
+    isStale,
+    staleReason,
+    loading: alignmentLoading,
+    confirmIntentionalTransition,
+    resetResolution,
+  } = useAcademicAlignment({
+    studentId: effectiveStudentId,
+    programId: effectiveProgramId,
+    targetProgram,
+    qualifications: fallbackQualifications,
+    workExperience: availableInternships.map((intern) => ({
+      id: intern.id,
+      jobTitle: intern.role,
+      employer: intern.organization,
+      description: intern.description,
+    })),
+    certifications: availableCertifications,
+    academicProjects: availableProjects,
+    skills: availableSkills,
+    internships: availableInternships,
+  });
 
   // ── Overwrite-confirmation modal ──────────────────────────────────────────
   const [pendingPayload, setPendingPayload] = useState<SopStudentLoadedPayload | null>(null);
@@ -109,6 +247,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isContextCollapsed, setIsContextCollapsed] = useState(false);
+  const [contextPanelTab, setContextPanelTab] = useState<PanelTab>("student");
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
     initialDraft ? `Document ${initialDraft.id} loaded` : null
   );
@@ -117,7 +256,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [draftsModalOpen, setDraftsModalOpen] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [recoveryBanner, setRecoveryBanner] = useState<SopDraftRecord | null>(null);
   const [regeneratingSectionId, setRegeneratingSectionId] = useState<string | null>(null);
   const [isGeneratingAllAi, setIsGeneratingAllAi] = useState(false);
   const [aiBannerNotice, setAiBannerNotice] = useState<{
@@ -164,15 +302,16 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     );
   }, [sections, sectionStatuses, sectionContents]);
 
-  // ── Validation (reactive on ctx & activeDocumentType) ─────────────────────
+  // ── Validation (reactive on ctx, activeDocumentType & academic alignment) ──
   const [validationRefreshKey, setValidationRefreshKey] = useState(0);
   const validation = useMemo(
     () =>
       validateDocumentContext(ctx, activeDocumentType, {
         isImported: currentSource === "imported-sop",
+        alignmentResult,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ctx, activeDocumentType, currentSource, validationRefreshKey]
+    [ctx, activeDocumentType, currentSource, validationRefreshKey, alignmentResult]
   );
 
   const handleRefreshValidation = useCallback(() => {
@@ -192,21 +331,18 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     fetch("/api/sop/drafts")
       .then((r) => r.json())
       .then((data) => {
-        if (data.success && Array.isArray(data.drafts) && data.drafts.length > 0) {
+        if (data.success && Array.isArray(data.drafts)) {
           setDraftCount(data.drafts.length);
-          setRecoveryBanner(data.drafts[0]);
         } else {
           // Fallback: read localStorage if API returns empty or fails
           const local = getAllDrafts();
           setDraftCount(local.length);
-          if (local.length > 0) setRecoveryBanner(local[0]);
         }
       })
       .catch(() => {
         // Network failure: fall back to localStorage silently
         const local = getAllDrafts();
         setDraftCount(local.length);
-        if (local.length > 0) setRecoveryBanner(local[0]);
       });
   }, []);
 
@@ -217,8 +353,15 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   ).length;
 
   const documentHasErrors = hasErrors(validation);
+  const isAlignmentBlocked =
+    alignmentResult?.status === "ACADEMIC_MISMATCH" && !alignmentResult?.evidenceSufficient;
+  const isAlignmentUnknown = alignmentResult?.status === "UNKNOWN";
+
   const canApproveDocument =
-    approvedCount >= requiredSections.length && !documentHasErrors;
+    approvedCount >= requiredSections.length &&
+    !documentHasErrors &&
+    !isAlignmentBlocked &&
+    !isAlignmentUnknown;
 
   const totalWordCount = useMemo(
     () => calculateDocumentWordCount(sections, sectionContents, ctx),
@@ -239,9 +382,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       setSectionContentsByType((prev) => {
         const nextActive = { ...prev[activeDocumentType] };
         sections.forEach((s) => {
-          if (s.regeneratable || s.source === "AI_SUGGESTED" || s.source === "HYBRID") {
-            nextActive[s.id] = s.content;
-          }
+          nextActive[s.id] = s.content;
         });
         return {
           ...prev,
@@ -341,6 +482,62 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         normalized.applications.all[0]?.id ||
         "";
 
+      // Overlay applicationTarget values from Resume Builder / Global State
+      if (applicationTarget.universityName) {
+        sopCtx.destination.university = applicationTarget.universityName;
+      }
+      if (applicationTarget.intendedCourse) {
+        sopCtx.destination.course = applicationTarget.intendedCourse;
+      }
+      if (applicationTarget.destinationCountry) {
+        sopCtx.destination.country = applicationTarget.destinationCountry;
+      }
+      if (applicationTarget.degreeLevel) {
+        sopCtx.destination.degreeLevel = applicationTarget.degreeLevel;
+      }
+
+      // Only overlay manual user edits from Resume Builder if they belong to this SAME student
+      const resumeName = resumeData.personal?.fullName?.trim().toLowerCase();
+      const crmName = studentName.trim().toLowerCase();
+      const isSameStudent = Boolean(
+        crmName &&
+        resumeName &&
+        (resumeName === crmName || resumeName.includes(crmName) || crmName.includes(resumeName))
+      );
+
+      if (isSameStudent) {
+        if (resumeData.personal?.email?.trim()) {
+          sopCtx.student.email = resumeData.personal.email.trim();
+        }
+        if (resumeData.personal?.phone?.trim()) {
+          sopCtx.student.phone = resumeData.personal.phone.trim();
+        }
+        if (resumeData.personal?.address?.trim()) {
+          sopCtx.student.address = resumeData.personal.address.trim();
+        }
+        if (resumeData.personal?.passportNumber?.trim()) {
+          sopCtx.student.passportNumber = resumeData.personal.passportNumber.trim();
+        }
+        if (resumeData.personal?.nationality?.trim()) {
+          sopCtx.student.nationality = resumeData.personal.nationality.trim();
+        }
+        if (resumeData.education && resumeData.education.length > 0) {
+          const topEdu = resumeData.education[0];
+          if (topEdu.qualification?.trim()) {
+            sopCtx.academics.latestQualification = topEdu.qualification.trim();
+          }
+          if (topEdu.institution?.trim()) {
+            sopCtx.academics.institution = topEdu.institution.trim();
+          }
+          if (topEdu.fieldOfStudy?.trim()) {
+            sopCtx.academics.subjects = topEdu.fieldOfStudy.trim();
+          }
+          if (topEdu.endDate?.trim()) {
+            sopCtx.academics.completionYear = topEdu.endDate.trim().slice(0, 4);
+          }
+        }
+      }
+
       setCurrentSnapshot(selectedStudentData);
 
       const payload: SopStudentLoadedPayload = {
@@ -352,7 +549,13 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         selectedProgramId: activeProgId,
       };
 
-      if (hasEdits) {
+      const isSwitchingStudents = Boolean(
+        loadedStudentName &&
+        studentName &&
+        loadedStudentName.trim().toLowerCase() !== studentName.trim().toLowerCase()
+      );
+
+      if (hasEdits && isSwitchingStudents) {
         setPendingPayload(payload);
         setShowConfirmModal(true);
       } else {
@@ -361,6 +564,80 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudentData, selectedStudentId]);
+
+  // ── Sync manual Resume Builder inputs and Application Target when no CRM student is picked ─
+  useEffect(() => {
+    if (!selectedStudentId) {
+      const hasPersonal = Boolean(resumeData.personal?.fullName?.trim());
+      const hasTarget = Boolean(
+        applicationTarget.universityName ||
+        applicationTarget.intendedCourse ||
+        applicationTarget.destinationCountry ||
+        applicationTarget.degreeLevel
+      );
+
+      if (hasPersonal || hasTarget) {
+        setCtx((prev) => {
+          const next = { ...prev };
+          if (resumeData.personal?.fullName?.trim()) {
+            next.student = {
+              ...next.student,
+              fullName: resumeData.personal.fullName.trim(),
+              email: resumeData.personal.email || next.student.email,
+              phone: resumeData.personal.phone || next.student.phone,
+              address: resumeData.personal.address || next.student.address,
+              nationality: resumeData.personal.nationality || next.student.nationality,
+              passportNumber: resumeData.personal.passportNumber || next.student.passportNumber,
+            };
+          }
+          if (resumeData.education && resumeData.education.length > 0) {
+            const topEdu = resumeData.education[0];
+            next.academics = {
+              ...next.academics,
+              latestQualification: topEdu.qualification || next.academics.latestQualification,
+              institution: topEdu.institution || next.academics.institution,
+              subjects: topEdu.fieldOfStudy || next.academics.subjects,
+              completionYear: topEdu.endDate ? topEdu.endDate.slice(0, 4) : next.academics.completionYear,
+            };
+          }
+          if (applicationTarget.universityName) {
+            next.destination = { ...next.destination, university: applicationTarget.universityName };
+          }
+          if (applicationTarget.intendedCourse) {
+            next.destination = { ...next.destination, course: applicationTarget.intendedCourse };
+          }
+          if (applicationTarget.destinationCountry) {
+            next.destination = { ...next.destination, country: applicationTarget.destinationCountry };
+          }
+          if (applicationTarget.degreeLevel) {
+            next.destination = { ...next.destination, degreeLevel: applicationTarget.degreeLevel };
+          }
+          return next;
+        });
+
+        if (resumeData.personal?.fullName?.trim()) {
+          setLoadedStudentName(resumeData.personal.fullName.trim());
+          setCurrentSource("live-crm");
+        }
+      }
+    }
+  }, [selectedStudentId, resumeData, applicationTarget]);
+
+  // ── Sync destination whenever applicationTarget is updated in the workspace ──
+  useEffect(() => {
+    if (applicationTarget.universityName || applicationTarget.intendedCourse || applicationTarget.destinationCountry) {
+      setCtx((prev) => ({
+        ...prev,
+        destination: {
+          ...prev.destination,
+          university: applicationTarget.universityName || prev.destination.university,
+          course: applicationTarget.intendedCourse || prev.destination.course,
+          country: applicationTarget.destinationCountry || prev.destination.country,
+          degreeLevel: applicationTarget.degreeLevel || prev.destination.degreeLevel,
+        },
+      }));
+    }
+  }, [applicationTarget]);
 
   function handleProgramChange(programId: string) {
     if (!currentSnapshot) return;
@@ -503,10 +780,20 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         sections.map((s) => [s.id, "APPROVED" as ReviewStatus])
       ),
     }));
-    if (!documentHasErrors) {
+    if (!documentHasErrors && !isAlignmentBlocked && !isAlignmentUnknown) {
       setDocApproved(true);
       setSavedNoticeText("✓ All sections & document approved");
       setTimeout(() => setSavedNoticeText(null), 3500);
+    } else {
+      setDocApproved(false);
+      if (isAlignmentBlocked || isAlignmentUnknown) {
+        setAiBannerNotice({
+          type: "error",
+          message:
+            alignmentResult?.blockingReason ||
+            "Document approval is blocked due to unresolved academic mismatch. Counsellor confirmation required.",
+        });
+      }
     }
   }
 
@@ -517,6 +804,19 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const targetSection = sections.find((s) => s.id === sectionId);
     if (!targetSection) return;
 
+    // Guard academically sensitive sections against mismatch or unknown
+    const isSensitive = isSensitiveSection(sectionId, activeDocumentType);
+    if (isSensitive && !alignmentResult.generationAllowed) {
+      const msg =
+        alignmentResult.blockingReason ||
+        "AI narrative generation for this section is blocked due to unresolved academic mismatch. Counsellor confirmation required.";
+      setAiBannerNotice({
+        type: "error",
+        message: msg,
+      });
+      throw new Error(msg);
+    }
+
     setRegeneratingSectionId(sectionId);
 
     try {
@@ -524,6 +824,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          studentId: effectiveStudentId || undefined,
+          programId: effectiveProgramId || undefined,
           sectionId,
           sectionTitle: targetSection.title,
           context: ctx,
@@ -568,6 +870,21 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const aiSections = sections.filter((s) => s.regeneratable);
     if (aiSections.length === 0 || isGeneratingAllAi) return;
 
+    const sensitiveSections = aiSections.filter((s) =>
+      isSensitiveSection(s.id, activeDocumentType)
+    );
+
+    // If all AI sections are sensitive and generation is blocked, halt immediately
+    if (!alignmentResult.generationAllowed && sensitiveSections.length === aiSections.length) {
+      setAiBannerNotice({
+        type: "error",
+        message:
+          alignmentResult.blockingReason ||
+          "AI generation blocked: all AI sections are academically sensitive and require transition confirmation.",
+      });
+      return;
+    }
+
     setIsGeneratingAllAi(true);
     const courseTitle = ctx.destination.course || "the target course";
     setAiBannerNotice({
@@ -577,16 +894,24 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
     try {
       let completedCount = 0;
+      let skippedCount = 0;
       for (const sec of aiSections) {
+        if (!alignmentResult.generationAllowed && isSensitiveSection(sec.id, activeDocumentType)) {
+          skippedCount++;
+          continue;
+        }
+
         setAiBannerNotice({
           type: "info",
-          message: `Generating ${sec.title} (${completedCount + 1}/${aiSections.length}) for "${courseTitle}"...`,
+          message: `Generating ${sec.title} (${completedCount + 1}/${aiSections.length - skippedCount}) for "${courseTitle}"...`,
         });
 
         const res = await fetch("/api/sop/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            studentId: effectiveStudentId || undefined,
+            programId: effectiveProgramId || undefined,
             sectionId: sec.id,
             sectionTitle: sec.title,
             context: ctx,
@@ -620,10 +945,17 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       }
 
       setDocApproved(false);
-      setAiBannerNotice({
-        type: "success",
-        message: `Successfully generated ${completedCount} narrative sections for ${courseTitle}.`,
-      });
+      if (skippedCount > 0) {
+        setAiBannerNotice({
+          type: "info",
+          message: `Generated ${completedCount} sections. Skipped ${skippedCount} academically sensitive section(s) due to unresolved academic mismatch.`,
+        });
+      } else {
+        setAiBannerNotice({
+          type: "success",
+          message: `Successfully generated ${completedCount} narrative sections for ${courseTitle}.`,
+        });
+      }
       setTimeout(() => setAiBannerNotice(null), 5000);
     } catch (err: unknown) {
       console.error("[Generate All AI Error]:", err);
@@ -680,7 +1012,6 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       }
 
       setActiveDraftId(data.draftId);
-      setRecoveryBanner(null);
 
       // Refresh draft count from MongoDB
       fetch("/api/sop/drafts")
@@ -719,18 +1050,23 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }));
     setDocApproved(draft.docApproved);
     setActiveDraftId(draft.id);
-    setRecoveryBanner(null);
     setUseSampleData(true);
     setSavedNoticeText(`Restored draft for ${draft.studentName}`);
     setTimeout(() => setSavedNoticeText(null), 3500);
   }
 
-  function handleDismissRecovery() {
-    setRecoveryBanner(null);
-  }
-
   function handleApproveDocument() {
-    if (!canApproveDocument) return;
+    if (!canApproveDocument) {
+      if (isAlignmentBlocked || isAlignmentUnknown) {
+        setAiBannerNotice({
+          type: "error",
+          message:
+            alignmentResult?.blockingReason ||
+            "Document approval is blocked due to unresolved academic mismatch. Counsellor confirmation required.",
+        });
+      }
+      return;
+    }
     setDocApproved(true);
   }
 
@@ -822,7 +1158,13 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         approvedCount={approvedCount}
         requiredCount={requiredSections.length}
         totalCount={sections.length}
-        hasErrors={documentHasErrors}
+        hasErrors={documentHasErrors || isAlignmentBlocked || isAlignmentUnknown}
+        isGenerationBlocked={
+          !alignmentResult.generationAllowed &&
+          sections.filter((s) => s.regeneratable && isSensitiveSection(s.id, activeDocumentType)).length ===
+            sections.filter((s) => s.regeneratable).length
+        }
+        generationBlockedReason={alignmentResult.blockingReason}
         onSaveDraft={handleSaveDraft}
         isSavingDraft={isSavingDraft}
         draftCount={draftCount}
@@ -846,41 +1188,30 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         onOpenImport={() => setImportModalOpen(true)}
       />
 
-      {/* Quick recovery banner */}
-      {recoveryBanner && (
-        <div
-          role="alert"
-          className="flex-shrink-0 px-6 py-2 bg-amber-50/90 border-b border-amber-200/80 text-amber-900 text-xs flex items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-2">
-            <span>📁</span>
-            <span>
-              Found a saved draft for{" "}
-              <strong className="font-semibold text-amber-950">
-                {recoveryBanner.studentName}
-              </strong>
-              {recoveryBanner.course ? ` (${recoveryBanner.course})` : ""}.
-            </span>
+
+
+      {/* Academic Mismatch / Stale / Unknown Banner */}
+      {alignmentResult &&
+        (alignmentResult.status === "ACADEMIC_MISMATCH" ||
+          alignmentResult.status === "UNKNOWN" ||
+          isStale) && (
+          <div className="flex-shrink-0 px-6 py-2 bg-white border-b border-slate-200">
+            <AcademicMismatchBanner
+              result={alignmentResult}
+              isStale={isStale}
+              staleReason={staleReason}
+              onReviewTargetCourse={() => {
+                setIsContextCollapsed(false);
+                setContextPanelTab("destination");
+              }}
+              onConfirmIntentionalTransition={() => {
+                setIsContextCollapsed(false);
+                setContextPanelTab("alignment");
+              }}
+              onResetResolution={resetResolution}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              id="sop-resume-draft-btn"
-              onClick={() => handleRestoreDraft(recoveryBanner)}
-              className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-md text-[11px] font-semibold transition-colors shadow-xs"
-            >
-              Resume Editing
-            </button>
-            <button
-              id="sop-dismiss-recovery-btn"
-              onClick={handleDismissRecovery}
-              className="p-1 text-amber-700 hover:text-amber-950 rounded text-xs"
-              aria-label="Dismiss banner"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+        )}
 
       {/* AI banner notice */}
       {aiBannerNotice && (
@@ -1018,6 +1349,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
               isRegenerating={regeneratingSectionId === selectedSection.id}
               canvasMasthead={template.canvasMasthead}
               totalSections={sections.length}
+              isGenerationBlocked={
+                isSensitiveSection(selectedSection.id, activeDocumentType) &&
+                !alignmentResult.generationAllowed
+              }
+              generationBlockedReason={alignmentResult.blockingReason}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-center px-8">
@@ -1037,6 +1373,18 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           onRefreshValidation={handleRefreshValidation}
           showLogistics={template.showLogisticsInContext !== false}
           activeDocumentType={activeDocumentType}
+          alignmentResult={alignmentResult}
+          isStale={isStale}
+          staleReason={staleReason}
+          onConfirmIntentionalTransition={confirmIntentionalTransition}
+          onResetResolution={resetResolution}
+          isConfirmingTransition={alignmentLoading}
+          availableCertifications={availableCertifications}
+          availableProjects={availableProjects}
+          availableSkills={availableSkills}
+          availableInternships={availableInternships}
+          activeTab={contextPanelTab}
+          onTabChange={setContextPanelTab}
         />
       </div>
 

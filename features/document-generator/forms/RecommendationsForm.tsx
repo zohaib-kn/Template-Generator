@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function RecommendationsForm() {
   const {
@@ -86,6 +87,13 @@ export function RecommendationsForm() {
                 updateRecommendation(entry.id, { text: e.target.value })
               }
               placeholder="I have known [name] for… and can recommend them for…"
+            />
+            <HinglishRewriteControl
+              value={entry.text ?? ""}
+              onApply={(newText) =>
+                updateRecommendation(entry.id, { text: newText })
+              }
+              fieldName={`rec_text_${entry.id}`}
             />
           </div>
         </div>

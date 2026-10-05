@@ -57,9 +57,9 @@ export function ApplicationTargetForm({
     onChange({ ...value, ...patch });
 
   return (
-    <div className="space-y-3 pt-2">
+    <div className="space-y-4 pt-1">
       {/* Country */}
-      <div>
+      <div className="space-y-1.5">
         <Label htmlFor="target-country">Destination Country</Label>
         <select
           id="target-country"
@@ -70,7 +70,7 @@ export function ApplicationTargetForm({
                 (e.target.value as DestinationCountry) || undefined,
             })
           }
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-navy/40 transition-all duration-150"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all cursor-pointer shadow-2xs"
         >
           <option value="">— Select country —</option>
           {COUNTRIES.map((c) => (
@@ -82,7 +82,7 @@ export function ApplicationTargetForm({
       </div>
 
       {/* Degree Level */}
-      <div>
+      <div className="space-y-1.5">
         <Label htmlFor="target-degree">Degree Level</Label>
         <select
           id="target-degree"
@@ -90,7 +90,7 @@ export function ApplicationTargetForm({
           onChange={(e) =>
             update({ degreeLevel: (e.target.value as DegreeLevel) || undefined })
           }
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-navy/40 transition-all duration-150"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all cursor-pointer shadow-2xs"
         >
           <option value="">— Select level —</option>
           {DEGREE_LEVELS.map((d) => (
@@ -102,7 +102,7 @@ export function ApplicationTargetForm({
       </div>
 
       {/* Course Category */}
-      <div>
+      <div className="space-y-1.5">
         <Label htmlFor="target-category">Course Category</Label>
         <select
           id="target-category"
@@ -112,7 +112,7 @@ export function ApplicationTargetForm({
               courseCategory: (e.target.value as CourseCategory) || undefined,
             })
           }
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-navy/40 transition-all duration-150"
+          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all cursor-pointer shadow-2xs"
         >
           <option value="">— Select category —</option>
           {COURSE_CATEGORIES.map((c) => (
@@ -124,38 +124,44 @@ export function ApplicationTargetForm({
       </div>
 
       {/* Intended Course — free text */}
-      <div>
+      <div className="space-y-1.5">
         <Label htmlFor="target-course">Intended Course / Programme</Label>
         <Input
           id="target-course"
           value={value.intendedCourse ?? ""}
           onChange={(e) => update({ intendedCourse: e.target.value })}
           placeholder="e.g. BSc Artificial Intelligence"
+          className="rounded-xl border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800"
         />
       </div>
 
       {/* University Name — optional */}
-      <div>
+      <div className="space-y-1.5">
         <Label htmlFor="target-university">
           University Name{" "}
-          <span className="font-normal text-slate-400">(optional)</span>
+          <span className="font-normal text-slate-400 capitalize">(optional)</span>
         </Label>
         <Input
           id="target-university"
           value={value.universityName ?? ""}
           onChange={(e) => update({ universityName: e.target.value })}
           placeholder="e.g. University of Edinburgh"
+          className="rounded-xl border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800"
         />
         {value.universityName && value.universityName.trim().length > 0 && (
-          <p className="mt-1 text-[10px] text-slate-400 leading-snug">
+          <p className="mt-1 text-[11px] text-slate-400 leading-snug">
             University-specific requirements should be verified separately with the institution.
           </p>
         )}
       </div>
 
       {/* Persistent integrity reminder */}
-      <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5">
-        <p className="text-[11px] text-amber-700 leading-snug">
+      <div className="rounded-xl border border-amber-200/90 bg-amber-50/80 p-3.5 space-y-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+          <span>ℹ</span>
+          <span>Application Guidance Note</span>
+        </div>
+        <p className="text-xs text-amber-800 leading-relaxed font-normal">
           Only include activities, skills, achievements and experiences that are
           genuinely true and can be supported if required.
         </p>

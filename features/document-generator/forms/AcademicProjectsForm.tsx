@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { AcademicSuggestInput } from "../components/domain";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function AcademicProjectsForm() {
   const {
@@ -35,13 +37,14 @@ export function AcademicProjectsForm() {
 
           <div>
             <Label htmlFor={`proj-title-${entry.id}`}>Project Title</Label>
-            <Input
+            <AcademicSuggestInput
               id={`proj-title-${entry.id}`}
               value={entry.title ?? ""}
-              onChange={(e) =>
-                updateAcademicProject(entry.id, { title: e.target.value })
+              onChange={(val) =>
+                updateAcademicProject(entry.id, { title: val })
               }
-              placeholder="e.g. Research paper on climate policy"
+              fieldType="projects"
+              placeholder="e.g. Research paper or capstone project"
             />
           </div>
 
@@ -55,6 +58,13 @@ export function AcademicProjectsForm() {
                 updateAcademicProject(entry.id, { description: e.target.value })
               }
               placeholder="What did you work on and what did you learn?"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateAcademicProject(entry.id, { description: newText })
+              }
+              fieldName={`academic_proj_desc_${entry.id}`}
             />
           </div>
 

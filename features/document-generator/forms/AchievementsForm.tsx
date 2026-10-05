@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function AchievementsForm() {
   const {
@@ -84,6 +85,13 @@ export function AchievementsForm() {
                 updateAchievement(entry.id, { description: e.target.value })
               }
               placeholder="Brief context about the award or recognition…"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateAchievement(entry.id, { description: newText })
+              }
+              fieldName={`ach_desc_${entry.id}`}
             />
           </div>
         </div>
