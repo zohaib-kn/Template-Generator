@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function HobbiesForm() {
   const { data, addHobby, updateHobby, removeHobby } = useDocumentState();
@@ -50,6 +51,13 @@ export function HobbiesForm() {
                 updateHobby(entry.id, { description: e.target.value })
               }
               placeholder="e.g. Creates and edits short films, enjoys visual storytelling."
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateHobby(entry.id, { description: newText })
+              }
+              fieldName={`hobby_desc_${entry.id}`}
             />
           </div>
         </div>

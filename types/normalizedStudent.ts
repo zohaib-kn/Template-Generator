@@ -26,8 +26,9 @@ export interface NormalizedQualification {
   id: string;
   levelOfStudy?: string;      // e.g. "10th", "12th", "Undergraduate", "Postgraduate"
   qualification?: string;     // e.g. "B.Com", "B.Tech", "Computer Science"
+  fieldOfStudy?: string;      // explicit field of study / major (e.g. "Mechanical Engineering", "Finance")
   institution?: string;       // school or university name
-  boardOrUniversity?: string; // board or awarding body
+  boardOrUniversity?: string; // board or awarding body (NOTE: metadata only, not an academic domain classifier)
   city?: string;
   country?: string;
   score?: string;             // e.g. "88.6%" or "6"

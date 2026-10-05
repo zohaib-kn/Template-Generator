@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function LeadershipForm() {
   const {
@@ -94,6 +95,15 @@ export function LeadershipForm() {
                 })
               }
               placeholder="What responsibility did you have?"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateLeadershipActivity(entry.id, {
+                  description: newText,
+                })
+              }
+              fieldName={`lead_desc_${entry.id}`}
             />
           </div>
 

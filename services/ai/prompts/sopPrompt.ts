@@ -21,6 +21,14 @@ export function buildSopPrompt(
     )
     .join("\n\n");
 
+  const transitionInstructions = data.academicTransition?.isTransition
+    ? `\nACADEMIC TRANSITION & BRIDGE EVIDENCE DIRECTIVES:
+- Transition Context: The applicant is pivoting disciplines from ${data.education.qualification} (${data.academicTransition.sourceDomain || "Prior Field"}) to ${data.course.officialName} (${data.academicTransition.targetDomain || "Target Field"}).
+- Counsellor Transition Rationale: "${data.academicTransition.reason || "Candidate prepared for this transition through focused practical experience."}"
+- Verified Bridging Evidence: ${data.academicTransition.bridgeEvidence && data.academicTransition.bridgeEvidence.length > 0 ? data.academicTransition.bridgeEvidence.join(", ") : "Relevant internships and practical projects"}
+- Narrative Directive: Explicitly demonstrate how foundational skills from their undergraduate study combine with their practical bridge experiences to qualify them for this specific curriculum.\n`
+    : "";
+
   return `DOCUMENT TYPE: STATEMENT OF PURPOSE (SOP)
 
 OBJECTIVE:
@@ -31,7 +39,7 @@ STRUCTURAL PLAN:
 Develop a cohesive, well-flowing essay following this blueprint:
 
 ${planInstructions}
-
+${transitionInstructions}
 ${STUDENT_VOICE_GUIDELINES}
 
 CRITICAL SOP AUDIENCE & ADMISSIONS RULES:

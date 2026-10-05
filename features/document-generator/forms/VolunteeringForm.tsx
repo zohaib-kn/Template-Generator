@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function VolunteeringForm() {
   const { data, addVolunteering, updateVolunteering, removeVolunteering } =
@@ -89,6 +90,13 @@ export function VolunteeringForm() {
                 updateVolunteering(entry.id, { description: e.target.value })
               }
               placeholder="What you did and what you achieved…"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateVolunteering(entry.id, { description: newText })
+              }
+              fieldName={`vol_desc_${entry.id}`}
             />
           </div>
         </div>

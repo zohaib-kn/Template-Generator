@@ -21,9 +21,11 @@ import type {
   SopDocumentType,
 } from "../types/sop-generator";
 import { lookupUniversity } from "../data/mock-verified-destination";
+import type { AcademicAlignmentResult } from "@/services/academicAlignment/types";
 
 export interface ValidateContextOptions {
   isImported?: boolean;
+  alignmentResult?: AcademicAlignmentResult;
 }
 
 /**
@@ -256,6 +258,43 @@ export function validateDocumentContext(
         severity: "warning",
         message:
           "Travel information is incomplete. Airline, travel date, or PNR reference is missing.",
+      });
+    }
+  }
+
+  // ── Academic Alignment & Mismatch Evaluation ────────────────────────────
+  if (options?.alignmentResult) {
+    const { status, evidenceSufficient, blockingReason, isStale, staleReason } =
+      options.alignmentResult;
+
+    if (isStale) {
+      issues.push({
+        id: "academic-alignment-stale",
+        field: "destination.course",
+        severity: "warning",
+        message:
+          staleReason ||
+          "Academic alignment confirmation is outdated because the target course or qualification changed. Please re-confirm.",
+      });
+    }
+
+    if (status === "ACADEMIC_MISMATCH" && !evidenceSufficient) {
+      issues.push({
+        id: "academic-mismatch-unresolved",
+        field: "academics.latestQualification",
+        severity: "error",
+        message:
+          blockingReason ||
+          "Academic mismatch detected. Counsellor transition confirmation required.",
+      });
+    } else if (status === "UNKNOWN") {
+      issues.push({
+        id: "academic-alignment-unknown",
+        field: "academics.latestQualification",
+        severity: "error",
+        message:
+          blockingReason ||
+          "Academic alignment could not be determined from the available data. Please review previous education or target course details.",
       });
     }
   }

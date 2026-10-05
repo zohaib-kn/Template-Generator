@@ -200,4 +200,12 @@ export interface CanonicalDocumentData {
   workExperience: CanonicalWorkExperience[];
   achievements: string[];
   additionalFacts: string[];
+
+  academicTransition?: {
+    isTransition: boolean;
+    sourceDomain?: string;
+    targetDomain?: string;
+    reason?: string;
+    bridgeEvidence?: string[];
+  };
 }

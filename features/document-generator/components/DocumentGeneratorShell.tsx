@@ -10,8 +10,10 @@ import { getAllResumeDrafts, saveResumeDraft } from "../lib/resumeDraftStorage";
 import { usePdfGenerator } from "../hooks/usePdfGenerator";
 import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 import { mapCrmToNormalizedStudent, mapNormalizedToResume } from "@/services/normalization";
-import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import type { NormalizedAppliedProgram, NormalizedQualification } from "@/types/normalizedStudent";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
+import { useAcademicAlignment } from "@/features/academic-alignment/hooks/useAcademicAlignment";
+import type { TransitionContext } from "@/services/academicAlignment/types";
 
 // Guidance system
 import type { ApplicationTarget } from "../guidance/types";
@@ -21,6 +23,7 @@ import { getAdmissionsGuidance } from "../guidance/getAdmissionsGuidance";
 import { ResumeWorkspaceHeader } from "./ResumeWorkspaceHeader";
 import { ResumeSectionSidebar, RESUME_SECTION_METADATA } from "./ResumeSectionSidebar";
 import { ResumeSectionEditor } from "./ResumeSectionEditor";
+import { AcademicProfileProvider } from "../context/AcademicProfileContext";
 import { ResumeContextPanel } from "./ResumeContextPanel";
 import { ResumeStudentDetailsModal } from "./ResumeStudentDetailsModal";
 import { ResumeDeveloperToolsModal } from "./ResumeDeveloperToolsModal";
@@ -39,6 +42,10 @@ function GeneratorLayout() {
     selectedStudentId,
     selectStudent,
     clearStudent: clearGlobalStudent,
+    applicationTarget,
+    setApplicationTarget,
+    lastLoadedStudentId,
+    setLastLoadedStudentId,
   } = useGlobalStudent();
 
   // ── Active Section Selection in Resume Structure ───────────────────────────
@@ -48,11 +55,6 @@ function GeneratorLayout() {
   const [draftCount, setDraftCount] = useState<number>(() => {
     if (typeof window === "undefined") return 0;
     return getAllResumeDrafts().length;
-  });
-  const [recoveryBanner, setRecoveryBanner] = useState<ResumeDraftRecord | null>(() => {
-    if (typeof window === "undefined") return null;
-    const drafts = getAllResumeDrafts();
-    return drafts.length > 0 ? drafts[0] : null;
   });
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [activeDraftStudentName, setActiveDraftStudentName] = useState<string | null>(null);
@@ -71,8 +73,7 @@ function GeneratorLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"split" | "editor" | "preview">("split");
 
-  // ── Application Target (No Assumptions: empty until explicitly set by CRM or user) ──
-  const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>({});
+  // ── Application Target is read & synced directly from GlobalStudentContext ──
 
   const guidance = useMemo(
     () => getAdmissionsGuidance(applicationTarget),
@@ -87,10 +88,115 @@ function GeneratorLayout() {
   // Track the last loaded student ID to prevent re-processing identical payloads
   const lastLoadedStudentIdRef = useRef<string | null>(null);
 
+  const studentFullName = data.personal?.fullName?.trim() || "";
+
+  // ── Normalized Qualifications from Resume data ────────────────────────────
+  const qualifications: NormalizedQualification[] = useMemo(() => {
+    return (data.education ?? []).map((edu, idx) => ({
+      id: edu.id || `edu-${idx}`,
+      qualification: edu.qualification || "Degree",
+      fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
+      institution: edu.institution,
+      completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
+    }));
+  }, [data.education]);
+
+  // ── Target Program from application target or selected program ────────────
+  const targetProgram: NormalizedAppliedProgram | null = useMemo(() => {
+    if (!applicationTarget.intendedCourse && !applicationTarget.universityName) {
+      return null;
+    }
+    return {
+      id: selectedProgramId || "resume-target-program",
+      university: applicationTarget.universityName || "Target University",
+      course: applicationTarget.intendedCourse || "Target Course",
+      country: applicationTarget.destinationCountry || "Target Country",
+      degreeLevel: applicationTarget.degreeLevel || "Master's",
+      courseCategory: applicationTarget.courseCategory || "Other",
+    };
+  }, [applicationTarget, selectedProgramId]);
+
+  const effectiveStudentId =
+    selectedStudentId ||
+    (studentFullName ? `student-${studentFullName.toLowerCase().replace(/\s+/g, "-")}` : null);
+  const effectiveProgramId = selectedProgramId || targetProgram?.id || null;
+
+  // ── Sanitized Evidence for Academic Alignment ─────────────────────────────
+  const availableCertifications = useMemo(() => {
+    return (data.certifications ?? [])
+      .filter((c): c is typeof c & { name: string } => Boolean(c.name && c.name.trim()))
+      .map((c) => ({ id: c.id, name: c.name, issuer: c.provider }));
+  }, [data.certifications]);
+
+  const availableProjects = useMemo(() => {
+    return (data.academicProjects ?? [])
+      .filter((p): p is typeof p & { title: string } => Boolean(p.title && p.title.trim()))
+      .map((p) => ({ id: p.id, title: p.title, description: p.description }));
+  }, [data.academicProjects]);
+
+  const availableSkills = useMemo(() => {
+    return (data.skills ?? [])
+      .filter((s): s is typeof s & { name: string } => Boolean(s.name && s.name.trim()))
+      .map((s) => ({ id: s.id, name: s.name }));
+  }, [data.skills]);
+
+  const availableInternships = useMemo(() => {
+    return (data.internships ?? [])
+      .filter((i): i is typeof i & { role: string } => Boolean(i.role && i.role.trim()))
+      .map((i) => ({
+        id: i.id,
+        role: i.role,
+        organization: i.company,
+        description: i.description,
+      }));
+  }, [data.internships]);
+
+  // ── Academic Alignment Hook (Non-blocking Informational Engine) ───────────
+  const {
+    result: alignmentResult,
+    isStale: isAlignmentStale,
+    staleReason: alignmentStaleReason,
+    confirmIntentionalTransition,
+    resetResolution,
+  } = useAcademicAlignment({
+    studentId: effectiveStudentId,
+    programId: effectiveProgramId,
+    targetProgram,
+    qualifications,
+    workExperience: availableInternships.map((intern) => ({
+      id: intern.id,
+      jobTitle: intern.role,
+      employer: intern.organization,
+      description: intern.description,
+    })),
+    certifications: availableCertifications,
+    academicProjects: availableProjects,
+    skills: availableSkills,
+    internships: availableInternships,
+  });
+
+  const [isConfirmingTransition, setIsConfirmingTransition] = useState(false);
+  const handleConfirmTransition = useCallback(
+    async (transitionContext: TransitionContext) => {
+      setIsConfirmingTransition(true);
+      try {
+        const ok = await confirmIntentionalTransition(transitionContext);
+        if (ok) {
+          setSavedNoticeText("✓ Transition rationale recorded.");
+          setTimeout(() => setSavedNoticeText(null), 3000);
+        }
+        return ok;
+      } finally {
+        setIsConfirmingTransition(false);
+      }
+    },
+    [confirmIntentionalTransition]
+  );
+
   // ── React to global student selection ──────────────────────────────────────
   useEffect(() => {
-    if (selectedStudentData && selectedStudentId && selectedStudentId !== lastLoadedStudentIdRef.current) {
-      lastLoadedStudentIdRef.current = selectedStudentId;
+    if (selectedStudentData && selectedStudentId && selectedStudentId !== lastLoadedStudentId) {
+      setLastLoadedStudentId(selectedStudentId);
       const source = "senior-crm-api" as const;
       const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source });
       const { student, target } = mapNormalizedToResume(normalized);
@@ -98,8 +204,10 @@ function GeneratorLayout() {
       queueMicrotask(() => {
         loadStudent(student);
 
-        if (target) {
-          setApplicationTarget((prev) => ({ ...prev, ...target }));
+        if (target && Object.keys(target).length > 0) {
+          setApplicationTarget(target);
+        } else {
+          setApplicationTarget({});
         }
 
         setCurrentSnapshot(selectedStudentData);
@@ -114,7 +222,7 @@ function GeneratorLayout() {
         setActiveDraftStudentName(null);
       });
     }
-  }, [selectedStudentData, selectedStudentId, loadStudent]);
+  }, [selectedStudentData, selectedStudentId, lastLoadedStudentId, setLastLoadedStudentId, loadStudent, setApplicationTarget]);
 
   // Handle program switching when student has multiple programs
   const handleProgramChange = useCallback(
@@ -139,7 +247,7 @@ function GeneratorLayout() {
   const handleClearStudent = useCallback(() => {
     reset();
     clearGlobalStudent();
-    lastLoadedStudentIdRef.current = null;
+    setLastLoadedStudentId(null);
     setCurrentSnapshot(null);
     setAvailablePrograms([]);
     setSelectedProgramId("");
@@ -147,7 +255,7 @@ function GeneratorLayout() {
     setActiveDraftStudentName(null);
     setSavedNoticeText("✓ Cleared student profile.");
     setTimeout(() => setSavedNoticeText(null), 3000);
-  }, [reset, clearGlobalStudent]);
+  }, [reset, clearGlobalStudent, setLastLoadedStudentId]);
 
   // ── Draft Actions ──────────────────────────────────────────────────────────
   function handleSaveDraft() {
@@ -166,6 +274,8 @@ function GeneratorLayout() {
 
       const saved = saveResumeDraft({
         id: targetDraftId,
+        studentId: selectedStudentId ?? undefined,
+        programId: selectedProgramId || undefined,
         studentName,
         targetUniversity: targetUni,
         intendedCourse: targetCourse,
@@ -177,7 +287,6 @@ function GeneratorLayout() {
       setActiveDraftId(saved.id);
       setActiveDraftStudentName(studentName);
       setDraftCount(getAllResumeDrafts().length);
-      setRecoveryBanner(null);
 
       const timeStr = new Date().toLocaleTimeString([], {
         hour: "2-digit",
@@ -201,7 +310,6 @@ function GeneratorLayout() {
     }
     setActiveDraftId(draft.id);
     setActiveDraftStudentName(draft.studentName);
-    setRecoveryBanner(null);
     setSavedNoticeText(`✓ Restored draft for "${draft.studentName}".`);
     setTimeout(() => setSavedNoticeText(null), 3500);
   }
@@ -215,7 +323,6 @@ function GeneratorLayout() {
     setSelectedProgramId("");
     setActiveDraftId(null);
     setActiveDraftStudentName(null);
-    setRecoveryBanner(null);
     setSavedNoticeText("✓ Started fresh blank resume.");
     setTimeout(() => setSavedNoticeText(null), 3000);
   }
@@ -224,7 +331,6 @@ function GeneratorLayout() {
     loadStudent(importedData);
     setActiveDraftId(null);
     setActiveDraftStudentName(importedData.personal?.fullName?.trim() || null);
-    setRecoveryBanner(null);
     setSavedNoticeText("✓ Imported resume successfully loaded into workspace.");
     setTimeout(() => setSavedNoticeText(null), 3500);
   }
@@ -307,7 +413,6 @@ function GeneratorLayout() {
     return parts.join(" · ");
   }, [applicationTarget]);
 
-  const studentFullName = data.personal?.fullName?.trim() || "";
   const isStudentActive = Boolean(studentFullName || currentSnapshot);
 
   return (
@@ -315,42 +420,7 @@ function GeneratorLayout() {
       {/* ── Top Application Navigation (AppHeader) ── */}
       <AppHeader />
 
-      {/* ── Quick Recovery Banner (for restored drafts) ── */}
-      {recoveryBanner && (
-        <div
-          role="alert"
-          className="flex-shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-900 text-xs font-medium flex items-center justify-between gap-4 z-10"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-sm">📁</span>
-            <span>
-              Found a saved resume draft for{" "}
-              <strong className="font-semibold text-amber-950">
-                {recoveryBanner.studentName}
-              </strong>
-              {recoveryBanner.intendedCourse ? ` (${recoveryBanner.intendedCourse})` : ""}.
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              id="resume-resume-draft-btn"
-              onClick={() => handleRestoreDraft(recoveryBanner)}
-              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[11px] font-semibold transition-colors shadow-xs cursor-pointer"
-            >
-              Restore Draft
-            </button>
-            <button
-              id="resume-dismiss-recovery-btn"
-              onClick={() => setRecoveryBanner(null)}
-              className="p-1 text-amber-700 hover:text-amber-950 hover:bg-amber-100 rounded transition-colors text-xs cursor-pointer"
-              title="Dismiss banner"
-              aria-label="Dismiss banner"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* ── Resume Workspace Header (Sibling to SOP WorkspaceHeader) ── */}
       <ResumeWorkspaceHeader
@@ -383,85 +453,99 @@ function GeneratorLayout() {
         onToggleContext={() => setIsContextOpen((v) => !v)}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={() => setIsSidebarCollapsed((v) => !v)}
+        alignmentResult={alignmentResult}
+        isStale={isAlignmentStale}
       />
 
       {/* ── Main Multi-Panel Workspace ── */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* ── Left: Resume Structure Navigation Sidebar ── */}
-        <ResumeSectionSidebar
-          data={data}
-          guidance={guidance}
-          selectedSectionId={selectedSectionId}
-          onSelectSection={setSelectedSectionId}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)}
-        />
+      <AcademicProfileProvider applicationTarget={applicationTarget}>
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* ── Left: Resume Structure Navigation Sidebar ── */}
+          <ResumeSectionSidebar
+            data={data}
+            guidance={guidance}
+            selectedSectionId={selectedSectionId}
+            onSelectSection={setSelectedSectionId}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)}
+          />
 
-        {/* ── Center: Split Workspace (Section Editor + Live Resume Preview) ── */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Section Editor (hidden when in preview-only mode on small screens) */}
-          {viewMode !== "preview" && (
-            <div
-              className={`flex flex-col h-full ${
-                viewMode === "editor"
-                  ? "flex-1"
-                  : "w-full md:w-[460px] lg:w-[480px] xl:w-[500px] flex-shrink-0"
-              }`}
-            >
-              <ResumeSectionEditor
-                selectedSectionId={selectedSectionId}
-                guidance={guidance}
-                onSelectSection={setSelectedSectionId}
-              />
-            </div>
-          )}
+          {/* ── Center: Split Workspace (Section Editor + Live Resume Preview) ── */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Section Editor (hidden when in preview-only mode on small screens) */}
+            {viewMode !== "preview" && (
+              <div
+                className={`flex flex-col h-full ${
+                  viewMode === "editor"
+                    ? "flex-1"
+                    : "w-full md:w-[460px] lg:w-[480px] xl:w-[500px] flex-shrink-0"
+                }`}
+              >
+                <ResumeSectionEditor
+                  selectedSectionId={selectedSectionId}
+                  guidance={guidance}
+                  onSelectSection={setSelectedSectionId}
+                />
+              </div>
+            )}
 
-          {/* Live Document Preview (hidden when in editor-only mode) */}
-          {viewMode !== "editor" && (
-            <section
-              className="flex-1 overflow-y-auto overflow-x-hidden bg-preview-bg flex flex-col items-center"
-              aria-label="Live A4 resume document preview"
-            >
-              {/* Document Preview Meta Header */}
-              <div className="w-full max-w-[794px] px-6 pt-5 pb-2.5 flex items-center justify-between flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                    Live Preview
-                  </span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/80 font-medium">
-                    Updates live
+            {/* Live Document Preview (hidden when in editor-only mode) */}
+            {viewMode !== "editor" && (
+              <section
+                className="flex-1 overflow-y-auto overflow-x-hidden bg-preview-bg flex flex-col items-center"
+                aria-label="Live A4 resume document preview"
+              >
+                {/* Document Preview Meta Header */}
+                <div className="w-full max-w-[794px] px-6 pt-5 pb-2.5 flex items-center justify-between flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
+                      Live Preview
+                    </span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/80 font-medium">
+                      Updates live
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    Europass · A4 Standard
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  Europass · A4 Standard
-                </span>
-              </div>
 
-              {/* Scaled A4 Document Page */}
-              <div className="w-full max-w-[794px] px-4 pb-12 flex justify-center">
-                <PreviewScaler contentWidth={794}>
-                  <EuropassTemplate data={data} />
-                </PreviewScaler>
-              </div>
-            </section>
-          )}
+                {/* Scaled A4 Document Page */}
+                <div className="w-full max-w-[794px] px-4 pb-12 flex justify-center">
+                  <PreviewScaler contentWidth={794}>
+                    <EuropassTemplate data={data} />
+                  </PreviewScaler>
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* ── Right: Profile & Target Context Drawer (Slide-Over, 0px in flow) ── */}
+          <ResumeContextPanel
+            isOpen={isContextOpen}
+            onClose={() => setIsContextOpen(false)}
+            data={data}
+            target={applicationTarget}
+            onTargetChange={setApplicationTarget}
+            guidance={guidance}
+            availablePrograms={availablePrograms}
+            selectedProgramId={selectedProgramId}
+            onProgramChange={handleProgramChange}
+            onOpenStudentDetails={() => setStudentDetailsOpen(true)}
+            onOpenStudentSelect={() => setStudentSelectOpen(true)}
+            alignmentResult={alignmentResult}
+            isStale={isAlignmentStale}
+            staleReason={alignmentStaleReason}
+            onConfirmIntentionalTransition={handleConfirmTransition}
+            onResetResolution={resetResolution}
+            isConfirmingTransition={isConfirmingTransition}
+            availableCertifications={availableCertifications}
+            availableProjects={availableProjects}
+            availableSkills={availableSkills}
+            availableInternships={availableInternships}
+          />
         </div>
-
-        {/* ── Right: Profile & Target Context Drawer (Slide-Over, 0px in flow) ── */}
-        <ResumeContextPanel
-          isOpen={isContextOpen}
-          onClose={() => setIsContextOpen(false)}
-          data={data}
-          target={applicationTarget}
-          onTargetChange={setApplicationTarget}
-          guidance={guidance}
-          availablePrograms={availablePrograms}
-          selectedProgramId={selectedProgramId}
-          onProgramChange={handleProgramChange}
-          onOpenStudentDetails={() => setStudentDetailsOpen(true)}
-          onOpenStudentSelect={() => setStudentSelectOpen(true)}
-        />
-      </div>
+      </AcademicProfileProvider>
 
       {/* ── Modal: Select Student from CRM ── */}
       <StudentSelectModal
@@ -516,12 +600,8 @@ function GeneratorLayout() {
 }
 
 /**
- * Top-level shell that wraps the generator in the DocumentProvider.
+ * Top-level shell. RootLayout provides the persistent DocumentProvider.
  */
 export function DocumentGeneratorShell() {
-  return (
-    <DocumentProvider>
-      <GeneratorLayout />
-    </DocumentProvider>
-  );
+  return <GeneratorLayout />;
 }

@@ -8,6 +8,16 @@ import type {
 } from "../types/sop-generator";
 import { interpolate } from "../lib/interpolateTemplate";
 import { calculateSectionWordCount } from "../lib/wordCount";
+import {
+  classifySourceDomain,
+  classifyTargetDomain,
+} from "@/services/academicAlignment/domainClassifier";
+import { getDomainCatalog } from "@/features/document-generator/guidance/academicCatalog";
+import {
+  getSectionTalkingPoints,
+  type SopTalkingPoint,
+} from "../guidance/sopAcademicCatalog";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 interface SourceDataDialogProps {
   section: TemplateSection;
@@ -142,6 +152,8 @@ interface SectionEditorProps {
   isRegenerating?: boolean;
   canvasMasthead?: string;
   totalSections?: number;
+  isGenerationBlocked?: boolean;
+  generationBlockedReason?: string;
 }
 
 /**
@@ -180,6 +192,8 @@ export function SectionEditor({
   isRegenerating = false,
   canvasMasthead,
   totalSections,
+  isGenerationBlocked = false,
+  generationBlockedReason,
 }: SectionEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState(content);
@@ -205,8 +219,69 @@ export function SectionEditor({
 
   const factsCount = section.sourceFacts ? Object.keys(section.sourceFacts).length : 0;
 
+  // ── Academic Domain Resolution & Branch-Aware Talking Points ─────────────
+  const sourceField = useMemo(() => {
+    return classifySourceDomain([
+      {
+        id: "qual-sop",
+        qualification: ctx.academics.latestQualification || "Degree",
+        fieldOfStudy: ctx.academics.subjects || ctx.academics.latestQualification || "General",
+        boardOrUniversity: ctx.academics.institution,
+      },
+    ]);
+  }, [ctx.academics]);
+
+  const targetField = useMemo(() => {
+    return classifyTargetDomain({
+      id: "target-sop",
+      course: ctx.destination.course || "Target Course",
+      university: ctx.destination.university || "Target University",
+      country: ctx.destination.country || "Target Country",
+      degreeLevel: ctx.destination.degreeLevel || "Master's",
+      courseCategory: "Other",
+    });
+  }, [ctx.destination]);
+
+  const sourceDomain = sourceField.domain;
+  const targetDomain = targetField.domain;
+  const isTransition =
+    sourceDomain !== "UNKNOWN" &&
+    targetDomain !== "UNKNOWN" &&
+    sourceDomain !== targetDomain;
+
+  const sourceCatalog = useMemo(() => getDomainCatalog(sourceDomain), [sourceDomain]);
+  const targetCatalog = useMemo(() => getDomainCatalog(targetDomain), [targetDomain]);
+
+  const talkingPoints = useMemo(() => {
+    return getSectionTalkingPoints(
+      section.id,
+      sourceDomain,
+      targetDomain,
+      isTransition,
+      ctx.academics.latestQualification || "Degree",
+      ctx.destination.course || "Master's"
+    );
+  }, [section.id, sourceDomain, targetDomain, isTransition, ctx.academics, ctx.destination]);
+
+  function handleInsertTalkingPoint(textToInsert: string) {
+    setDraftText((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return textToInsert;
+      return `${trimmed}\n\n${textToInsert}`;
+    });
+  }
+
   async function handleRegenerateClick(mode: "generate" | "rewrite-natural" = "generate") {
     if (!onRegenerate) return;
+    if (isGenerationBlocked) {
+      setFeedback({
+        type: "error",
+        message:
+          generationBlockedReason ||
+          "AI narrative generation for this section is blocked due to unresolved academic mismatch.",
+      });
+      return;
+    }
     setFeedback(null);
     try {
       await onRegenerate(section.id, mode);
@@ -319,8 +394,9 @@ export function SectionEditor({
                     type="button"
                     id={`regenerate-${section.id}`}
                     onClick={() => handleRegenerateClick("generate")}
-                    disabled={isRegenerating}
+                    disabled={isRegenerating || isGenerationBlocked}
                     className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : undefined}
                   >
                     {isRegenerating ? (
                       <span className="animate-spin text-slate-500">⟳</span>
@@ -356,8 +432,9 @@ export function SectionEditor({
                     type="button"
                     id={`regenerate-${section.id}`}
                     onClick={() => handleRegenerateClick("generate")}
-                    disabled={isRegenerating}
+                    disabled={isRegenerating || isGenerationBlocked}
                     className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : undefined}
                   >
                     {isRegenerating ? (
                       <>
@@ -379,9 +456,9 @@ export function SectionEditor({
                     type="button"
                     id={`rewrite-natural-${section.id}`}
                     onClick={() => handleRegenerateClick("rewrite-natural")}
-                    disabled={isRegenerating}
+                    disabled={isRegenerating || isGenerationBlocked}
                     className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                    title="Rewrite paragraph in natural, authentic student voice"
+                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : "Rewrite paragraph in natural, authentic student voice"}
                   >
                     <span>✍️</span>
                     <span>Rewrite Natural</span>
@@ -454,6 +531,19 @@ export function SectionEditor({
             </div>
           </div>
         )}
+
+        {/* Blocked generation notice */}
+        {isGenerationBlocked && section.regeneratable && (
+          <div className="w-full mt-2">
+            <div className="px-3.5 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2">
+              <span className="font-bold text-amber-700">⚠️ AI Generation Blocked:</span>
+              <span className="flex-1">
+                {generationBlockedReason ||
+                  "This section is academically sensitive. Please resolve the academic mismatch before generating AI content."}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Document Workspace Canvas */}
@@ -475,6 +565,49 @@ export function SectionEditor({
             <div className="p-8 md:p-12 font-serif text-[15px] md:text-[16px] text-slate-800 leading-[1.8] tracking-[0.01em]">
               {isEditing ? (
                 <div className="space-y-3 font-sans">
+                  {/* Branch-Aware Talking Points & Transition Bridge Guidance */}
+                  {talkingPoints.length > 0 && (
+                    <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                          {isTransition ? (
+                            <>
+                              <span className="text-amber-600 font-bold">⚡︎ Transition Bridge Points:</span>
+                              <span className="text-slate-500 font-medium">
+                                {ctx.academics.latestQualification || "Degree"} → {ctx.destination.course || "Target"}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-emerald-700 font-bold">✓ Academic Focus Points:</span>
+                              <span className="text-slate-500 font-medium">{sourceCatalog.displayName}</span>
+                            </>
+                          )}
+                        </span>
+                        <span className="text-[10px] text-slate-400">Click to insert</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {talkingPoints.map((point) => (
+                          <button
+                            key={point.label}
+                            type="button"
+                            onClick={() => handleInsertTalkingPoint(point.textToInsert)}
+                            className={`inline-flex items-center text-xs rounded-md px-2.5 py-1 border transition-colors shadow-2xs cursor-pointer ${
+                              point.type === "bridge"
+                                ? "bg-amber-50 text-amber-950 border-amber-200/90 hover:bg-amber-100"
+                                : point.type === "transferable"
+                                ? "bg-indigo-50 text-indigo-950 border-indigo-200/90 hover:bg-indigo-100"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                            title={point.textToInsert}
+                          >
+                            + {point.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="relative rounded-xl border border-slate-300 focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900 p-3 bg-slate-50/50 transition-all">
                     <textarea
                       id={`section-editor-textarea-${section.id}`}
@@ -491,6 +624,11 @@ export function SectionEditor({
                       <span>Press &apos;Done Editing&apos; to commit</span>
                     </div>
                   </div>
+                  <HinglishRewriteControl
+                    value={draftText}
+                    onApply={(newText) => setDraftText(newText)}
+                    fieldName={`sop_section_${section.id}`}
+                  />
                   {isModified && (
                     <p className="text-[11px] text-amber-600 flex items-center gap-1 font-medium font-sans">
                       <span>⚠</span>

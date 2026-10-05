@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { AcademicSuggestInput } from "../components/domain";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function CertificationsForm() {
   const {
@@ -37,13 +39,14 @@ export function CertificationsForm() {
             <Label htmlFor={`cert-name-${entry.id}`}>
               Certificate / Course Name
             </Label>
-            <Input
+            <AcademicSuggestInput
               id={`cert-name-${entry.id}`}
               value={entry.name ?? ""}
-              onChange={(e) =>
-                updateCertification(entry.id, { name: e.target.value })
+              onChange={(val) =>
+                updateCertification(entry.id, { name: val })
               }
-              placeholder="Course or certificate name"
+              fieldType="certifications"
+              placeholder="e.g. Course or certificate name"
             />
           </div>
 
@@ -106,6 +109,13 @@ export function CertificationsForm() {
                 updateCertification(entry.id, { description: e.target.value })
               }
               placeholder="Brief note about what you learned or why it's relevant…"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateCertification(entry.id, { description: newText })
+              }
+              fieldName={`cert_desc_${entry.id}`}
             />
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import type { AcademicAlignmentResult } from "@/services/academicAlignment/types";
 
 interface ResumeWorkspaceHeaderProps {
   documentTitle?: string;
@@ -34,6 +35,8 @@ interface ResumeWorkspaceHeaderProps {
   onToggleContext?: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  alignmentResult?: AcademicAlignmentResult;
+  isStale?: boolean;
 }
 
 export function ResumeWorkspaceHeader({
@@ -67,6 +70,8 @@ export function ResumeWorkspaceHeader({
   onToggleContext,
   isSidebarCollapsed = false,
   onToggleSidebar,
+  alignmentResult,
+  isStale = false,
 }: ResumeWorkspaceHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -304,7 +309,7 @@ export function ResumeWorkspaceHeader({
               type="button"
               id="resume-context-drawer-btn"
               onClick={onToggleContext}
-              className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer relative ${
                 isContextOpen
                   ? "bg-slate-900 text-white border-slate-900"
                   : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
@@ -313,6 +318,16 @@ export function ResumeWorkspaceHeader({
             >
               <span className="text-xs">ℹ</span>
               <span className="hidden sm:inline">Context</span>
+              {alignmentResult &&
+                (alignmentResult.status === "ACADEMIC_MISMATCH" ||
+                  alignmentResult.status === "UNKNOWN" ||
+                  isStale) && (
+                  <span
+                    id="resume-header-alignment-indicator"
+                    className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
+                    title={isStale ? "Alignment is outdated" : "Academic alignment advisory"}
+                  />
+                )}
             </button>
           )}
 

@@ -21,10 +21,20 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
 import type { StudentListItem } from "@/app/api/students/list/route";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
+import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
+import { mapCrmToNormalizedStudent } from "@/services/normalization/mapCrmToNormalizedStudent";
+import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const TARGET_STORAGE_KEY = "template_gen_active_target";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +63,13 @@ interface GlobalStudentContextValue {
   selectedStudentName: string | null;
   selectedStudentData: CrmSnapshot | null;
   loadStatus: StudentLoadStatus;
+  lastLoadedStudentId: string | null;
+  setLastLoadedStudentId: (id: string | null) => void;
+
+  // Application Target (shared between Resume Builder, SOP, and LOR)
+  applicationTarget: ApplicationTarget;
+  setApplicationTarget: React.Dispatch<React.SetStateAction<ApplicationTarget>>;
+  updateApplicationTarget: (patch: Partial<ApplicationTarget>) => void;
 
   // Actions
   selectStudent: (id: string) => void;
@@ -73,6 +90,31 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null);
   const [selectedStudentData, setSelectedStudentData] = useState<CrmSnapshot | null>(null);
   const [loadStatus, setLoadStatus] = useState<StudentLoadStatus>({ kind: "idle" });
+  const [lastLoadedStudentId, setLastLoadedStudentId] = useState<string | null>(null);
+
+  // Application Target — persisted in sessionStorage so tab switches and refreshes retain target
+  const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem(TARGET_STORAGE_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return {};
+  });
+
+  // Keep sessionStorage in sync with applicationTarget changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(applicationTarget));
+      } catch {}
+    }
+  }, [applicationTarget]);
+
+  const updateApplicationTarget = useCallback((patch: Partial<ApplicationTarget>) => {
+    setApplicationTarget((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // ── Fetch the student list on mount ──────────────────────────────────────
   const fetchStudentList = useCallback(async () => {
@@ -103,6 +145,17 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const selectStudent = useCallback(async (id: string) => {
     if (!id) return;
 
+    // Update URL query parameter so browser URL stays in sync without page reloads
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("studentId") !== id) {
+          url.searchParams.set("studentId", id);
+          window.history.replaceState({}, "", url.toString());
+        }
+      } catch {}
+    }
+
     // Find the name from our list immediately for instant UI feedback
     const found = students.find((s) => s.id === id);
     setSelectedStudentId(id);
@@ -131,28 +184,74 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
       if (fullName) {
         setSelectedStudentName(fullName);
       }
+
+      // Auto-extract application target from CRM snapshot — clean replacement for the new student
+      try {
+        const normalized = mapCrmToNormalizedStudent(snapshot, { source: "senior-crm-api" });
+        const { target } = mapNormalizedToResume(normalized);
+        setApplicationTarget(target || {});
+      } catch (err) {
+        console.warn("[GlobalStudentContext] Could not derive target from snapshot:", err);
+        setApplicationTarget({});
+      }
+
       setLoadStatus({ kind: "success" });
     } catch {
       setLoadStatus({ kind: "error", message: "Network error loading student data." });
     }
   }, [students]);
 
-  // ── Auto-select student if studentId is present in URL search params ─────
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlStudentId = urlParams.get("studentId");
-    if (urlStudentId && urlStudentId !== selectedStudentId) {
-      selectStudent(urlStudentId);
-    }
-  }, [selectStudent, selectedStudentId]);
-
   const clearStudent = useCallback(() => {
     setSelectedStudentId(null);
     setSelectedStudentName(null);
     setSelectedStudentData(null);
     setLoadStatus({ kind: "idle" });
+    setApplicationTarget({});
+    setLastLoadedStudentId(null);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(TARGET_STORAGE_KEY);
+        sessionStorage.removeItem("template_gen_active_resume_data");
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("studentId")) {
+          url.searchParams.delete("studentId");
+          window.history.replaceState({}, "", url.toString());
+        }
+      } catch {}
+    }
   }, []);
+
+  // ── Auto-select student if studentId is present in URL search params on mount ─
+  const hasInitializedFromUrlRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || hasInitializedFromUrlRef.current) return;
+    hasInitializedFromUrlRef.current = true;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlStudentId = urlParams.get("studentId");
+    if (urlStudentId) {
+      selectStudent(urlStudentId);
+    }
+  }, [selectStudent]);
+
+  // ── Sync with browser Back/Forward navigation ──────────────────────────────
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlStudentId = urlParams.get("studentId");
+      if (urlStudentId && urlStudentId !== selectedStudentId) {
+        selectStudent(urlStudentId);
+      } else if (!urlStudentId && selectedStudentId) {
+        clearStudent();
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [selectStudent, clearStudent, selectedStudentId]);
 
   return (
     <GlobalStudentContext.Provider
@@ -164,6 +263,11 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
         selectedStudentName,
         selectedStudentData,
         loadStatus,
+        lastLoadedStudentId,
+        setLastLoadedStudentId,
+        applicationTarget,
+        setApplicationTarget,
+        updateApplicationTarget,
         selectStudent,
         clearStudent,
       }}

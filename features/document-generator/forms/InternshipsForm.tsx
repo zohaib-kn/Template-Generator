@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EntryCardHeader } from "./shared";
+import { AcademicSuggestInput } from "../components/domain";
+import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function InternshipsForm() {
   const { data, addInternship, updateInternship, removeInternship } =
@@ -32,13 +34,12 @@ export function InternshipsForm() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor={`intern-role-${entry.id}`}>Role / Job Title</Label>
-              <Input
+              <AcademicSuggestInput
                 id={`intern-role-${entry.id}`}
                 value={entry.role ?? ""}
-                onChange={(e) =>
-                  updateInternship(entry.id, { role: e.target.value })
-                }
-                placeholder="e.g. Data Analytics Intern"
+                onChange={(val) => updateInternship(entry.id, { role: val })}
+                fieldType="roles"
+                placeholder="Role / Job Title"
               />
             </div>
             <div>
@@ -103,6 +104,13 @@ export function InternshipsForm() {
                 updateInternship(entry.id, { description: e.target.value })
               }
               placeholder="Tasks, projects delivered, tools utilised, measurable outcomes…"
+            />
+            <HinglishRewriteControl
+              value={entry.description ?? ""}
+              onApply={(newText) =>
+                updateInternship(entry.id, { description: newText })
+              }
+              fieldName={`internship_desc_${entry.id}`}
             />
           </div>
         </div>

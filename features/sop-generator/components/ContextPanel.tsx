@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type {
   StudentDocumentContext,
   ValidationIssue,
   SopDocumentType,
 } from "../types/sop-generator";
+import type {
+  AcademicAlignmentResult,
+  TransitionContext,
+} from "@/services/academicAlignment/types";
+import { AlignmentStatusBadge } from "@/features/academic-alignment/components/AlignmentStatusBadge";
+import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
+import { TransitionContextPanel } from "@/features/academic-alignment/components/TransitionContextPanel";
+
+export type PanelTab = "student" | "destination" | "validation" | "alignment";
 
 interface ContextPanelProps {
   ctx: StudentDocumentContext;
@@ -17,6 +26,18 @@ interface ContextPanelProps {
   onRefreshValidation?: () => void;
   showLogistics?: boolean;
   activeDocumentType?: SopDocumentType;
+  alignmentResult?: AcademicAlignmentResult;
+  isStale?: boolean;
+  staleReason?: string;
+  onConfirmIntentionalTransition?: (context: TransitionContext) => Promise<boolean> | void;
+  onResetResolution?: () => Promise<boolean> | void;
+  isConfirmingTransition?: boolean;
+  availableCertifications?: Array<{ id: string; name: string; issuer?: string }>;
+  availableProjects?: Array<{ id: string; title: string; description?: string }>;
+  availableSkills?: Array<{ id: string; name: string }>;
+  availableInternships?: Array<{ id: string; role: string; organization?: string; description?: string }>;
+  activeTab?: PanelTab;
+  onTabChange?: (tab: PanelTab) => void;
 }
 
 interface TargetSectionInfo {
@@ -87,8 +108,6 @@ function getSectionForIssue(issue: ValidationIssue, isUniversitySop?: boolean): 
   return { sectionId: "recipient", sectionTitle: "Recipient / Consulate", sectionNumber: "01" };
 }
 
-type PanelTab = "student" | "destination" | "validation";
-
 export function ContextPanel({
   ctx,
   validationIssues,
@@ -99,11 +118,36 @@ export function ContextPanel({
   onRefreshValidation,
   showLogistics = true,
   activeDocumentType = "VISA_COVER_LETTER",
+  alignmentResult,
+  isStale = false,
+  staleReason,
+  onConfirmIntentionalTransition,
+  onResetResolution,
+  isConfirmingTransition = false,
+  availableCertifications = [],
+  availableProjects = [],
+  availableSkills = [],
+  availableInternships = [],
+  activeTab: activeTabProp,
+  onTabChange,
 }: ContextPanelProps) {
   const isUniversitySop = activeDocumentType === "UNIVERSITY_SOP";
-  const [activeTab, setActiveTab] = useState<PanelTab>("student");
+  const [internalTab, setInternalTab] = useState<PanelTab>(activeTabProp || "student");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
+
+  useEffect(() => {
+    if (activeTabProp !== undefined) {
+      setInternalTab(activeTabProp);
+    }
+  }, [activeTabProp]);
+
+  const activeTab = activeTabProp !== undefined ? activeTabProp : internalTab;
+
+  function handleTabChange(tab: PanelTab) {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  }
 
   function handleRerender() {
     setIsRefreshing(true);
@@ -139,6 +183,14 @@ export function ContextPanel({
     );
   }
 
+  const hasAlignmentAttention = Boolean(
+    alignmentResult &&
+      (alignmentResult.status === "ACADEMIC_MISMATCH" ||
+        alignmentResult.status === "UNKNOWN" ||
+        isStale ||
+        alignmentResult.isStale)
+  );
+
   const tabs: { id: PanelTab; label: string; count?: number; countColor?: string }[] = [
     { id: "student", label: "Student" },
     { id: "destination", label: "Destination" },
@@ -148,11 +200,20 @@ export function ContextPanel({
       count: errors.length + warnings.length,
       countColor: errors.length > 0 ? "bg-rose-500 text-white" : "bg-amber-500 text-white",
     },
+    {
+      id: "alignment",
+      label: "Alignment",
+      count: hasAlignmentAttention ? 1 : undefined,
+      countColor:
+        alignmentResult?.status === "ACADEMIC_MISMATCH" || alignmentResult?.status === "UNKNOWN"
+          ? "bg-rose-500 text-white"
+          : "bg-amber-500 text-white",
+    },
   ];
 
   return (
     <aside
-      className="w-72 xl:w-80 flex-shrink-0 flex flex-col border-l border-slate-200/90 bg-[#FAFBFD] overflow-hidden select-none"
+      className="w-80 xl:w-96 flex-shrink-0 flex flex-col border-l border-slate-200/90 bg-[#FAFBFD] overflow-hidden select-none"
       aria-label="Student and destination context"
     >
       {/* Top bar with Rerender and Collapse buttons */}
@@ -204,7 +265,7 @@ export function ContextPanel({
           <button
             key={tab.id}
             id={`context-tab-${tab.id}`}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => handleTabChange(tab.id)}
             className={`flex-1 py-2.5 text-xs transition-colors relative flex items-center justify-center gap-1.5
               ${
                 activeTab === tab.id
@@ -500,6 +561,94 @@ export function ContextPanel({
                   )}
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── Alignment Tab ── */}
+        {activeTab === "alignment" && (
+          <div className="space-y-4">
+            {alignmentResult ? (
+              <>
+                {/* Status overview card */}
+                <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Academic Field Match
+                    </span>
+                    <AlignmentStatusBadge
+                      status={alignmentResult.status}
+                      isStale={Boolean(isStale || alignmentResult.isStale)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Past Study (Degree Completed)
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 block break-words leading-snug">
+                        {alignmentResult.sourceField.domain.replace(/_/g, " ")}
+                        {alignmentResult.sourceField.subDomain
+                          ? ` (${alignmentResult.sourceField.subDomain.replace(/_/g, " ")})`
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Applying For (New Course)
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 block break-words leading-snug">
+                        {alignmentResult.targetField.domain.replace(/_/g, " ")}
+                        {alignmentResult.targetField.subDomain
+                          ? ` (${alignmentResult.targetField.subDomain.replace(/_/g, " ")})`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-600 pt-2 border-t border-slate-100 leading-relaxed break-words font-normal">
+                    {alignmentResult.explanation}
+                  </p>
+                </div>
+
+                {/* Banner if mismatch or stale or unknown */}
+                {(alignmentResult.status === "ACADEMIC_MISMATCH" ||
+                  alignmentResult.status === "UNKNOWN" ||
+                  isStale ||
+                  alignmentResult.isStale) && (
+                  <AcademicMismatchBanner
+                    result={alignmentResult}
+                    isStale={Boolean(isStale || alignmentResult.isStale)}
+                    staleReason={staleReason || alignmentResult.staleReason}
+                    onReviewTargetCourse={() => handleTabChange("destination")}
+                    onConfirmIntentionalTransition={() => handleTabChange("alignment")}
+                    onResetResolution={onResetResolution ? () => onResetResolution() : undefined}
+                  />
+                )}
+
+                {/* Transition Context Evaluation Panel */}
+                <TransitionContextPanel
+                  result={alignmentResult}
+                  initialContext={
+                    alignmentResult.safeEvidencePacket
+                      ? {
+                          reason: alignmentResult.safeEvidencePacket.justification,
+                        }
+                      : undefined
+                  }
+                  availableCertifications={availableCertifications}
+                  availableProjects={availableProjects}
+                  availableSkills={availableSkills}
+                  availableInternships={availableInternships}
+                  onSave={onConfirmIntentionalTransition || (() => {})}
+                  isLoading={isConfirmingTransition}
+                />
+              </>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                No academic alignment data available for current student.
+              </div>
             )}
           </div>
         )}
