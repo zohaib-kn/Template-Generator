@@ -43,6 +43,11 @@ import {
 } from "@/models/AcademicAlignmentResolution";
 import { ResumeDraftModel } from "@/models/ResumeDraft";
 import type { ResumeDraftRecord } from "@/features/document-generator/types/draft";
+import {
+  extractLockedFacts,
+  extractSectionLockedFacts,
+} from "@/services/ai/validators/lockedFactExtractor";
+import { validateLockedFacts } from "@/services/ai/validators/lockedFactValidator";
 
 // ---------------------------------------------------------------------------
 // Types & Request Contract
@@ -92,6 +97,7 @@ const testResolutions = new Map<string, AcademicAlignmentResolutionRecord>();
 const testResumeDrafts: ResumeDraftRecord[] = [];
 const testStudentSnapshots = new Map<string, CrmSnapshot>();
 let lastGeneratedPrompt: string | null = null;
+let testMockGeneratedText: string | null = null;
 
 export function getLastGeneratedPrompt(): string | null {
   return lastGeneratedPrompt;
@@ -109,12 +115,19 @@ export function setTestStudentSnapshot(studentId: string, snapshot: CrmSnapshot)
   testStudentSnapshots.set(studentId, snapshot);
 }
 
+export function setTestMockGeneratedText(text: string | null): void {
+  testMockGeneratedText = text;
+}
+
 export function clearTestStore(): void {
   testResolutions.clear();
   testResumeDrafts.length = 0;
   testStudentSnapshots.clear();
   lastGeneratedPrompt = null;
+  testMockGeneratedText = null;
 }
+
+export { extractLockedFacts };
 
 // ---------------------------------------------------------------------------
 // POST Handler: /api/sop/generate
@@ -420,13 +433,40 @@ export async function POST(req: NextRequest) {
 
   // Test mode mock fallback
   if (isTestEnvironment() && (!apiKey || apiKey === "mock-test-key" || apiKey === "test")) {
+    const mockText =
+      testMockGeneratedText ??
+      `Authoritative verified student narrative for ${sanitizedContext.student?.fullName || "student"} for section "${sectionTitle}" at ${targetProgram.university || "university"} focusing on ${targetProgram.course}.${sanitizedContext.academics?.latestQualification ? ` Previous qualification: ${sanitizedContext.academics.latestQualification} (${sanitizedContext.academics.percentage || ""}).` : ""}`;
+
+    const sectionLockedFacts = extractSectionLockedFacts(sanitizedContext, {
+      sectionId,
+      documentType,
+      generatedText: mockText,
+    });
+    const validation = validateLockedFacts(mockText, sectionLockedFacts);
+
+    if (!validation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "LOCKED_FACT_VALIDATION_FAILED",
+            message:
+              "Generated narrative altered or omitted immutable student facts. Revision required.",
+            validation,
+          },
+        },
+        { status: 422 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: true,
         sectionId,
         mode,
         model: "mock-gemini-test",
-        text: `Authoritative verified student narrative for section "${sectionTitle}" focusing on ${targetProgram.course}.`,
+        text: mockText,
+        validation,
       },
       { status: 200 }
     );
@@ -480,6 +520,28 @@ export async function POST(req: NextRequest) {
       const text = response?.text?.trim();
 
       if (text && text.length > 20) {
+        // Step 11: Immutable Locked Fact Validation Guard
+        const sectionLockedFacts = extractSectionLockedFacts(sanitizedContext, {
+          sectionId,
+          documentType,
+          generatedText: text,
+        });
+        const validation = validateLockedFacts(text, sectionLockedFacts);
+
+        if (!validation.valid) {
+          console.warn(
+            `[SOP Generate API] Locked fact validation failed on model ${modelName}:`,
+            validation.missingFacts
+          );
+          lastError = new Error(
+            `LOCKED_FACT_VALIDATION_FAILED: ${validation.missingFacts
+              .map((f) => f.field)
+              .join(", ")}`
+          );
+          // Try next model if any
+          continue;
+        }
+
         return NextResponse.json(
           {
             success: true,
@@ -487,6 +549,7 @@ export async function POST(req: NextRequest) {
             mode,
             model: modelName,
             text,
+            validation,
           },
           { status: 200 }
         );
@@ -519,7 +582,12 @@ export async function POST(req: NextRequest) {
   let message = "Unable to generate narrative with Gemini.";
   let status = 502;
 
-  if (
+  if (errMessage.includes("LOCKED_FACT_VALIDATION_FAILED")) {
+    code = "LOCKED_FACT_VALIDATION_FAILED";
+    message =
+      "Generated narrative altered or omitted immutable student facts. Revision required.";
+    status = 422;
+  } else if (
     errMessage.includes("503") ||
     errMessage.includes("UNAVAILABLE") ||
     errMessage.includes("high demand")

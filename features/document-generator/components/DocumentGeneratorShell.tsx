@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { DocumentProvider } from "../state/DocumentContext";
+import { DocumentProvider, getResumeSessionStorageKey } from "../state/DocumentContext";
 import { AppHeader } from "@/components/common/AppHeader";
 import { useDocumentState } from "../hooks/useDocumentState";
+import { testStudentData } from "../utils/testStudentData";
 import type { ResumeDraftRecord } from "../types/draft";
 import { ResumeDraftsModal } from "./ResumeDraftsModal";
 import { getAllResumeDrafts, saveResumeDraft } from "../lib/resumeDraftStorage";
@@ -197,6 +198,29 @@ function GeneratorLayout() {
   useEffect(() => {
     if (selectedStudentData && selectedStudentId && selectedStudentId !== lastLoadedStudentId) {
       setLastLoadedStudentId(selectedStudentId);
+
+      if (selectedStudentId === "sample-aarav-mehta") {
+        queueMicrotask(() => {
+          const studentStorageKey = getResumeSessionStorageKey(selectedStudentId);
+          let loadedAaravData = testStudentData;
+          if (typeof window !== "undefined") {
+            try {
+              const saved = sessionStorage.getItem(studentStorageKey);
+              if (saved) {
+                loadedAaravData = JSON.parse(saved);
+              }
+            } catch {}
+          }
+          loadStudent(loadedAaravData);
+          setCurrentSnapshot(selectedStudentData);
+          setAvailablePrograms([]);
+          setSelectedProgramId("");
+          setActiveDraftId(null);
+          setActiveDraftStudentName(null);
+        });
+        return;
+      }
+
       const source = "senior-crm-api" as const;
       const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source });
       const { student, target } = mapNormalizedToResume(normalized);
@@ -218,6 +242,15 @@ function GeneratorLayout() {
           ""
         );
 
+        setActiveDraftId(null);
+        setActiveDraftStudentName(null);
+      });
+    } else if (!selectedStudentId && lastLoadedStudentId !== null) {
+      queueMicrotask(() => {
+        setLastLoadedStudentId(null);
+        setCurrentSnapshot(null);
+        setAvailablePrograms([]);
+        setSelectedProgramId("");
         setActiveDraftId(null);
         setActiveDraftStudentName(null);
       });

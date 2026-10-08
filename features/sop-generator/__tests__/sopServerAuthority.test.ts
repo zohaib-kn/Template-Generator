@@ -29,6 +29,7 @@ import {
   setTestResumeDraft,
   clearTestStore,
   getLastGeneratedPrompt,
+  setTestMockGeneratedText,
 } from "@/app/api/sop/generate/route";
 import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
 import type { AcademicAlignmentResolutionRecord } from "@/models/AcademicAlignmentResolution";
@@ -566,5 +567,178 @@ describe("Phase 6: Server-Side Authority for /api/sop/generate", () => {
     });
     const res2 = await POST(req2);
     assert.equal(res2.status, 400);
+  });
+
+  // ── Test 32 ──────────────────────────────────────────────────────────────
+  test("Test 32: Valid generated section narrative preserves locked facts and returns HTTP 200 with validation.valid: true", async () => {
+    const ctx = createBaseContext({
+      destination: {
+        course: "Master in Mechanical Engineering",
+        degreeLevel: "Master's",
+        university: "Politecnico di Milano",
+        country: "Italy",
+      },
+      academics: {
+        latestQualification: "Bachelor of Technology in Mechanical Engineering",
+        subjects: "Fluid Mechanics, Thermodynamics",
+        percentage: "82%",
+      },
+    });
+
+    setTestMockGeneratedText(
+      "During my Bachelor of Technology in Mechanical Engineering where I secured 82% marks, I developed an interest in Politecnico di Milano for the Master in Mechanical Engineering."
+    );
+
+    const req = makeGenerateRequest({
+      studentId: "student-mech-valid",
+      programId: "prog-mech-2",
+      sectionId: "why-course",
+      sectionTitle: "Why This Course",
+      context: ctx,
+      documentType: "VISA_COVER_LETTER",
+    });
+
+    const res = await POST(req);
+    assert.equal(res.status, 200);
+
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.ok(data.validation, "Response must include factual validation result");
+    assert.equal(data.validation.valid, true);
+    assert.equal(data.validation.missingFacts.filter((m: { severity: string }) => m.severity === "error").length, 0);
+  });
+
+  // ── Test 33 ──────────────────────────────────────────────────────────────
+  test("Test 33: Generated narrative altering student IELTS score (7.5 -> 8.5) is rejected with HTTP 422", async () => {
+    const ctx = createBaseContext({
+      destination: {
+        course: "Master in Mechanical Engineering",
+        degreeLevel: "Master's",
+        university: "Politecnico di Milano",
+        country: "Italy",
+      },
+      academics: {
+        latestQualification: "Bachelor of Technology in Mechanical Engineering",
+        subjects: "Fluid Mechanics, Thermodynamics",
+      },
+      // Student has IELTS 7.5
+    });
+
+    // Mock generated text alters IELTS score to 8.5
+    setTestMockGeneratedText(
+      "I am applying for the Master in Mechanical Engineering at Politecnico di Milano. I achieved an exceptional IELTS score of 8.5 band."
+    );
+
+    const req = makeGenerateRequest({
+      studentId: "student-mech-ielts-altered",
+      programId: "prog-mech-3",
+      sectionId: "why-course",
+      sectionTitle: "Why This Course",
+      context: ctx,
+      documentType: "VISA_COVER_LETTER",
+    });
+
+    const res = await POST(req);
+    assert.equal(res.status, 422);
+
+    const data = await res.json();
+    assert.equal(data.success, false);
+    assert.equal(data.error.code, "LOCKED_FACT_VALIDATION_FAILED");
+    assert.ok(data.error.validation);
+    assert.equal(data.error.validation.valid, false);
+    const ieltsError = data.error.validation.missingFacts.find(
+      (m: { field: string }) => m.field.startsWith("testScore_")
+    );
+    assert.ok(ieltsError, "Must flag altered IELTS score as an error");
+    assert.equal(ieltsError.expectedValue, "7.5");
+  });
+
+  // ── Test 34 ──────────────────────────────────────────────────────────────
+  test("Test 34: Generated narrative altering student percentage (75% -> 95%) is rejected with HTTP 422", async () => {
+    const ctx = createBaseContext({
+      destination: {
+        course: "Master in Mechanical Engineering",
+        degreeLevel: "Master's",
+        university: "Politecnico di Milano",
+        country: "Italy",
+      },
+      academics: {
+        latestQualification: "Bachelor of Technology in Mechanical Engineering",
+        subjects: "Mechanical Engineering, Thermodynamics",
+        percentage: "75%",
+      },
+    });
+
+    // Mock generated text cites 95% marks instead of the real 75%
+    setTestMockGeneratedText(
+      "I am applying for the Master in Mechanical Engineering. During my previous studies I graduated with 95% marks at the top of my class."
+    );
+
+    const req = makeGenerateRequest({
+      studentId: "student-mech-percent-altered",
+      programId: "prog-mech-4",
+      sectionId: "academic-background",
+      sectionTitle: "Academic Background",
+      context: ctx,
+      documentType: "VISA_COVER_LETTER",
+    });
+
+    const res = await POST(req);
+    assert.equal(res.status, 422);
+
+    const data = await res.json();
+    assert.equal(data.success, false);
+    assert.equal(data.error.code, "LOCKED_FACT_VALIDATION_FAILED");
+    assert.ok(data.error.validation);
+    assert.equal(data.error.validation.valid, false);
+    const percentError = data.error.validation.missingFacts.find(
+      (m: { field: string }) => m.field === "academicPercentage"
+    );
+    assert.ok(percentError, "Must flag altered academic percentage as an error");
+    assert.equal(percentError.expectedValue, "75%");
+  });
+
+  // ── Test 35 ──────────────────────────────────────────────────────────────
+  test("Test 35: Generated course section narrative omitting course name is rejected with HTTP 422", async () => {
+    const ctx = createBaseContext({
+      destination: {
+        course: "Master in Mechanical Engineering",
+        degreeLevel: "Master's",
+        university: "Politecnico di Milano",
+        country: "Italy",
+      },
+      academics: {
+        latestQualification: "Bachelor of Technology in Mechanical Engineering",
+        subjects: "Mechanical Engineering, Thermodynamics",
+      },
+    });
+
+    // Mock generated text discusses a completely hallucinated course
+    setTestMockGeneratedText(
+      "I am eager to study Biomedical Technology at the university to pursue my interests in tissue engineering."
+    );
+
+    const req = makeGenerateRequest({
+      studentId: "student-mech-hallucinated-course",
+      programId: "prog-mech-5",
+      sectionId: "why-course",
+      sectionTitle: "Why This Course",
+      context: ctx,
+      documentType: "VISA_COVER_LETTER",
+    });
+
+    const res = await POST(req);
+    assert.equal(res.status, 422);
+
+    const data = await res.json();
+    assert.equal(data.success, false);
+    assert.equal(data.error.code, "LOCKED_FACT_VALIDATION_FAILED");
+    assert.ok(data.error.validation);
+    assert.equal(data.error.validation.valid, false);
+    const courseError = data.error.validation.missingFacts.find(
+      (m: { field: string }) => m.field === "courseName"
+    );
+    assert.ok(courseError, "Must flag missing/hallucinated course name as an error");
+    assert.equal(courseError.expectedValue, "Master in Mechanical Engineering");
   });
 });

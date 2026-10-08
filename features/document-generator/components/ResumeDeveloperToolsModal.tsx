@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useDocumentState } from "../hooks/useDocumentState";
+import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 
 interface ResumeDeveloperToolsModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export function ResumeDeveloperToolsModal({
   onStudentLoaded,
 }: ResumeDeveloperToolsModalProps) {
   const { data, loadTestStudent, reset } = useDocumentState();
+  const { loadSampleStudent } = useGlobalStudent();
   const [sendStatus, setSendStatus] = useState<SendStatus>({ kind: "idle" });
 
   if (!isOpen) return null;
@@ -52,6 +54,7 @@ export function ResumeDeveloperToolsModal({
   }
 
   function handleLoadTest() {
+    loadSampleStudent("aarav-mehta");
     loadTestStudent();
     if (onStudentLoaded) onStudentLoaded();
     setSendStatus({ kind: "idle" });

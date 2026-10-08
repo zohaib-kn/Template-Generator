@@ -7,3 +7,4 @@
 export * from "./AlignmentStatusBadge";
 export * from "./AcademicMismatchBanner";
 export * from "./TransitionContextPanel";
+export * from "./TransitionJustificationModal";
