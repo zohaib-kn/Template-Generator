@@ -11,8 +11,9 @@ import type {
   TransitionContext,
 } from "@/services/academicAlignment/types";
 import { AlignmentStatusBadge } from "@/features/academic-alignment/components/AlignmentStatusBadge";
-import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
-import { TransitionContextPanel } from "@/features/academic-alignment/components/TransitionContextPanel";
+import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
+import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
+import { ApplicationTargetForm } from "@/features/document-generator/forms/ApplicationTargetForm";
 
 export type PanelTab = "student" | "destination" | "validation" | "alignment";
 
@@ -38,6 +39,12 @@ interface ContextPanelProps {
   availableInternships?: Array<{ id: string; role: string; organization?: string; description?: string }>;
   activeTab?: PanelTab;
   onTabChange?: (tab: PanelTab) => void;
+  applicationTarget?: ApplicationTarget;
+  onTargetChange?: (target: ApplicationTarget) => void;
+  availablePrograms?: NormalizedAppliedProgram[];
+  selectedProgramId?: string;
+  onProgramChange?: (programId: string) => void;
+  onOpenJustifyModal?: () => void;
 }
 
 interface TargetSectionInfo {
@@ -130,11 +137,18 @@ export function ContextPanel({
   availableInternships = [],
   activeTab: activeTabProp,
   onTabChange,
+  applicationTarget,
+  onTargetChange,
+  availablePrograms = [],
+  selectedProgramId,
+  onProgramChange,
+  onOpenJustifyModal,
 }: ContextPanelProps) {
   const isUniversitySop = activeDocumentType === "UNIVERSITY_SOP";
   const [internalTab, setInternalTab] = useState<PanelTab>(activeTabProp || "student");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
+  const [isEditingTarget, setIsEditingTarget] = useState(false);
 
   useEffect(() => {
     if (activeTabProp !== undefined) {
@@ -146,6 +160,9 @@ export function ContextPanel({
 
   function handleTabChange(tab: PanelTab) {
     setInternalTab(tab);
+    if (tab === "destination") {
+      setIsEditingTarget(true);
+    }
     onTabChange?.(tab);
   }
 
@@ -398,39 +415,115 @@ export function ContextPanel({
         {/* ── Destination Tab ── */}
         {activeTab === "destination" && (
           <div className="space-y-4">
+            {/* Multiple programs selector if CRM has multiple */}
+            {availablePrograms.length > 1 && onProgramChange && (
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-1.5">
+                <label
+                  htmlFor="sop-context-prog-switcher"
+                  className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block"
+                >
+                  Switch Applied Program ({availablePrograms.length} applied):
+                </label>
+                <select
+                  id="sop-context-prog-switcher"
+                  value={selectedProgramId}
+                  onChange={(e) => onProgramChange(e.target.value)}
+                  className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-slate-800 cursor-pointer shadow-2xs"
+                >
+                  {availablePrograms.map((prog) => (
+                    <option key={prog.id} value={prog.id}>
+                      {prog.university} — {prog.course}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Institution Card */}
             <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Target Destination
                 </span>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200/80">
-                  ✓ Verified Data
-                </span>
+                {applicationTarget?.intendedCourse || ctx.destination.course ? (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200/80">
+                    ✓ Active Target
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium border border-amber-200/80">
+                    Needs Target Course
+                  </span>
+                )}
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-900">
-                  {ctx.destination.country}
+                  {applicationTarget?.destinationCountry || ctx.destination.country || "Country not selected"}
                 </p>
                 <p className="text-xs font-semibold text-slate-800 mt-1">
-                  {ctx.destination.university}
+                  {applicationTarget?.universityName || ctx.destination.university || "University not selected"}
                 </p>
-                <p className="text-[11px] text-slate-500">
-                  {ctx.destination.city}
-                </p>
+                {ctx.destination.city && (
+                  <p className="text-[11px] text-slate-500">
+                    {ctx.destination.city}
+                  </p>
+                )}
               </div>
               <div className="pt-2 border-t border-slate-100">
                 <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">
                   Course
                 </span>
-                <p className="text-xs font-medium text-slate-800 mt-0.5">
-                  {ctx.destination.course}
-                </p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {ctx.destination.degreeLevel} · {ctx.destination.duration} · Intake {ctx.destination.intakeMonth} {ctx.destination.intakeYear}
-                </p>
+                {applicationTarget?.intendedCourse || ctx.destination.course ? (
+                  <>
+                    <p className="text-xs font-medium text-slate-800 mt-0.5">
+                      {applicationTarget?.intendedCourse || ctx.destination.course}
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {[
+                        applicationTarget?.degreeLevel || ctx.destination.degreeLevel,
+                        ctx.destination.duration,
+                        ctx.destination.intakeMonth || ctx.destination.intakeYear
+                          ? `Intake ${[ctx.destination.intakeMonth, ctx.destination.intakeYear].filter(Boolean).join(" ")}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400 italic mt-0.5">
+                    No target course specified. Please enter target course details below to enable academic alignment review.
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* Configure Application Target Form Toggle */}
+            {onTargetChange && applicationTarget && (
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">
+                    Configure Application Target
+                  </span>
+                  <button
+                    type="button"
+                    id="sop-edit-target-toggle-btn"
+                    onClick={() => setIsEditingTarget((v) => !v)}
+                    className="text-xs text-[#096491] hover:underline font-semibold cursor-pointer"
+                  >
+                    {isEditingTarget ? "Hide Form" : "Edit Target"}
+                  </button>
+                </div>
+
+                {isEditingTarget && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <ApplicationTargetForm
+                      value={applicationTarget}
+                      onChange={onTargetChange}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Financial Sponsorship Card & Logistics (Visa letters only) */}
             {showLogistics && (
@@ -570,7 +663,7 @@ export function ContextPanel({
           <div className="space-y-4">
             {alignmentResult ? (
               <>
-                {/* Status overview card */}
+                {/* 1. Status Overview & Vertical Stream Transition Card */}
                 <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -579,71 +672,219 @@ export function ContextPanel({
                     <AlignmentStatusBadge
                       status={alignmentResult.status}
                       isStale={Boolean(isStale || alignmentResult.isStale)}
+                      size="sm"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
-                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Past Study (Degree Completed)
-                      </span>
-                      <span className="text-xs font-bold text-slate-800 block break-words leading-snug">
+                  {/* Vertical Transition Timeline Card */}
+                  <div className="space-y-2">
+                    {/* Past Study Card */}
+                    <div className="p-3 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span>🎓</span>
+                          <span>Past Study</span>
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500 px-1.5 py-0.2 rounded bg-slate-200/70">
+                          Source
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-900 leading-snug break-words">
                         {alignmentResult.sourceField.domain.replace(/_/g, " ")}
-                        {alignmentResult.sourceField.subDomain
-                          ? ` (${alignmentResult.sourceField.subDomain.replace(/_/g, " ")})`
-                          : ""}
-                      </span>
+                      </p>
+                      {alignmentResult.sourceField.subDomain && (
+                        <p className="text-[11px] text-slate-500 font-medium break-words">
+                          {alignmentResult.sourceField.subDomain.replace(/_/g, " ")}
+                        </p>
+                      )}
+                      {alignmentResult.sourceField.rawSource && (
+                        <p className="text-[11px] text-slate-500/80 truncate pt-0.5" title={alignmentResult.sourceField.rawSource}>
+                          {alignmentResult.sourceField.rawSource}
+                        </p>
+                      )}
                     </div>
-                    <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Applying For (New Course)
+
+                    {/* Transition Direction Indicator */}
+                    <div className="flex items-center justify-center gap-2 py-0.5">
+                      <div className="h-px bg-slate-200 flex-1" />
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                        alignmentResult.status === "ALIGNED"
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : alignmentResult.status === "RELATED_TRANSITION"
+                          ? "bg-sky-50 text-sky-800 border-sky-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                        <span>
+                          {alignmentResult.status === "ALIGNED"
+                            ? "Aligned Track"
+                            : alignmentResult.status === "RELATED_TRANSITION"
+                            ? "Cognate Track"
+                            : "Stream Switch"}
+                        </span>
                       </span>
-                      <span className="text-xs font-bold text-slate-800 block break-words leading-snug">
+                      <div className="h-px bg-slate-200 flex-1" />
+                    </div>
+
+                    {/* Applying For Card */}
+                    <div className="p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/90 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <span>🎯</span>
+                          <span>Applying For</span>
+                        </span>
+                        <span className="text-[10px] font-semibold text-indigo-700 px-1.5 py-0.2 rounded bg-indigo-100/80">
+                          Target
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold text-indigo-950 leading-snug break-words">
                         {alignmentResult.targetField.domain.replace(/_/g, " ")}
-                        {alignmentResult.targetField.subDomain
-                          ? ` (${alignmentResult.targetField.subDomain.replace(/_/g, " ")})`
-                          : ""}
-                      </span>
+                      </p>
+                      {alignmentResult.targetField.subDomain && (
+                        <p className="text-[11px] text-indigo-700 font-medium break-words">
+                          {alignmentResult.targetField.subDomain.replace(/_/g, " ")}
+                        </p>
+                      )}
+                      {alignmentResult.targetField.rawSource && (
+                        <p className="text-[11px] text-indigo-600/80 truncate pt-0.5" title={alignmentResult.targetField.rawSource}>
+                          {alignmentResult.targetField.rawSource}
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-600 pt-2 border-t border-slate-100 leading-relaxed break-words font-normal">
+                  <p className="text-xs text-slate-600 pt-2 border-t border-slate-100 leading-relaxed font-normal break-words">
                     {alignmentResult.explanation}
                   </p>
                 </div>
 
-                {/* Banner if mismatch or stale or unknown */}
+                {/* 2. Safeguard & Action Callout Card */}
                 {(alignmentResult.status === "ACADEMIC_MISMATCH" ||
                   alignmentResult.status === "UNKNOWN" ||
                   isStale ||
                   alignmentResult.isStale) && (
-                  <AcademicMismatchBanner
-                    result={alignmentResult}
-                    isStale={Boolean(isStale || alignmentResult.isStale)}
-                    staleReason={staleReason || alignmentResult.staleReason}
-                    onReviewTargetCourse={() => handleTabChange("destination")}
-                    onConfirmIntentionalTransition={() => handleTabChange("alignment")}
-                    onResetResolution={onResetResolution ? () => onResetResolution() : undefined}
-                  />
+                  <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/90 shadow-xs space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-base shrink-0 mt-0.5">⚠️</span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-amber-950 leading-snug">
+                          {alignmentResult.status === "UNKNOWN" ? "Target Review Required" : "Stream Change Detected"}
+                        </h4>
+                        <p className="text-[11px] text-amber-900 mt-1 leading-relaxed">
+                          {alignmentResult.blockingReason ||
+                            "AI generation for sensitive sections (Why Course, Career Plan) is paused until a transition justification is recorded."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Sensitive Sections Paused Status */}
+                    <div className="bg-white/90 rounded-lg p-2.5 border border-amber-200/70 space-y-1.5 text-[11px]">
+                      <span className="font-bold text-slate-700 block text-[10px] uppercase tracking-wider">
+                        Protected Document Sections
+                      </span>
+                      <div className="flex items-center justify-between text-slate-700">
+                        <span className="flex items-center gap-1.5">
+                          <span>🔒</span>
+                          <span>Why This Course</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                          Paused
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-700">
+                        <span className="flex items-center gap-1.5">
+                          <span>🔒</span>
+                          <span>Career Plan</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                          Paused
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-1 flex flex-col gap-2">
+                      {onOpenJustifyModal && (
+                        <button
+                          type="button"
+                          onClick={onOpenJustifyModal}
+                          className="w-full py-2.5 px-3 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99]"
+                        >
+                          <span>Justify Transition in Studio</span>
+                          <span>↗</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleTabChange("destination")}
+                        className="w-full py-2 px-3 text-xs font-semibold rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-colors cursor-pointer text-center"
+                      >
+                        Review Target Course
+                      </button>
+                    </div>
+                  </div>
                 )}
 
-                {/* Transition Context Evaluation Panel */}
-                <TransitionContextPanel
-                  result={alignmentResult}
-                  initialContext={
-                    alignmentResult.safeEvidencePacket
-                      ? {
-                          reason: alignmentResult.safeEvidencePacket.justification,
-                        }
-                      : undefined
-                  }
-                  availableCertifications={availableCertifications}
-                  availableProjects={availableProjects}
-                  availableSkills={availableSkills}
-                  availableInternships={availableInternships}
-                  onSave={onConfirmIntentionalTransition || (() => {})}
-                  isLoading={isConfirmingTransition}
-                />
+                {/* 3. When Confirmed Transition */}
+                {alignmentResult.status === "CONFIRMED_TRANSITION" && (
+                  <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200/90 shadow-xs space-y-3">
+                    <div className="flex items-start gap-2.5">
+                      <span className="text-base shrink-0 mt-0.5">🛡️</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className="text-xs font-bold text-emerald-950 leading-snug">
+                            Transition Verified & Active
+                          </h4>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full">
+                            ✓ Unlocked
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-900 mt-1 leading-relaxed">
+                          A verified transition rationale is active. Sensitive sections (Why Course, Career Plan) are unlocked for AI generation.
+                        </p>
+                      </div>
+                    </div>
+
+                    {alignmentResult.safeEvidencePacket && (
+                      <div className="bg-white/90 rounded-lg p-2.5 border border-emerald-200/70 space-y-1.5 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-700 text-[10px] uppercase tracking-wider">
+                            Verified Rationale
+                          </span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                            {alignmentResult.safeEvidencePacket.bridgeItems.length} verified credentials
+                          </span>
+                        </div>
+                        <p className="text-slate-600 italic line-clamp-3 leading-relaxed">
+                          &ldquo;{alignmentResult.safeEvidencePacket.justification}&rdquo;
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="pt-1 flex items-center gap-2">
+                      {onOpenJustifyModal && (
+                        <button
+                          type="button"
+                          onClick={onOpenJustifyModal}
+                          className="flex-1 py-2 px-3 text-xs font-semibold rounded-lg bg-white hover:bg-slate-50 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer text-center"
+                        >
+                          Edit Justification ↗
+                        </button>
+                      )}
+                      {onResetResolution && (
+                        <button
+                          type="button"
+                          onClick={() => onResetResolution()}
+                          className="py-2 px-3 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">

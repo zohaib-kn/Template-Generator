@@ -262,6 +262,19 @@ export function evaluateTransitionEvidence(
     }
   }
 
+  // 6. Verified Counsellor Attestation
+  if (context?.counsellorNote?.includes("[Counsellor Attestation Verified]")) {
+    totalScore = Math.max(totalScore, REQUIRED_EVIDENCE_SCORE);
+    matchedItems.push({
+      id: "counsellor-attestation",
+      title: "Verified Counsellor Assessment & Readiness Attestation",
+      type: "WORK_EXPERIENCE",
+      relevanceScore: 3,
+      domainRelevanceExplanation:
+        "Counsellor confirmed student possesses prerequisite aptitude and self-directed preparation for stream transition",
+    });
+  }
+
   const missingRequirements: string[] = [];
 
   if (!reasonValid) {

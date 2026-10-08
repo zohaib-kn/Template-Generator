@@ -128,7 +128,7 @@ export function AlignmentStatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border shadow-xs transition-all ${config.bg} ${config.border} ${config.text} ${SIZE_CLASSES[size]} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full border shadow-xs transition-all ${config.bg} ${config.border} ${config.text} ${SIZE_CLASSES[size]} ${className}`}
       title={isStale ? "Stored resolution is stale — target program changed" : config.label}
     >
       {showIcon && (

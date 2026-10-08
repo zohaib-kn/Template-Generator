@@ -525,8 +525,12 @@ export function ResumeContextPanel({
                           Past Study (Degree Completed)
                         </span>
                         <span className="text-xs font-bold text-slate-900 block break-words leading-relaxed">
-                          {alignmentResult.sourceField.domain.replace(/_/g, " ")}
-                          {alignmentResult.sourceField.subDomain
+                          {alignmentResult.sourceField.domain === "UNKNOWN"
+                            ? "Not Specified"
+                            : alignmentResult.sourceField.domain.replace(/_/g, " ")}
+                          {alignmentResult.sourceField.subDomain &&
+                          alignmentResult.sourceField.subDomain !== "UNKNOWN_SUBDOMAIN" &&
+                          alignmentResult.sourceField.subDomain !== "UNKNOWN"
                             ? ` (${alignmentResult.sourceField.subDomain.replace(/_/g, " ")})`
                             : ""}
                         </span>
@@ -536,17 +540,38 @@ export function ResumeContextPanel({
                           Applying For (New Course)
                         </span>
                         <span className="text-xs font-bold text-slate-900 block break-words leading-relaxed">
-                          {alignmentResult.targetField.domain.replace(/_/g, " ")}
-                          {alignmentResult.targetField.subDomain
+                          {alignmentResult.targetField.domain === "UNKNOWN"
+                            ? "Not Specified"
+                            : alignmentResult.targetField.domain.replace(/_/g, " ")}
+                          {alignmentResult.targetField.subDomain &&
+                          alignmentResult.targetField.subDomain !== "UNKNOWN_SUBDOMAIN" &&
+                          alignmentResult.targetField.subDomain !== "UNKNOWN"
                             ? ` (${alignmentResult.targetField.subDomain.replace(/_/g, " ")})`
                             : ""}
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-600 pt-2.5 border-t border-slate-100 leading-relaxed font-normal break-words">
-                      {alignmentResult.explanation}
-                    </p>
+                    {alignmentResult.explanation && (
+                      <p className="text-xs text-slate-600 pt-2.5 border-t border-slate-100 leading-relaxed font-normal break-words">
+                        {alignmentResult.explanation}
+                      </p>
+                    )}
+
+                    {/* Integrated Unknown Advisory if degree could not be identified */}
+                    {alignmentResult.status === "UNKNOWN" && (
+                      <div
+                        id="resume-unknown-alignment-notice"
+                        className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-700 leading-relaxed flex items-start gap-2.5 shadow-2xs"
+                        role="status"
+                      >
+                        <span className="text-slate-500 font-bold text-sm shrink-0 mt-0.5">ℹ</span>
+                        <div>
+                          <strong className="text-slate-900 block mb-0.5">Verification Recommended</strong>
+                          We could not automatically match this degree with the target course. You can verify the student&apos;s education details in the Student tab or choose a standard course category.
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Informational Mismatch Advisory Notice */}
@@ -567,25 +592,6 @@ export function ResumeContextPanel({
                       </p>
                       <p className="text-[11px] text-amber-800 pt-1.5 border-t border-amber-200">
                         💡 <strong>Note:</strong> You can continue editing and download the Resume anytime.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Unknown domain callout */}
-                  {alignmentResult.status === "UNKNOWN" && (
-                    <div
-                      id="resume-unknown-alignment-notice"
-                      className="p-4 rounded-xl bg-slate-100 border border-slate-300 shadow-xs space-y-2.5 text-slate-800"
-                      role="status"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-600 text-sm">ℹ</span>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                          Field Check Needed
-                        </h4>
-                      </div>
-                      <p className="text-xs leading-relaxed text-slate-700 break-words">
-                        We could not automatically match this degree with the target course. You can verify the student&apos;s education details or choose a standard course category.
                       </p>
                     </div>
                   )}
@@ -637,7 +643,11 @@ export function ResumeContextPanel({
                         <span className="text-emerald-600 font-bold shrink-0 mt-0.5">✓</span>
                         <span className="leading-relaxed break-words">
                           <strong className="text-slate-800">Highlight Hands-on Projects:</strong> Showcase college or personal projects where the student built things in{" "}
-                          <span className="font-semibold text-slate-800">{alignmentResult.targetField.domain.replace(/_/g, " ")}</span>.
+                          <span className="font-semibold text-slate-800">
+                            {alignmentResult.targetField.domain === "UNKNOWN"
+                              ? "the target field"
+                              : alignmentResult.targetField.domain.replace(/_/g, " ")}
+                          </span>.
                         </span>
                       </li>
                       <li className="flex items-start gap-3">
@@ -653,6 +663,7 @@ export function ResumeContextPanel({
                   {/* Transition Confirmation Panel */}
                   <TransitionContextPanel
                     result={alignmentResult}
+                    layoutMode="stacked"
                     initialContext={
                       alignmentResult.safeEvidencePacket
                         ? {

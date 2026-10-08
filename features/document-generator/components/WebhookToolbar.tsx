@@ -58,7 +58,7 @@ export function WebhookToolbar({
   onStudentLoaded,
 }: WebhookToolbarProps = {}) {
   const { data, loadTestStudent, loadStudent, reset } = useDocumentState();
-  const { selectedStudentData, loadStatus: globalLoadStatus, selectedStudentId } = useGlobalStudent();
+  const { selectedStudentData, loadStatus: globalLoadStatus, selectedStudentId, loadSampleStudent } = useGlobalStudent();
 
   // Section A state
   const [sendStatus, setSendStatus] = useState<SendStatus>({ kind: "idle" });
@@ -110,9 +110,11 @@ export function WebhookToolbar({
   // Also reset fetchStatus if student is cleared
   useEffect(() => {
     if (!selectedStudentId) {
-      setFetchStatus({ kind: "idle" });
-      setAvailablePrograms([]);
-      setCurrentSnapshot(null);
+      queueMicrotask(() => {
+        setFetchStatus({ kind: "idle" });
+        setAvailablePrograms([]);
+        setCurrentSnapshot(null);
+      });
     }
   }, [selectedStudentId]);
 
@@ -194,6 +196,7 @@ export function WebhookToolbar({
             <button
               id="webhook-load-btn"
               onClick={() => {
+                loadSampleStudent("aarav-mehta");
                 loadTestStudent();
                 if (onStudentLoaded) onStudentLoaded();
                 setSendStatus({ kind: "idle" });

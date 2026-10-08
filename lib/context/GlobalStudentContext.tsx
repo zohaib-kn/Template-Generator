@@ -29,12 +29,20 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
 import { mapCrmToNormalizedStudent } from "@/services/normalization/mapCrmToNormalizedStudent";
 import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
+import { getSampleAaravMehtaSnapshot, getSampleAafiaAmeenSnapshot } from "@/lib/sampleStudents";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & Storage Helpers
 // ---------------------------------------------------------------------------
 
-const TARGET_STORAGE_KEY = "template_gen_active_target";
+export const TARGET_STORAGE_KEY_PREFIX = "template_gen_active_target";
+
+export function getAppTargetSessionStorageKey(studentId?: string | null): string {
+  if (studentId && studentId.trim().length > 0) {
+    return `${TARGET_STORAGE_KEY_PREFIX}_${studentId.trim()}`;
+  }
+  return `${TARGET_STORAGE_KEY_PREFIX}_general`;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -73,6 +81,7 @@ interface GlobalStudentContextValue {
 
   // Actions
   selectStudent: (id: string) => void;
+  loadSampleStudent: (key: "aarav-mehta" | "aafia-ameen") => void;
   clearStudent: () => void;
 }
 
@@ -92,11 +101,14 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const [loadStatus, setLoadStatus] = useState<StudentLoadStatus>({ kind: "idle" });
   const [lastLoadedStudentId, setLastLoadedStudentId] = useState<string | null>(null);
 
-  // Application Target — persisted in sessionStorage so tab switches and refreshes retain target
+  // Application Target — persisted in sessionStorage scoped to the active student
   const [applicationTarget, setApplicationTarget] = useState<ApplicationTarget>(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = sessionStorage.getItem(TARGET_STORAGE_KEY);
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlStudentId = urlParams.get("studentId");
+        const key = getAppTargetSessionStorageKey(urlStudentId);
+        const saved = sessionStorage.getItem(key);
         if (saved) return JSON.parse(saved);
       } catch {}
     }
@@ -107,13 +119,70 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        sessionStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(applicationTarget));
+        const key = getAppTargetSessionStorageKey(selectedStudentId);
+        sessionStorage.setItem(key, JSON.stringify(applicationTarget));
       } catch {}
     }
-  }, [applicationTarget]);
+  }, [applicationTarget, selectedStudentId]);
 
   const updateApplicationTarget = useCallback((patch: Partial<ApplicationTarget>) => {
     setApplicationTarget((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  // ── Load Sample Student (Aarav Mehta or Aafia Ameen) ─────────────────────
+  const loadSampleStudent = useCallback((key: "aarav-mehta" | "aafia-ameen") => {
+    const isAarav = key === "aarav-mehta";
+    const studentId = isAarav ? "sample-aarav-mehta" : "sample-aafia-ameen";
+    const studentName = isAarav ? "Aarav Mehta" : "Aafia Ameen";
+    const snapshot = isAarav ? getSampleAaravMehtaSnapshot() : getSampleAafiaAmeenSnapshot();
+
+    // Update URL query param for consistency
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("studentId") !== studentId) {
+          url.searchParams.set("studentId", studentId);
+          window.history.replaceState({}, "", url.toString());
+        }
+      } catch {}
+    }
+
+    // Determine target scoped to this sample student
+    let targetToSet: ApplicationTarget = {};
+    if (typeof window !== "undefined") {
+      try {
+        const savedKey = getAppTargetSessionStorageKey(studentId);
+        const saved = sessionStorage.getItem(savedKey);
+        if (saved) {
+          targetToSet = JSON.parse(saved);
+        }
+      } catch {}
+    }
+
+    if (Object.keys(targetToSet).length === 0) {
+      try {
+        const normalized = mapCrmToNormalizedStudent(snapshot, { source: "cached-snapshot" });
+        const { target } = mapNormalizedToResume(normalized);
+        targetToSet = target || {};
+      } catch {
+        targetToSet = {};
+      }
+    }
+
+    setSelectedStudentId(studentId);
+    setSelectedStudentName(studentName);
+    setSelectedStudentData(snapshot);
+    setLoadStatus({ kind: "success" });
+    setApplicationTarget(targetToSet);
+
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(
+          getAppTargetSessionStorageKey(studentId),
+          JSON.stringify(targetToSet)
+        );
+      } catch {}
+    }
   }, []);
 
   // ── Fetch the student list on mount ──────────────────────────────────────
@@ -138,12 +207,23 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    fetchStudentList();
+    queueMicrotask(() => {
+      fetchStudentList();
+    });
   }, [fetchStudentList]);
 
   // ── Select a student — fetches their full CRM data ───────────────────────
   const selectStudent = useCallback(async (id: string) => {
     if (!id) return;
+
+    if (id === "sample-aarav-mehta") {
+      loadSampleStudent("aarav-mehta");
+      return;
+    }
+    if (id === "sample-aafia-ameen") {
+      loadSampleStudent("aafia-ameen");
+      return;
+    }
 
     // Update URL query parameter so browser URL stays in sync without page reloads
     if (typeof window !== "undefined") {
@@ -156,12 +236,22 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
       } catch {}
     }
 
+    // Check if there is an existing saved target for this student in sessionStorage
+    let savedTarget: ApplicationTarget | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        const raw = sessionStorage.getItem(getAppTargetSessionStorageKey(id));
+        if (raw) savedTarget = JSON.parse(raw);
+      } catch {}
+    }
+
     // Find the name from our list immediately for instant UI feedback
     const found = students.find((s) => s.id === id);
     setSelectedStudentId(id);
     setSelectedStudentName(found?.name ?? null);
     setSelectedStudentData(null);
     setLoadStatus({ kind: "loading" });
+    setApplicationTarget(savedTarget || {});
 
     try {
       const res = await fetch(`/api/student/${id}`, {
@@ -185,32 +275,37 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
         setSelectedStudentName(fullName);
       }
 
-      // Auto-extract application target from CRM snapshot — clean replacement for the new student
-      try {
-        const normalized = mapCrmToNormalizedStudent(snapshot, { source: "senior-crm-api" });
-        const { target } = mapNormalizedToResume(normalized);
-        setApplicationTarget(target || {});
-      } catch (err) {
-        console.warn("[GlobalStudentContext] Could not derive target from snapshot:", err);
-        setApplicationTarget({});
+      // Auto-extract application target from CRM snapshot if not already saved in sessionStorage
+      if (!savedTarget || Object.keys(savedTarget).length === 0) {
+        try {
+          const normalized = mapCrmToNormalizedStudent(snapshot, { source: "senior-crm-api" });
+          const { target } = mapNormalizedToResume(normalized);
+          const derived = target || {};
+          setApplicationTarget(derived);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem(getAppTargetSessionStorageKey(id), JSON.stringify(derived));
+          }
+        } catch (err) {
+          console.warn("[GlobalStudentContext] Could not derive target from snapshot:", err);
+          setApplicationTarget({});
+        }
       }
 
       setLoadStatus({ kind: "success" });
     } catch {
       setLoadStatus({ kind: "error", message: "Network error loading student data." });
     }
-  }, [students]);
+  }, [students, loadSampleStudent]);
 
   const clearStudent = useCallback(() => {
-    setSelectedStudentId(null);
-    setSelectedStudentName(null);
-    setSelectedStudentData(null);
-    setLoadStatus({ kind: "idle" });
-    setApplicationTarget({});
-    setLastLoadedStudentId(null);
     if (typeof window !== "undefined") {
       try {
-        sessionStorage.removeItem(TARGET_STORAGE_KEY);
+        if (selectedStudentId) {
+          sessionStorage.removeItem(getAppTargetSessionStorageKey(selectedStudentId));
+          sessionStorage.removeItem(`template_gen_active_resume_${selectedStudentId}`);
+        }
+        sessionStorage.removeItem(getAppTargetSessionStorageKey(null));
+        sessionStorage.removeItem("template_gen_active_target");
         sessionStorage.removeItem("template_gen_active_resume_data");
         const url = new URL(window.location.href);
         if (url.searchParams.has("studentId")) {
@@ -219,7 +314,13 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
         }
       } catch {}
     }
-  }, []);
+    setSelectedStudentId(null);
+    setSelectedStudentName(null);
+    setSelectedStudentData(null);
+    setLoadStatus({ kind: "idle" });
+    setApplicationTarget({});
+    setLastLoadedStudentId(null);
+  }, [selectedStudentId]);
 
   // ── Auto-select student if studentId is present in URL search params on mount ─
   const hasInitializedFromUrlRef = useRef(false);
@@ -231,7 +332,9 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
     const urlParams = new URLSearchParams(window.location.search);
     const urlStudentId = urlParams.get("studentId");
     if (urlStudentId) {
-      selectStudent(urlStudentId);
+      queueMicrotask(() => {
+        selectStudent(urlStudentId);
+      });
     }
   }, [selectStudent]);
 
@@ -269,6 +372,7 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
         setApplicationTarget,
         updateApplicationTarget,
         selectStudent,
+        loadSampleStudent,
         clearStudent,
       }}
     >

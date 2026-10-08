@@ -18,10 +18,17 @@ import { mapCrmToNormalizedStudent } from "@/services/normalization/mapCrmToNorm
 import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
 
 // ---------------------------------------------------------------------------
-// Constants
+// Constants & Storage Helpers
 // ---------------------------------------------------------------------------
 
-const RESUME_STORAGE_KEY = "template_gen_active_resume_data";
+export const RESUME_STORAGE_KEY_PREFIX = "template_gen_active_resume";
+
+export function getResumeSessionStorageKey(studentId?: string | null): string {
+  if (studentId && studentId.trim().length > 0) {
+    return `${RESUME_STORAGE_KEY_PREFIX}_${studentId.trim()}`;
+  }
+  return `${RESUME_STORAGE_KEY_PREFIX}_data`;
+}
 
 // ---------------------------------------------------------------------------
 // Context shape
@@ -48,7 +55,10 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
     () => {
       if (typeof window !== "undefined") {
         try {
-          const saved = sessionStorage.getItem(RESUME_STORAGE_KEY);
+          const urlParams = new URLSearchParams(window.location.search);
+          const initialStudentId = urlParams.get("studentId");
+          const storageKey = getResumeSessionStorageKey(initialStudentId);
+          const saved = sessionStorage.getItem(storageKey);
           if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed && typeof parsed === "object") {
@@ -67,6 +77,31 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (selectedStudentData && selectedStudentId && selectedStudentId !== currentLoadedIdRef.current) {
       currentLoadedIdRef.current = selectedStudentId;
+
+      // 1. Check if there is an active session draft for THIS specific student in sessionStorage
+      if (typeof window !== "undefined") {
+        try {
+          const studentStorageKey = getResumeSessionStorageKey(selectedStudentId);
+          const saved = sessionStorage.getItem(studentStorageKey);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === "object") {
+              dispatch({ type: "LOAD_STUDENT", payload: parsed });
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("[DocumentProvider] Error reading student session storage:", err);
+        }
+      }
+
+      // 2. If it's sample Aarav Mehta, load full testStudentData fixture
+      if (selectedStudentId === "sample-aarav-mehta") {
+        dispatch({ type: "LOAD_TEST_STUDENT" });
+        return;
+      }
+
+      // 3. Otherwise load fresh normalized data from CRM
       try {
         const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source: "senior-crm-api" });
         const { student } = mapNormalizedToResume(normalized);
@@ -76,18 +111,34 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       }
     } else if (!selectedStudentId && currentLoadedIdRef.current !== null) {
       currentLoadedIdRef.current = null;
+      if (typeof window !== "undefined") {
+        try {
+          const anonKey = getResumeSessionStorageKey(null);
+          const saved = sessionStorage.getItem(anonKey);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === "object") {
+              dispatch({ type: "LOAD_STUDENT", payload: parsed });
+              return;
+            }
+          }
+        } catch {}
+      }
+      dispatch({ type: "RESET" });
     }
   }, [selectedStudentData, selectedStudentId]);
 
+  // Keep sessionStorage in sync for the active student
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        sessionStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(data));
+        const activeKey = getResumeSessionStorageKey(selectedStudentId);
+        sessionStorage.setItem(activeKey, JSON.stringify(data));
       } catch {
         // ignore storage error
       }
     }
-  }, [data]);
+  }, [data, selectedStudentId]);
 
   const value = useMemo(() => ({ data, dispatch }), [data]);
 

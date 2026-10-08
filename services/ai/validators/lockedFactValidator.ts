@@ -56,11 +56,11 @@ export function validateLockedFacts(
     // Direct substring check
     let matched = normalizedDoc.includes(normVal);
 
-    // If not matched directly, check without commas for numerical/currency amounts (e.g., "39,00,000" vs "3900000")
+    // If not matched directly, check without formatting for numerical/currency amounts (e.g., "€25,000" vs "25000", "75%" vs "75")
     if (!matched && /[0-9]/.test(normVal)) {
-      const strippedVal = normVal.replace(/,/g, "");
-      const strippedDoc = normalizedDoc.replace(/,/g, "");
-      if (strippedDoc.includes(strippedVal)) {
+      const strippedVal = normVal.replace(/[,%€$₹£]/g, "").trim();
+      const strippedDoc = normalizedDoc.replace(/[,%€$₹£]/g, "");
+      if (strippedVal.length > 0 && strippedDoc.includes(strippedVal)) {
         matched = true;
       }
     }

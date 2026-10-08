@@ -36,6 +36,7 @@ import { buildImportedStudentContext } from "../lib/buildImportedStudentContext"
 import { useAcademicAlignment } from "@/features/academic-alignment/hooks/useAcademicAlignment";
 import { isSensitiveSection } from "@/services/academicAlignment/academicAlignmentEngine";
 import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
+import { TransitionJustificationModal } from "./TransitionJustificationModal";
 import type { NormalizedQualification } from "@/types/normalizedStudent";
 
 /**
@@ -102,6 +103,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     selectedStudentData,
     selectedStudentId,
     selectStudent,
+    loadSampleStudent,
     clearStudent: clearGlobalStudent,
     applicationTarget,
     setApplicationTarget,
@@ -124,11 +126,39 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     [selectedStudentData, currentSource, selectedProgramId]
   );
 
+  const currentStudentName = (
+    (selectedStudentData?.student?.personalDetails
+      ? [selectedStudentData.student.personalDetails.firstName, selectedStudentData.student.personalDetails.lastName]
+          .filter(Boolean)
+          .join(" ")
+      : "") ||
+    loadedStudentName ||
+    normalizedStudent?.personal?.fullName ||
+    ctx.student.fullName ||
+    ""
+  ).trim().toLowerCase();
+
+  const resumeStudentName = (resumeData.personal?.fullName || "").trim().toLowerCase();
+
+  const isResumeForCurrentStudent = useMemo(() => {
+    // In single-student manual mode without CRM selection and without loaded draft:
+    if (!selectedStudentId && !loadedStudentName) {
+      return true;
+    }
+    return Boolean(
+      currentStudentName &&
+      resumeStudentName &&
+      (resumeStudentName === currentStudentName ||
+        resumeStudentName.includes(currentStudentName) ||
+        currentStudentName.includes(resumeStudentName))
+    );
+  }, [selectedStudentId, loadedStudentName, currentStudentName, resumeStudentName]);
+
   const fallbackQualifications: NormalizedQualification[] = useMemo(() => {
     if (normalizedStudent?.academics.qualifications && normalizedStudent.academics.qualifications.length > 0) {
       return normalizedStudent.academics.qualifications;
     }
-    if (resumeData.education && resumeData.education.length > 0) {
+    if (isResumeForCurrentStudent && resumeData.education && resumeData.education.length > 0) {
       return resumeData.education.map((edu, idx) => ({
         id: edu.id || `edu-${idx}`,
         qualification: edu.qualification || "Degree",
@@ -149,12 +179,22 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       ];
     }
     return [];
-  }, [normalizedStudent, resumeData.education, ctx.academics]);
+  }, [normalizedStudent, isResumeForCurrentStudent, resumeData.education, ctx.academics]);
+
+  const hasActiveStudent = Boolean(
+    selectedStudentId ||
+    loadedStudentName ||
+    (isResumeForCurrentStudent && resumeData.personal?.fullName?.trim()) ||
+    currentSource !== "test-data"
+  );
 
   const targetProgram: NormalizedAppliedProgram | null = useMemo(() => {
     if (normalizedStudent && selectedProgramId) {
       const match = normalizedStudent.applications.all.find((p) => p.id === selectedProgramId);
       if (match) return match;
+    }
+    if (normalizedStudent?.applications?.activeProgram?.course) {
+      return normalizedStudent.applications.activeProgram;
     }
     if (applicationTarget.intendedCourse || applicationTarget.universityName) {
       return {
@@ -165,6 +205,23 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         degreeLevel: applicationTarget.degreeLevel || ctx.destination.degreeLevel || "Master's",
         courseCategory: applicationTarget.courseCategory || "Other",
       };
+    }
+    if (currentSource === "imported-sop" && ctx.destination.course) {
+      return {
+        id: selectedProgramId || "current-program",
+        university: ctx.destination.university || "Target University",
+        course: ctx.destination.course,
+        country: ctx.destination.country || "Target Country",
+        degreeLevel: ctx.destination.degreeLevel || "Master's",
+        courseCategory: "Other",
+      };
+    }
+    // When an active student is loaded without an explicit application target course,
+    // do NOT fall back to dummy mock template destination ("Bachelor's Degree in Information Engineering").
+    // Return null so academic alignment correctly evaluates to UNKNOWN (Needs Counsellor Review)
+    // in exact parity with Resume Builder.
+    if (hasActiveStudent) {
+      return null;
     }
     if (ctx.destination.course) {
       return {
@@ -177,31 +234,38 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       };
     }
     return null;
-  }, [normalizedStudent, selectedProgramId, ctx.destination, applicationTarget]);
+  }, [normalizedStudent, selectedProgramId, ctx.destination, applicationTarget, currentSource, hasActiveStudent]);
 
-  const effectiveStudentId = selectedStudentId || (loadedStudentName ? `student-${loadedStudentName.toLowerCase().replace(/\s+/g, "-")}` : null);
-  const effectiveProgramId = selectedProgramId || targetProgram?.id || null;
+  const effectiveStudentId =
+    selectedStudentId ||
+    (loadedStudentName ? `student-${loadedStudentName.toLowerCase().replace(/\s+/g, "-")}` : null) ||
+    (ctx.student.fullName ? `student-${ctx.student.fullName.toLowerCase().replace(/\s+/g, "-")}` : "student-default");
+  const effectiveProgramId = selectedProgramId || targetProgram?.id || "current-program";
 
-  // ── Sanitized Evidence from Resume Builder ───────────────────────────────
+  // ── Sanitized Evidence from Resume Builder (Scoped to Active Student) ──────
   const availableCertifications = useMemo(() => {
+    if (!isResumeForCurrentStudent) return [];
     return (resumeData.certifications ?? [])
       .filter((c): c is typeof c & { name: string } => Boolean(c.name && c.name.trim()))
       .map((c) => ({ id: c.id, name: c.name, issuer: c.provider }));
-  }, [resumeData.certifications]);
+  }, [resumeData.certifications, isResumeForCurrentStudent]);
 
   const availableProjects = useMemo(() => {
+    if (!isResumeForCurrentStudent) return [];
     return (resumeData.academicProjects ?? [])
       .filter((p): p is typeof p & { title: string } => Boolean(p.title && p.title.trim()))
       .map((p) => ({ id: p.id, title: p.title, description: p.description }));
-  }, [resumeData.academicProjects]);
+  }, [resumeData.academicProjects, isResumeForCurrentStudent]);
 
   const availableSkills = useMemo(() => {
+    if (!isResumeForCurrentStudent) return [];
     return (resumeData.skills ?? [])
       .filter((s): s is typeof s & { name: string } => Boolean(s.name && s.name.trim()))
       .map((s) => ({ id: s.id, name: s.name }));
-  }, [resumeData.skills]);
+  }, [resumeData.skills, isResumeForCurrentStudent]);
 
   const availableInternships = useMemo(() => {
+    if (!isResumeForCurrentStudent) return [];
     return (resumeData.internships ?? [])
       .filter((i): i is typeof i & { role: string } => Boolean(i.role && i.role.trim()))
       .map((i) => ({
@@ -210,10 +274,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         organization: i.company,
         description: i.description,
       }));
-  }, [resumeData.internships]);
+  }, [resumeData.internships, isResumeForCurrentStudent]);
 
   const {
     result: alignmentResult,
+    resolution: alignmentResolution,
     isStale,
     staleReason,
     loading: alignmentLoading,
@@ -248,6 +313,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isContextCollapsed, setIsContextCollapsed] = useState(false);
   const [contextPanelTab, setContextPanelTab] = useState<PanelTab>("student");
+  const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
     initialDraft ? `Document ${initialDraft.id} loaded` : null
   );
@@ -538,29 +604,31 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         }
       }
 
-      setCurrentSnapshot(selectedStudentData);
+      queueMicrotask(() => {
+        setCurrentSnapshot(selectedStudentData);
 
-      const payload: SopStudentLoadedPayload = {
-        ctx: sopCtx,
-        studentId: selectedStudentId,
-        studentName,
-        source: dataSource,
-        availablePrograms: normalized.applications.all,
-        selectedProgramId: activeProgId,
-      };
+        const payload: SopStudentLoadedPayload = {
+          ctx: sopCtx,
+          studentId: selectedStudentId,
+          studentName,
+          source: dataSource,
+          availablePrograms: normalized.applications.all,
+          selectedProgramId: activeProgId,
+        };
 
-      const isSwitchingStudents = Boolean(
-        loadedStudentName &&
-        studentName &&
-        loadedStudentName.trim().toLowerCase() !== studentName.trim().toLowerCase()
-      );
+        const isSwitchingStudents = Boolean(
+          loadedStudentName &&
+          studentName &&
+          loadedStudentName.trim().toLowerCase() !== studentName.trim().toLowerCase()
+        );
 
-      if (hasEdits && isSwitchingStudents) {
-        setPendingPayload(payload);
-        setShowConfirmModal(true);
-      } else {
-        applyStudentPayload(payload);
-      }
+        if (hasEdits && isSwitchingStudents) {
+          setPendingPayload(payload);
+          setShowConfirmModal(true);
+        } else {
+          applyStudentPayload(payload);
+        }
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStudentData, selectedStudentId]);
@@ -577,65 +645,85 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       );
 
       if (hasPersonal || hasTarget) {
-        setCtx((prev) => {
-          const next = { ...prev };
-          if (resumeData.personal?.fullName?.trim()) {
-            next.student = {
-              ...next.student,
-              fullName: resumeData.personal.fullName.trim(),
-              email: resumeData.personal.email || next.student.email,
-              phone: resumeData.personal.phone || next.student.phone,
-              address: resumeData.personal.address || next.student.address,
-              nationality: resumeData.personal.nationality || next.student.nationality,
-              passportNumber: resumeData.personal.passportNumber || next.student.passportNumber,
-            };
-          }
-          if (resumeData.education && resumeData.education.length > 0) {
-            const topEdu = resumeData.education[0];
-            next.academics = {
-              ...next.academics,
-              latestQualification: topEdu.qualification || next.academics.latestQualification,
-              institution: topEdu.institution || next.academics.institution,
-              subjects: topEdu.fieldOfStudy || next.academics.subjects,
-              completionYear: topEdu.endDate ? topEdu.endDate.slice(0, 4) : next.academics.completionYear,
-            };
-          }
-          if (applicationTarget.universityName) {
-            next.destination = { ...next.destination, university: applicationTarget.universityName };
-          }
-          if (applicationTarget.intendedCourse) {
-            next.destination = { ...next.destination, course: applicationTarget.intendedCourse };
-          }
-          if (applicationTarget.destinationCountry) {
-            next.destination = { ...next.destination, country: applicationTarget.destinationCountry };
-          }
-          if (applicationTarget.degreeLevel) {
-            next.destination = { ...next.destination, degreeLevel: applicationTarget.degreeLevel };
-          }
-          return next;
-        });
+        queueMicrotask(() => {
+          setCtx((prev) => {
+            const next = { ...prev };
+            if (resumeData.personal?.fullName?.trim()) {
+              next.student = {
+                ...next.student,
+                fullName: resumeData.personal.fullName.trim(),
+                email: resumeData.personal.email || next.student.email,
+                phone: resumeData.personal.phone || next.student.phone,
+                address: resumeData.personal.address || next.student.address,
+                nationality: resumeData.personal.nationality || next.student.nationality,
+                passportNumber: resumeData.personal.passportNumber || next.student.passportNumber,
+              };
+            }
+            if (resumeData.education && resumeData.education.length > 0) {
+              const topEdu = resumeData.education[0];
+              next.academics = {
+                ...next.academics,
+                latestQualification: topEdu.qualification || next.academics.latestQualification,
+                institution: topEdu.institution || next.academics.institution,
+                subjects: topEdu.fieldOfStudy || next.academics.subjects,
+                completionYear: topEdu.endDate ? topEdu.endDate.slice(0, 4) : next.academics.completionYear,
+              };
+            }
+            // If switching from mock template data, do not keep mock destination for an active student
+            const isMockDestination =
+              prev.destination.course === "Bachelor's Degree in Information Engineering" &&
+              prev.destination.university === "Politecnico di Torino";
 
-        if (resumeData.personal?.fullName?.trim()) {
-          setLoadedStudentName(resumeData.personal.fullName.trim());
-          setCurrentSource("live-crm");
-        }
+            if (applicationTarget.universityName || isMockDestination) {
+              next.destination = { ...next.destination, university: applicationTarget.universityName || "" };
+            }
+            if (applicationTarget.intendedCourse || isMockDestination) {
+              next.destination = { ...next.destination, course: applicationTarget.intendedCourse || "" };
+            }
+            if (applicationTarget.destinationCountry || isMockDestination) {
+              next.destination = { ...next.destination, country: applicationTarget.destinationCountry || "" };
+            }
+            if (applicationTarget.degreeLevel || isMockDestination) {
+              next.destination = { ...next.destination, degreeLevel: applicationTarget.degreeLevel || "" };
+            }
+            return next;
+          });
+
+          if (resumeData.personal?.fullName?.trim()) {
+            setLoadedStudentName(resumeData.personal.fullName.trim());
+            setCurrentSource("live-crm");
+          }
+        });
       }
     }
   }, [selectedStudentId, resumeData, applicationTarget]);
 
   // ── Sync destination whenever applicationTarget is updated in the workspace ──
   useEffect(() => {
-    if (applicationTarget.universityName || applicationTarget.intendedCourse || applicationTarget.destinationCountry) {
-      setCtx((prev) => ({
-        ...prev,
-        destination: {
-          ...prev.destination,
-          university: applicationTarget.universityName || prev.destination.university,
-          course: applicationTarget.intendedCourse || prev.destination.course,
-          country: applicationTarget.destinationCountry || prev.destination.country,
-          degreeLevel: applicationTarget.degreeLevel || prev.destination.degreeLevel,
-        },
-      }));
+    if (
+      applicationTarget.universityName ||
+      applicationTarget.intendedCourse ||
+      applicationTarget.destinationCountry ||
+      applicationTarget.degreeLevel
+    ) {
+      queueMicrotask(() => {
+        setCtx((prev) => {
+          const isMockDestination =
+            prev.destination.course === "Bachelor's Degree in Information Engineering" &&
+            prev.destination.university === "Politecnico di Torino";
+
+          return {
+            ...prev,
+            destination: {
+              ...prev.destination,
+              university: applicationTarget.universityName || (isMockDestination ? "" : prev.destination.university),
+              course: applicationTarget.intendedCourse || (isMockDestination ? "" : prev.destination.course),
+              country: applicationTarget.destinationCountry || (isMockDestination ? "" : prev.destination.country),
+              degreeLevel: applicationTarget.degreeLevel || (isMockDestination ? "" : prev.destination.degreeLevel),
+            },
+          };
+        });
+      });
     }
   }, [applicationTarget]);
 
@@ -1205,8 +1293,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                 setContextPanelTab("destination");
               }}
               onConfirmIntentionalTransition={() => {
-                setIsContextCollapsed(false);
-                setContextPanelTab("alignment");
+                setIsJustifyModalOpen(true);
               }}
               onResetResolution={resetResolution}
             />
@@ -1327,7 +1414,10 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                 <div className="pt-3 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setUseSampleData(true)}
+                    onClick={() => {
+                      loadSampleStudent("aafia-ameen");
+                      setUseSampleData(true);
+                    }}
                     className="text-xs text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors"
                   >
                     Or explore template with sample applicant (Aafia Ameen) →
@@ -1385,6 +1475,12 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           availableInternships={availableInternships}
           activeTab={contextPanelTab}
           onTabChange={setContextPanelTab}
+          applicationTarget={applicationTarget}
+          onTargetChange={setApplicationTarget}
+          availablePrograms={availablePrograms}
+          selectedProgramId={selectedProgramId}
+          onProgramChange={handleProgramChange}
+          onOpenJustifyModal={() => setIsJustifyModalOpen(true)}
         />
       </div>
 
@@ -1481,6 +1577,46 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         studentName={loadedStudentName || ctx.student.fullName}
         ctx={ctx}
       />
+
+      {/* Transition Justification Modal */}
+      {alignmentResult && (
+        <TransitionJustificationModal
+          isOpen={isJustifyModalOpen}
+          onClose={() => setIsJustifyModalOpen(false)}
+          result={alignmentResult}
+          initialContext={
+            alignmentResolution?.transitionContext ||
+            (alignmentResult.safeEvidencePacket
+              ? { reason: alignmentResult.safeEvidencePacket.justification }
+              : undefined)
+          }
+          studentName={
+            currentStudentName
+              ? currentStudentName
+                  .split(" ")
+                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                  .join(" ")
+              : ctx.student.fullName || undefined
+          }
+          availableCertifications={availableCertifications}
+          availableProjects={availableProjects}
+          availableSkills={availableSkills}
+          availableInternships={availableInternships}
+          onConfirm={async (transitionCtx) => {
+            const success = await confirmIntentionalTransition(transitionCtx);
+            if (success) {
+              setIsJustifyModalOpen(false);
+              setAiBannerNotice({
+                type: "success",
+                message: "✓ Intentional academic transition confirmed and verified with supporting evidence. AI generation unlocked.",
+              });
+              return true;
+            }
+            return false;
+          }}
+          isLoading={alignmentLoading}
+        />
+      )}
 
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}
       <div

@@ -222,7 +222,7 @@ export interface AcademicAlignmentResult {
 export interface AlignmentComputeInput {
   qualifications: NormalizedQualification[];
   workExperience?: NormalizedWorkExperience[];
-  targetProgram: NormalizedAppliedProgram;
+  targetProgram?: NormalizedAppliedProgram | null;
   transitionContext?: TransitionContext | null;
   certifications?: Array<{ id: string; name: string; issuer?: string }>;
   academicProjects?: Array<{ id: string; title: string; description?: string }>;
