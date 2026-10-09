@@ -5,7 +5,6 @@ import { useDocumentState } from "../hooks/useDocumentState";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { useStudentAcademicProfile } from "../context/AcademicProfileContext";
-import { FieldAlignmentBadge } from "../components/domain";
 import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
 
 export function AboutMeForm() {
@@ -16,7 +15,6 @@ export function AboutMeForm() {
     targetCourse,
     isTransition,
     targetCatalog,
-    evaluateField,
   } = useStudentAcademicProfile();
 
   const currentText = data.aboutMe ?? "";
@@ -28,9 +26,10 @@ export function AboutMeForm() {
     return `Dedicated graduate with an academic background in ${primaryDegree} (${sourceCatalog.displayName}), with demonstrated strengths in ${sourceCatalog.skills.domain.slice(0, 2).join(", ")}, and ${sourceCatalog.skills.transferable[0]}. Seeking to deepen academic expertise and research contribution in postgraduate studies.`;
   }, [primaryDegree, sourceCatalog, isTransition, targetCourse, targetCatalog]);
 
-  const evaluation = useMemo(() => {
-    return evaluateField(currentText);
-  }, [evaluateField, currentText]);
+  // NOTE: Domain evaluation is intentionally excluded from this free-text biography field.
+  // evaluateField() is designed for short structured entries (roles, skills, project titles).
+  // Running it on AI-generated prose causes false DIVERGENT alerts when subjects like
+  // "Social Science" are mentioned in passing. See: Approach 3 fix.
 
   return (
     <div className="space-y-4 pt-2">
@@ -51,11 +50,7 @@ export function AboutMeForm() {
           fieldName="aboutMe"
         />
         <div className="flex items-center justify-between mt-1">
-          <div>
-            {currentText && evaluation.status === "DIVERGENT" && (
-              <FieldAlignmentBadge evaluation={evaluation} />
-            )}
-          </div>
+          <div />
           <p className="text-[11px] text-slate-400 text-right">
             {currentText.length} chars
           </p>

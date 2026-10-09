@@ -109,15 +109,26 @@ export function AcademicProfileProvider({
 }: AcademicProfileProviderProps) {
   const { data } = useDocumentState();
 
-  // 1. Resolve normalized qualifications
+  // 1. Resolve normalized qualifications with subjects and levelOfStudy awareness
   const qualifications: NormalizedQualification[] = useMemo(() => {
-    return (data.education ?? []).map((edu, idx) => ({
-      id: edu.id || `edu-${idx}`,
-      qualification: edu.qualification || "Degree",
-      fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
-      institution: edu.institution,
-      completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
-    }));
+    return (data.education ?? []).map((edu, idx) => {
+      const extractedSubjects =
+        edu.description?.match(/Subjects:\s*([^|]+)/i)?.[1]?.trim() || undefined;
+
+      const is12th = /\b(12th|higher\s*secondary|senior\s*secondary)\b/i.test(edu.qualification || "");
+      const is10th = /\b(10th|secondary)\b/i.test(edu.qualification || "");
+      const levelOfStudy = is12th ? "12th" : is10th ? "10th" : undefined;
+
+      return {
+        id: edu.id || `edu-${idx}`,
+        qualification: edu.qualification || "Degree",
+        fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
+        institution: edu.institution,
+        levelOfStudy,
+        subjects: extractedSubjects,
+        completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
+      };
+    });
   }, [data.education]);
 
   // 2. Classify Source Domain
@@ -149,13 +160,25 @@ export function AcademicProfileProvider({
   const targetDomain = targetField.domain;
 
   const primaryDegree = useMemo(() => {
-    const primary = (data.education ?? []).find(
+    const degrees = data.education ?? [];
+    if (degrees.length === 0) return "Degree";
+
+    // 1. Check for tertiary/college degree (B.Tech, B.Sc, BA, Master's, etc.)
+    const tertiary = degrees.find(
       (e) =>
         e.qualification &&
-        !e.qualification.toLowerCase().includes("10th") &&
-        !e.qualification.toLowerCase().includes("12th")
+        !/\b(10th|12th|secondary|high\s*school)\b/i.test(e.qualification)
     );
-    return primary?.qualification || data.education?.[0]?.qualification || "Degree";
+    if (tertiary?.qualification) return tertiary.qualification;
+
+    // 2. Highest school qualification (12th grade prioritized over 10th grade)
+    const twelveth = degrees.find((e) =>
+      /\b(12th|higher\s*secondary|senior\s*secondary)\b/i.test(e.qualification || "")
+    );
+    if (twelveth?.qualification) return twelveth.qualification;
+
+    // 3. Fallback to latest education entry or first entry
+    return degrees[degrees.length - 1]?.qualification || degrees[0]?.qualification || "High School Education";
   }, [data.education]);
 
   const targetCourse = applicationTarget?.intendedCourse || "";
@@ -225,12 +248,19 @@ export function AcademicProfileProvider({
         };
       }
 
-      // Matches target program (Transition bridge)
-      if (detected === targetDomain && isTransition) {
+      // Matches target program (Direct alignment for undergraduate applicants, or transition bridge)
+      if (detected === targetDomain) {
+        if (isTransition) {
+          return {
+            status: "BRIDGE",
+            detectedDomain: detected,
+            message: `Career Bridge: Provides transition evidence for target program (${targetCourse || targetCatalog.displayName}).`,
+          };
+        }
         return {
-          status: "BRIDGE",
+          status: "MATCH",
           detectedDomain: detected,
-          message: `Career Bridge: Provides transition evidence for target program (${targetCourse || targetCatalog.displayName}).`,
+          message: `Aligned with intended program in ${targetCatalog.displayName}.`,
         };
       }
 

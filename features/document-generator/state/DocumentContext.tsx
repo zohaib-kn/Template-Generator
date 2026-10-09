@@ -15,7 +15,7 @@ import { documentReducer, type DocumentAction } from "./documentReducer";
 import { createEmptyDocumentData } from "../utils/documentDefaults";
 import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 import { mapCrmToNormalizedStudent } from "@/services/normalization/mapCrmToNormalizedStudent";
-import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
+import { mapNormalizedToResume, looksLikeSubjectsList } from "@/services/normalization/mapNormalizedToResume";
 
 // ---------------------------------------------------------------------------
 // Constants & Storage Helpers
@@ -45,6 +45,42 @@ const DocumentContext = createContext<DocumentContextValue | null>(null);
 // Provider
 // ---------------------------------------------------------------------------
 
+/**
+ * Auto-heals cached session drafts if education qualification was previously
+ * saved with a raw subjects list instead of the structured school title.
+ */
+function sanitizeCachedEducation(doc: DocumentData): DocumentData {
+  if (!doc.education || !Array.isArray(doc.education)) return doc;
+  let hasChange = false;
+  const newEducation = doc.education.map((edu) => {
+    const rawQual = edu.qualification ?? "";
+    if (looksLikeSubjectsList(rawQual)) {
+      hasChange = true;
+      const is12th = /\b(physics|chemistry|biology|accountancy|economics|computer\s*science)\b/i.test(rawQual);
+      const cleanTitle = is12th
+        ? "Higher Secondary Education (12th)"
+        : "Secondary Education (10th)";
+
+      const existingDesc = edu.description ?? "";
+      const subjectsText = `Subjects: ${rawQual}`;
+      const newDesc = existingDesc.includes("Subjects:")
+        ? existingDesc
+        : existingDesc
+        ? `${existingDesc} | ${subjectsText}`
+        : subjectsText;
+
+      return {
+        ...edu,
+        qualification: cleanTitle,
+        description: newDesc,
+      };
+    }
+    return edu;
+  });
+
+  return hasChange ? { ...doc, education: newEducation } : doc;
+}
+
 export function DocumentProvider({ children }: { children: ReactNode }) {
   const { selectedStudentData, selectedStudentId } = useGlobalStudent();
   const currentLoadedIdRef = useRef<string | null>(null);
@@ -62,7 +98,7 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
           if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed && typeof parsed === "object") {
-              return parsed;
+              return sanitizeCachedEducation(parsed);
             }
           }
         } catch {
@@ -86,7 +122,7 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
           if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed && typeof parsed === "object") {
-              dispatch({ type: "LOAD_STUDENT", payload: parsed });
+              dispatch({ type: "LOAD_STUDENT", payload: sanitizeCachedEducation(parsed) });
               return;
             }
           }

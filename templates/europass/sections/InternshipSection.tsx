@@ -2,6 +2,7 @@ import { memo } from "react";
 import type { InternshipEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { parseDescriptionToBullets } from "../utils/descriptionParser";
 
 interface InternshipSectionProps {
   entries?: InternshipEntry[];
@@ -63,9 +64,19 @@ export const InternshipSection = memo(function InternshipSection({
               </div>
             )}
 
-            {item.description && (
-              <div className={styles.educationDetails}>{item.description}</div>
-            )}
+            {item.description && (() => {
+              const bullets = parseDescriptionToBullets(item.description);
+              return bullets.length === 1 ? (
+                // Single point: render as plain text — avoids a lone orphaned bullet
+                <div className={styles.educationDetails}>{bullets[0]}</div>
+              ) : (
+                <ul className={styles.descriptionBulletList}>
+                  {bullets.map((point, i) => (
+                    <li key={i} className={styles.descriptionBulletItem}>{point}</li>
+                  ))}
+                </ul>
+              );
+            })()}
           </div>
         );
       })}

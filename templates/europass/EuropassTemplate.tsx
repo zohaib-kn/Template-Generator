@@ -10,7 +10,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { DocumentData } from "@/types";
+import { DEFAULT_MOVABLE_SECTION_ORDER, type DocumentData } from "@/types";
 import styles from "./europass.module.css";
 import { EuropassPage } from "./EuropassPage";
 import { EuropassHeader } from "./EuropassHeader";
@@ -123,110 +123,182 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
   // effect from re-running on every render (data is a new object reference each time).
   const aboutMe            = data.aboutMe ?? "";
   const academicInterests  = useMemo(() => data.academicInterests  ?? [], [data.academicInterests]);
+  const motherTongue       = data.motherTongue ?? "";
   const languages          = useMemo(() => data.languages          ?? [], [data.languages]);
+  const hasLanguages = useMemo(
+    () =>
+      Boolean(
+        motherTongue.trim() ||
+          (languages &&
+            languages.length > 0 &&
+            languages.some((l) => l.language?.trim()))
+      ),
+    [motherTongue, languages]
+  );
   const skills             = useMemo(() => data.skills             ?? [], [data.skills]);
   const hobbies            = useMemo(() => data.hobbies            ?? [], [data.hobbies]);
   const recommendations    = useMemo(() => data.recommendations    ?? [], [data.recommendations]);
   const declaration        = data.declaration ?? "";
   const englishCertificate = useMemo(() => data.englishCertificate ?? null, [data.englishCertificate]);
+  const hasEnglishCert = useMemo(
+    () =>
+      Boolean(
+        englishCertificate &&
+          (englishCertificate.examName ||
+            englishCertificate.score ||
+            englishCertificate.listening ||
+            englishCertificate.reading ||
+            englishCertificate.writing ||
+            englishCertificate.speaking ||
+            englishCertificate.issuingBody)
+      ),
+    [englishCertificate]
+  );
+
+  const movableOrder = useMemo(() => {
+    const custom = data.sectionOrder;
+    if (!custom || custom.length === 0) return DEFAULT_MOVABLE_SECTION_ORDER;
+    return [
+      ...custom,
+      ...DEFAULT_MOVABLE_SECTION_ORDER.filter((id) => !custom.includes(id)),
+    ];
+  }, [data.sectionOrder]);
 
   // Fallback initial distribution before layout measurement runs
   const fallbackPages = useMemo<PageItemAssignment[][]>(() => {
-    const p1: PageItemAssignment[] = [];
-    const p2: PageItemAssignment[] = [];
+    const allItems: PageItemAssignment[] = [];
 
-    if (aboutMe && aboutMe.trim().length > 0) {
-      p1.push({ key: "about", secKey: "about" });
-    }
-    if (educationEntries.length > 0) {
-      p1.push({
-        key: "education_all",
-        secKey: "education",
-        startIndex: 0,
-        endIndex: educationEntries.length,
-      });
-    }
-    if (internshipEntries.length > 0) {
-      p1.push({
-        key: "internships_all",
-        secKey: "internships",
-        startIndex: 0,
-        endIndex: internshipEntries.length,
-      });
-    }
-    if (academicInterests && academicInterests.length > 0) {
-      p1.push({ key: "academicInterests", secKey: "academicInterests" });
-    }
-    if (projectEntries.length > 0) {
-      p2.push({
-        key: "academicProjects_all",
-        secKey: "academicProjects",
-        startIndex: 0,
-        endIndex: projectEntries.length,
-      });
-    }
-    if (achievementEntries.length > 0) {
-      p2.push({
-        key: "achievements_all",
-        secKey: "achievements",
-        startIndex: 0,
-        endIndex: achievementEntries.length,
-      });
-    }
-    if (leadershipEntries.length > 0) {
-      p2.push({
-        key: "leadership_all",
-        secKey: "leadership",
-        startIndex: 0,
-        endIndex: leadershipEntries.length,
-      });
-    }
-    if (volunteeringEntries.length > 0) {
-      p2.push({
-        key: "volunteering_all",
-        secKey: "volunteering",
-        startIndex: 0,
-        endIndex: volunteeringEntries.length,
-      });
-    }
-    if (certificationEntries.length > 0) {
-      p2.push({
-        key: "certifications_all",
-        secKey: "certifications",
-        startIndex: 0,
-        endIndex: certificationEntries.length,
-      });
-    }
-    if (languages && languages.length > 0) {
-      p2.push({ key: "languages", secKey: "languages" });
-    }
-    if (
-      englishCertificate &&
-      (englishCertificate.examName || englishCertificate.score)
-    ) {
-      p2.push({ key: "englishCertificate", secKey: "englishCertificate" });
-    }
-    if (skills && skills.length > 0) {
-      p2.push({ key: "skills", secKey: "skills" });
-    }
-    if (hobbies && hobbies.length > 0) {
-      p2.push({ key: "hobbies", secKey: "hobbies" });
-    }
-    if (recommendations && recommendations.length > 0) {
-      p2.push({ key: "recommendations", secKey: "recommendations" });
-    }
-    if (declaration && declaration.trim().length > 0) {
-      p2.push({ key: "declaration", secKey: "declaration" });
+    for (const secId of movableOrder) {
+      switch (secId) {
+        case "aboutMe":
+        case "about":
+          if (aboutMe && aboutMe.trim().length > 0) {
+            allItems.push({ key: "about", secKey: "about" });
+          }
+          break;
+        case "education":
+          if (educationEntries.length > 0) {
+            allItems.push({
+              key: "education_all",
+              secKey: "education",
+              startIndex: 0,
+              endIndex: educationEntries.length,
+            });
+          }
+          break;
+        case "internships":
+          if (internshipEntries.length > 0) {
+            allItems.push({
+              key: "internships_all",
+              secKey: "internships",
+              startIndex: 0,
+              endIndex: internshipEntries.length,
+            });
+          }
+          break;
+        case "academicInterests":
+          if (academicInterests && academicInterests.length > 0) {
+            allItems.push({ key: "academicInterests", secKey: "academicInterests" });
+          }
+          break;
+        case "academicProjects":
+          if (projectEntries.length > 0) {
+            allItems.push({
+              key: "academicProjects_all",
+              secKey: "academicProjects",
+              startIndex: 0,
+              endIndex: projectEntries.length,
+            });
+          }
+          break;
+        case "achievements":
+          if (achievementEntries.length > 0) {
+            allItems.push({
+              key: "achievements_all",
+              secKey: "achievements",
+              startIndex: 0,
+              endIndex: achievementEntries.length,
+            });
+          }
+          break;
+        case "leadershipActivities":
+        case "leadership":
+          if (leadershipEntries.length > 0) {
+            allItems.push({
+              key: "leadership_all",
+              secKey: "leadership",
+              startIndex: 0,
+              endIndex: leadershipEntries.length,
+            });
+          }
+          break;
+        case "volunteering":
+          if (volunteeringEntries.length > 0) {
+            allItems.push({
+              key: "volunteering_all",
+              secKey: "volunteering",
+              startIndex: 0,
+              endIndex: volunteeringEntries.length,
+            });
+          }
+          break;
+        case "certifications":
+          if (certificationEntries.length > 0) {
+            allItems.push({
+              key: "certifications_all",
+              secKey: "certifications",
+              startIndex: 0,
+              endIndex: certificationEntries.length,
+            });
+          }
+          break;
+        case "languages":
+          if (hasLanguages) {
+            allItems.push({ key: "languages", secKey: "languages" });
+          }
+          break;
+        case "englishCertificate":
+          if (hasEnglishCert) {
+            allItems.push({ key: "englishCertificate", secKey: "englishCertificate" });
+          }
+          break;
+        case "skills":
+          if (skills && skills.length > 0) {
+            allItems.push({ key: "skills", secKey: "skills" });
+          }
+          break;
+        case "hobbies":
+          if (hobbies && hobbies.length > 0) {
+            allItems.push({ key: "hobbies", secKey: "hobbies" });
+          }
+          break;
+        case "recommendations":
+          if (recommendations && recommendations.length > 0) {
+            allItems.push({ key: "recommendations", secKey: "recommendations" });
+          }
+          break;
+        case "declaration":
+          if (declaration && declaration.trim().length > 0) {
+            allItems.push({ key: "declaration", secKey: "declaration" });
+          }
+          break;
+      }
     }
 
+    const p1 = allItems.slice(0, 3);
+    const p2 = allItems.slice(3);
     const pages: PageItemAssignment[][] = [p1];
     if (p2.length > 0) pages.push(p2);
     return pages;
   }, [
+    movableOrder,
     aboutMe,
     academicInterests,
+    motherTongue,
+    hasLanguages,
     languages,
     englishCertificate,
+    hasEnglishCert,
     skills,
     hobbies,
     recommendations,
@@ -248,6 +320,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     (item: PageItemAssignment) => {
       switch (item.secKey) {
         case "about":
+        case "aboutMe":
           return aboutMe.trim().length > 0 ? (
             <AboutSection text={aboutMe} />
           ) : null;
@@ -291,7 +364,8 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
             <AchievementsSection entries={slice} title={item.title} />
           ) : null;
         }
-        case "leadership": {
+        case "leadership":
+        case "leadershipActivities": {
           const slice = leadershipEntries.slice(
             item.startIndex ?? 0,
             item.endIndex ?? leadershipEntries.length
@@ -319,12 +393,11 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           ) : null;
         }
         case "languages":
-          return languages.length > 0 ? (
-            <LanguageSkillsSection entries={languages} />
+          return hasLanguages ? (
+            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
           ) : null;
         case "englishCertificate":
-          return englishCertificate &&
-            (englishCertificate.examName || englishCertificate.score) ? (
+          return hasEnglishCert && englishCertificate ? (
             <EnglishCertificateSection cert={englishCertificate} />
           ) : null;
         case "skills":
@@ -347,6 +420,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       aboutMe,
       declaration,
       englishCertificate,
+      hasEnglishCert,
       educationEntries,
       internshipEntries,
       academicInterests,
@@ -355,6 +429,8 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       leadershipEntries,
       volunteeringEntries,
       certificationEntries,
+      motherTongue,
+      hasLanguages,
       languages,
       skills,
       hobbies,
@@ -553,92 +629,87 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       }
     }
 
-    // Sequence of sections to place:
-    if (aboutMe && aboutMe.trim().length > 0) {
-      placeAtomic("about");
-    }
-
-    placeSplittable(
-      "education",
-      "EDUCATION AND TRAINING",
-      educationEntries
-    );
-
-    placeSplittable(
-      "internships",
-      "WORK EXPERIENCE / INTERNSHIPS",
-      internshipEntries
-    );
-
-    if (academicInterests && academicInterests.length > 0) {
-      placeAtomic("academicInterests");
-    }
-
-    placeSplittable(
-      "academicProjects",
-      "ACADEMIC PROJECTS",
-      projectEntries
-    );
-
-    placeSplittable(
-      "achievements",
-      "ACHIEVEMENTS & AWARDS",
-      achievementEntries
-    );
-
-    placeSplittable(
-      "leadership",
-      "LEADERSHIP & EXTRACURRICULAR",
-      leadershipEntries
-    );
-
-    placeSplittable(
-      "volunteering",
-      "VOLUNTEERING / COMMUNITY ENGAGEMENT",
-      volunteeringEntries
-    );
-
-    placeSplittable(
-      "certifications",
-      "CERTIFICATIONS",
-      certificationEntries
-    );
-
-    if (languages && languages.length > 0) {
-      placeAtomic("languages");
-    }
-
-    if (
-      englishCertificate &&
-      (englishCertificate.examName || englishCertificate.score)
-    ) {
-      placeAtomic("englishCertificate");
-    }
-
-    if (skills && skills.length > 0) {
-      placeAtomic("skills");
-    }
-
-    if (hobbies && hobbies.length > 0) {
-      placeAtomic("hobbies");
-    }
-
-    if (recommendations && recommendations.length > 0) {
-      placeAtomic("recommendations");
-    }
-
-    if (declaration && declaration.trim().length > 0) {
-      placeAtomic("declaration");
+    // Sequence of sections to place, dynamically determined by movableOrder:
+    for (const secId of movableOrder) {
+      switch (secId) {
+        case "aboutMe":
+        case "about":
+          if (aboutMe && aboutMe.trim().length > 0) {
+            placeAtomic("about");
+          }
+          break;
+        case "education":
+          placeSplittable("education", "EDUCATION AND TRAINING", educationEntries);
+          break;
+        case "internships":
+          placeSplittable("internships", "WORK EXPERIENCE / INTERNSHIPS", internshipEntries);
+          break;
+        case "academicInterests":
+          if (academicInterests && academicInterests.length > 0) {
+            placeAtomic("academicInterests");
+          }
+          break;
+        case "academicProjects":
+          placeSplittable("academicProjects", "ACADEMIC PROJECTS", projectEntries);
+          break;
+        case "achievements":
+          placeSplittable("achievements", "ACHIEVEMENTS & AWARDS", achievementEntries);
+          break;
+        case "leadershipActivities":
+        case "leadership":
+          placeSplittable("leadership", "LEADERSHIP & EXTRACURRICULAR", leadershipEntries);
+          break;
+        case "volunteering":
+          placeSplittable("volunteering", "VOLUNTEERING / COMMUNITY ENGAGEMENT", volunteeringEntries);
+          break;
+        case "certifications":
+          placeSplittable("certifications", "CERTIFICATIONS", certificationEntries);
+          break;
+        case "languages":
+          if (hasLanguages) {
+            placeAtomic("languages");
+          }
+          break;
+        case "englishCertificate":
+          if (hasEnglishCert) {
+            placeAtomic("englishCertificate");
+          }
+          break;
+        case "skills":
+          if (skills && skills.length > 0) {
+            placeAtomic("skills");
+          }
+          break;
+        case "hobbies":
+          if (hobbies && hobbies.length > 0) {
+            placeAtomic("hobbies");
+          }
+          break;
+        case "recommendations":
+          if (recommendations && recommendations.length > 0) {
+            placeAtomic("recommendations");
+          }
+          break;
+        case "declaration":
+          if (declaration && declaration.trim().length > 0) {
+            placeAtomic("declaration");
+          }
+          break;
+      }
     }
 
     setPageAssignments((prev) =>
       arePagesEqual(prev, computedPages) ? prev : computedPages
     );
   }, [
+    movableOrder,
     aboutMe,
     academicInterests,
+    motherTongue,
+    hasLanguages,
     languages,
     englishCertificate,
+    hasEnglishCert,
     skills,
     hobbies,
     recommendations,
@@ -693,9 +764,9 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
             <AcademicInterestsSection entries={data.academicInterests} />
           </div>
         )}
-        {data.languages && (
+        {hasLanguages && (
           <div data-measure="languages">
-            <LanguageSkillsSection entries={data.languages} />
+            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
           </div>
         )}
         {data.englishCertificate && (

@@ -93,13 +93,24 @@ function GeneratorLayout() {
 
   // ── Normalized Qualifications from Resume data ────────────────────────────
   const qualifications: NormalizedQualification[] = useMemo(() => {
-    return (data.education ?? []).map((edu, idx) => ({
-      id: edu.id || `edu-${idx}`,
-      qualification: edu.qualification || "Degree",
-      fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
-      institution: edu.institution,
-      completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
-    }));
+    return (data.education ?? []).map((edu, idx) => {
+      const extractedSubjects =
+        edu.description?.match(/Subjects:\s*([^|]+)/i)?.[1]?.trim() || undefined;
+
+      const is12th = /\b(12th|higher\s*secondary|senior\s*secondary)\b/i.test(edu.qualification || "");
+      const is10th = /\b(10th|secondary)\b/i.test(edu.qualification || "");
+      const levelOfStudy = is12th ? "12th" : is10th ? "10th" : undefined;
+
+      return {
+        id: edu.id || `edu-${idx}`,
+        qualification: edu.qualification || "Degree",
+        fieldOfStudy: edu.fieldOfStudy || edu.qualification || "General",
+        institution: edu.institution,
+        levelOfStudy,
+        subjects: extractedSubjects,
+        completionYear: edu.endDate ? edu.endDate.slice(0, 4) : undefined,
+      };
+    });
   }, [data.education]);
 
   // ── Target Program from application target or selected program ────────────

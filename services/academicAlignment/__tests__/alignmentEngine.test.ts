@@ -401,4 +401,31 @@ describe("Academic Mismatch Detection Engine (Phase 1)", () => {
     assert.equal(isSensitiveSection("personal-statement", "UNIVERSITY_SOP"), false);
     assert.equal(isSensitiveSection("extracurricular", "UNIVERSITY_SOP"), false);
   });
+
+  // -------------------------------------------------------------------------
+  // 12. Verified subjects classification (High school CS stream)
+  // -------------------------------------------------------------------------
+  test("Test 12: verified subjects classify school-level qualifications into matching academic domain", () => {
+    const qualifications: NormalizedQualification[] = [
+      {
+        id: "qual-10th",
+        levelOfStudy: "10th",
+        qualification: "Secondary Education (10th)",
+        subjects: "Artificial Intelligence, English, Hindi, Mathematics, Science, Social Science",
+        completionYear: "2023",
+      },
+      {
+        id: "qual-12th",
+        levelOfStudy: "12th",
+        qualification: "Higher Secondary Education (12th)",
+        subjects: "Computer Science, English, Chemistry, Physics, Mathematics",
+        completionYear: "2025",
+      },
+    ];
+
+    const field = classifySourceDomain(qualifications);
+    assert.equal(field.domain, "COMPUTING");
+    assert.equal(field.subDomain, "COMPUTER_SCIENCE");
+    assert.ok(field.classifiedFrom.includes("qualification.subjects"));
+  });
 });

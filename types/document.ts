@@ -177,6 +177,12 @@ export interface EnglishCertificate {
   score?: string;
   dateTaken?: string; // ISO-8601 date string
   issuingBody?: string;
+  listening?: string; // e.g. "8.5"
+  reading?: string;   // e.g. "6.5"
+  writing?: string;   // e.g. "7.5"
+  speaking?: string;  // e.g. "7.0"
+  cefrLevel?: string; // e.g. "C1", "B2"
+  trfNumber?: string; // Test Report Form / candidate registration number
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +202,7 @@ export interface DocumentData {
   education?: EducationEntry[];
   internships?: InternshipEntry[];
   recommendations?: RecommendationEntry[];
+  motherTongue?: string; // e.g. "Hindi", "Punjabi"
   languages?: LanguageEntry[];
   englishCertificate?: EnglishCertificate;
   skills?: SkillEntry[];
@@ -208,7 +215,27 @@ export interface DocumentData {
   achievements?: Achievement[];
   leadershipActivities?: LeadershipActivity[];
   certifications?: Certification[];
+  /** Custom section order chosen by counselor (excluding pinned personalDetails) */
+  sectionOrder?: string[];
 }
+
+export const DEFAULT_MOVABLE_SECTION_ORDER: string[] = [
+  "aboutMe",
+  "education",
+  "internships",
+  "academicProjects",
+  "certifications",
+  "academicInterests",
+  "achievements",
+  "leadershipActivities",
+  "volunteering",
+  "languages",
+  "englishCertificate",
+  "skills",
+  "hobbies",
+  "recommendations",
+  "declaration",
+];
 
 
 // ---------------------------------------------------------------------------

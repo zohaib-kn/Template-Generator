@@ -4,74 +4,60 @@ import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
 interface LanguageSkillsSectionProps {
+  motherTongue?: string;
   entries?: LanguageEntry[];
 }
 
 export const LanguageSkillsSection = memo(function LanguageSkillsSection({
+  motherTongue,
   entries,
 }: LanguageSkillsSectionProps) {
-  if (!entries || entries.length === 0) return null;
-
-  // Distinguish mother tongue vs other languages
-  const motherTongue = entries.find(
+  // Determine effective mother tongue:
+  // 1. Dedicated motherTongue prop
+  // 2. Fallback to entry with level containing "mother" or "native"
+  const entryMother = entries?.find(
     (e) =>
       e.level?.toLowerCase().includes("mother") ||
       e.level?.toLowerCase().includes("native")
   );
-  const otherLanguages = entries.filter((e) => e !== motherTongue);
+
+  const effectiveMotherTongue =
+    motherTongue?.trim() || entryMother?.language?.trim() || "";
+
+  // Other languages: filter out the mother tongue entry and any blank entries
+  const otherLanguages = (entries ?? []).filter(
+    (e) =>
+      e !== entryMother &&
+      Boolean(e.language?.trim()) &&
+      !e.level?.toLowerCase().includes("mother") &&
+      !e.level?.toLowerCase().includes("native")
+  );
+
+  if (!effectiveMotherTongue && otherLanguages.length === 0) return null;
 
   return (
     <section className={styles.sectionWrapper}>
       <EuropassSectionTitle title="LANGUAGE SKILLS" />
 
       {/* Mother tongue */}
-      {motherTongue && (
+      {effectiveMotherTongue && (
         <div className={styles.motherTongueRow}>
           <span className={styles.identityLabel}>Mother tongue(s):</span>{" "}
-          <span className={styles.identityValue}>{motherTongue.language}</span>
+          <span className={styles.identityValue}>{effectiveMotherTongue}</span>
         </div>
       )}
 
-      {/* Other languages */}
+      {/* Other languages (compact, space-saving format) */}
       {otherLanguages.length > 0 && (
-        <div>
-          <div className={styles.otherLanguagesLabel}>Other language(s):</div>
-          {otherLanguages.map((lang) => (
-            <div key={lang.id} style={{ marginBottom: "2.5mm" }}>
-              <h3 className={styles.languageNameTitle}>{lang.language}</h3>
-              <div className={styles.cefrGrid}>
-                <div className={styles.cefrItem}>
-                  <span className={styles.cefrComponent}>LISTENING</span>
-                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
-                </div>
-                <div className={styles.cefrItem}>
-                  <span className={styles.cefrComponent}>READING</span>
-                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
-                </div>
-                <div className={styles.cefrItem}>
-                  <span className={styles.cefrComponent}>WRITING</span>
-                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
-                </div>
-                <div className={styles.cefrItem}>
-                  <span className={styles.cefrComponent}>
-                    SPOKEN PRODUCTION
-                  </span>
-                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
-                </div>
-                <div className={styles.cefrItem}>
-                  <span className={styles.cefrComponent}>
-                    SPOKEN INTERACTION
-                  </span>
-                  <span className={styles.cefrLevel}>{lang.level ?? "C1"}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div className={styles.cefrLegend}>
-            Levels: A1 and A2: Basic user; B1 and B2: Independent user; C1 and
-            C2: Proficient user
-          </div>
+        <div className={styles.otherLanguagesRow}>
+          <span className={styles.identityLabel}>Other language(s):</span>{" "}
+          <span className={styles.identityValue}>
+            {otherLanguages
+              .map((lang) =>
+                lang.level ? `${lang.language} (${lang.level})` : lang.language
+              )
+              .join(", ")}
+          </span>
         </div>
       )}
     </section>

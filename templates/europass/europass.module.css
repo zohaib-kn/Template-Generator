@@ -356,6 +356,24 @@
   line-height: 1.38;
 }
 
+/* --- Work Experience Bullet List ---------------------------------------- */
+.descriptionBulletList {
+  margin: 1mm 0 0 0;
+  padding-left: 3.5mm;
+  list-style-type: disc;
+  font-size: 9.97pt;
+  color: #565656;
+  line-height: 1.45;
+}
+
+.descriptionBulletItem {
+  margin-bottom: 0.8mm;
+}
+
+.descriptionBulletItem:last-child {
+  margin-bottom: 0;
+}
+
 .pipeDivider {
   color: #d3d3d3;
   margin: 0 1.5mm;
@@ -403,6 +421,12 @@
 
 /* --- Language Skills (Page 2) ------------------------------------------- */
 .motherTongueRow {
+  font-size: 9.97pt;
+  margin-bottom: 2.2mm;
+  color: #565656;
+}
+
+.otherLanguagesRow {
   font-size: 9.97pt;
   margin-bottom: 2.2mm;
   color: #565656;
@@ -474,6 +498,60 @@
   font-size: 9.97pt;
   color: #565656;
   margin-bottom: 1.5mm;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5mm;
+}
+
+.cefrBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  color: #565656;
+}
+
+.metaDivider {
+  color: #94a3b8;
+  margin: 0 1mm;
+}
+
+.certificateSubscores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm 5mm;
+  font-size: 9.2pt;
+  color: #475569;
+  margin-bottom: 1.5mm;
+  padding: 1.5mm 3mm;
+  background-color: #f8fafc;
+  border-radius: 1mm;
+  border-left: 2.5px solid #0c56a5;
+}
+
+.subscoreItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.2mm;
+}
+
+.subscoreLabel {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.subscoreValue {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.certificateMeta {
+  font-size: 8.8pt;
+  color: #757575;
+  margin-bottom: 1.5mm;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .certificateBullets {

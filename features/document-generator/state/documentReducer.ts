@@ -1,4 +1,5 @@
 import type { DocumentData, EnglishCertificate, PersonalDetails } from "@/types";
+import { DEFAULT_MOVABLE_SECTION_ORDER } from "@/types";
 import { createEmptyDocumentData } from "../utils/documentDefaults";
 import { testStudentData } from "../utils/testStudentData";
 
@@ -48,7 +49,12 @@ export type DocumentAction =
   | { type: "SET_PERSONAL"; payload: Partial<PersonalDetails> }
   | { type: "SET_ABOUT_ME"; payload: string }
   | { type: "SET_DECLARATION"; payload: string }
+  | { type: "SET_MOTHER_TONGUE"; payload: string }
   | { type: "SET_ENGLISH_CERTIFICATE"; payload: Partial<EnglishCertificate> }
+  // Section Reordering
+  | { type: "MOVE_SECTION"; payload: { sectionId: string; direction: "up" | "down" } }
+  | { type: "SET_SECTION_ORDER"; payload: string[] }
+  | { type: "RESET_SECTION_ORDER" }
   // Repeatable list sections (education, recommendations, languages, skills,
   // hobbies, volunteering, …)
   | ListAction
@@ -78,11 +84,37 @@ export function documentReducer(
     case "SET_DECLARATION":
       return { ...state, declaration: action.payload };
 
+    case "SET_MOTHER_TONGUE":
+      return { ...state, motherTongue: action.payload };
+
     case "SET_ENGLISH_CERTIFICATE":
       return {
         ...state,
         englishCertificate: { ...state.englishCertificate, ...action.payload },
       };
+
+    // --- Section Reordering ----------------------------------------------------
+    case "MOVE_SECTION": {
+      const { sectionId, direction } = action.payload;
+      const currentOrder = [...(state.sectionOrder ?? DEFAULT_MOVABLE_SECTION_ORDER)];
+      const idx = currentOrder.indexOf(sectionId);
+      if (idx === -1) return state;
+
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= currentOrder.length) return state;
+
+      const temp = currentOrder[idx];
+      currentOrder[idx] = currentOrder[targetIdx];
+      currentOrder[targetIdx] = temp;
+
+      return { ...state, sectionOrder: currentOrder };
+    }
+
+    case "SET_SECTION_ORDER":
+      return { ...state, sectionOrder: action.payload };
+
+    case "RESET_SECTION_ORDER":
+      return { ...state, sectionOrder: undefined };
 
     // --- Repeatable list sections ----------------------------------------------
     case "ADD_LIST_ITEM": {

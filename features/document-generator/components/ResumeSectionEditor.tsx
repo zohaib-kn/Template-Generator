@@ -1,7 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import type { GuidanceResult } from "../guidance/types";
 import { RESUME_SECTION_METADATA } from "./ResumeSectionSidebar";
+import { DEFAULT_MOVABLE_SECTION_ORDER } from "@/types";
+import { useDocumentState } from "../hooks/useDocumentState";
 
 // Form imports
 import { PersonalDetailsForm } from "../forms/PersonalDetailsForm";
@@ -27,25 +30,39 @@ interface ResumeSectionEditorProps {
   onSelectSection: (id: string) => void;
 }
 
-const SECTION_KEYS = Object.keys(RESUME_SECTION_METADATA);
-
 export function ResumeSectionEditor({
   selectedSectionId,
   guidance,
   onSelectSection,
 }: ResumeSectionEditorProps) {
+  const { data, moveSectionUp, moveSectionDown } = useDocumentState();
+
+  const effectiveOrder = useMemo(() => {
+    const custom = data.sectionOrder ?? DEFAULT_MOVABLE_SECTION_ORDER;
+    const complete = [
+      ...custom,
+      ...DEFAULT_MOVABLE_SECTION_ORDER.filter((id) => !custom.includes(id)),
+    ];
+    return ["personalDetails", ...complete];
+  }, [data.sectionOrder]);
+
   const meta = RESUME_SECTION_METADATA[selectedSectionId] ?? RESUME_SECTION_METADATA.personalDetails;
-  const orderNum = String(meta.order).padStart(2, "0");
+  const currentIndex = effectiveOrder.indexOf(selectedSectionId);
+  const dynamicOrder = currentIndex >= 0 ? currentIndex + 1 : meta.order;
+  const orderNum = String(dynamicOrder).padStart(2, "0");
+
+  // Navigation: prev & next based on active effectiveOrder
+  const prevKey = currentIndex > 0 ? effectiveOrder[currentIndex - 1] : null;
+  const nextKey = currentIndex < effectiveOrder.length - 1 ? effectiveOrder[currentIndex + 1] : null;
+  const prevMeta = prevKey ? RESUME_SECTION_METADATA[prevKey] : null;
+  const nextMeta = nextKey ? RESUME_SECTION_METADATA[nextKey] : null;
+
+  const isMovable = selectedSectionId !== "personalDetails";
+  const canMoveUp = isMovable && currentIndex > 1;
+  const canMoveDown = isMovable && currentIndex < effectiveOrder.length - 1;
 
   // Lookup admissions guidance for this specific section
   const sectionGuidance = guidance?.sections.find((s) => s.sectionKey === selectedSectionId);
-
-  // Navigation: prev & next
-  const currentIndex = SECTION_KEYS.indexOf(selectedSectionId);
-  const prevKey = currentIndex > 0 ? SECTION_KEYS[currentIndex - 1] : null;
-  const nextKey = currentIndex < SECTION_KEYS.length - 1 ? SECTION_KEYS[currentIndex + 1] : null;
-  const prevMeta = prevKey ? RESUME_SECTION_METADATA[prevKey] : null;
-  const nextMeta = nextKey ? RESUME_SECTION_METADATA[nextKey] : null;
 
   function renderActiveForm() {
     switch (selectedSectionId) {
@@ -100,25 +117,61 @@ export function ResumeSectionEditor({
             </h2>
           </div>
 
-          {sectionGuidance && (
-            <div className="flex items-center gap-1.5">
-              {sectionGuidance.priority === "highly-relevant" && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                  Highly Relevant
-                </span>
-              )}
-              {sectionGuidance.priority === "recommended" && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
-                  Recommended
-                </span>
-              )}
-              {sectionGuidance.priority === "optional" && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                  Optional
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Header Up/Down Reorder Buttons */}
+            {isMovable && (
+              <div
+                className="flex items-center gap-0.5 bg-white border border-slate-200/90 rounded-lg p-0.5 shadow-2xs"
+                title="Reorder this section in resume flow"
+              >
+                <button
+                  type="button"
+                  disabled={!canMoveUp}
+                  onClick={() => moveSectionUp(selectedSectionId)}
+                  className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title="Move section up"
+                  aria-label="Move section up"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
+                <span className="text-[10px] text-slate-300 font-mono select-none">|</span>
+                <button
+                  type="button"
+                  disabled={!canMoveDown}
+                  onClick={() => moveSectionDown(selectedSectionId)}
+                  className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  title="Move section down"
+                  aria-label="Move section down"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {sectionGuidance && (
+              <div className="flex items-center gap-1.5">
+                {sectionGuidance.priority === "highly-relevant" && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                    Highly Relevant
+                  </span>
+                )}
+                {sectionGuidance.priority === "recommended" && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/80">
+                    Recommended
+                  </span>
+                )}
+                {sectionGuidance.priority === "optional" && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                    Optional
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section guidance hint */}

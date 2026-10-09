@@ -78,6 +78,74 @@ export function buildFilename(
 }
 
 /**
+ * Converts an external image URL to a Base64 data URI using our local proxy.
+ * If already a data URI or blob, returns it as is.
+ */
+async function fetchImageAsDataUri(url: string): Promise<string | null> {
+  if (!url || url.startsWith("data:")) return url;
+
+  try {
+    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl);
+    if (!res.ok) {
+      console.warn(`[generateDocumentPdf] Image proxy returned HTTP ${res.status} for ${url}`);
+      return null;
+    }
+
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === "string") {
+          resolve(reader.result);
+        } else {
+          reject(new Error("Failed to convert image to data URI"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn("[generateDocumentPdf] Failed to convert image to Data URI:", err);
+    return null;
+  }
+}
+
+/**
+ * Finds all <img> elements with external http/https src, converts them to Base64 Data URIs,
+ * and swaps their src temporarily. Returns a cleanup function that restores original src.
+ */
+async function inlineExternalImages(elements: HTMLElement[]): Promise<() => void> {
+  const imageReplacements: Array<{ img: HTMLImageElement; originalSrc: string }> = [];
+
+  const allImgs: HTMLImageElement[] = [];
+  for (const el of elements) {
+    allImgs.push(...Array.from(el.querySelectorAll<HTMLImageElement>("img")));
+  }
+
+  await Promise.all(
+    allImgs.map(async (img) => {
+      const src = img.currentSrc || img.src;
+      // Only proxy external http/https URLs (e.g. S3 buckets)
+      if (src && /^https?:\/\//i.test(src) && !src.includes(window.location.origin)) {
+        const dataUri = await fetchImageAsDataUri(src);
+        if (dataUri) {
+          imageReplacements.push({ img, originalSrc: img.src });
+          img.src = dataUri;
+        }
+      }
+    })
+  );
+
+  return () => {
+    // Restore original URLs so live DOM preview is unmodified
+    for (const { img, originalSrc } of imageReplacements) {
+      img.src = originalSrc;
+    }
+  };
+}
+
+/**
  * Wait for all <img> elements inside a root element to finish loading.
  */
 async function waitForImages(root: HTMLElement): Promise<void> {
@@ -126,17 +194,21 @@ export async function generateDocumentPdf(
     );
   }
 
-  // --- 2. Wait for fonts & images ---------------------------------------------
-  await document.fonts.ready;
-  await Promise.all(pageElements.map((page) => waitForImages(page)));
+  // --- 2. Inline external images to Base64 to bypass canvas CORS restrictions --
+  const restoreImages = await inlineExternalImages(pageElements);
 
-  // --- 3. Create PDF ----------------------------------------------------------
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-    compress: true,
-  });
+  try {
+    // --- 3. Wait for fonts & images ---------------------------------------------
+    await document.fonts.ready;
+    await Promise.all(pageElements.map((page) => waitForImages(page)));
+
+    // --- 4. Create PDF ----------------------------------------------------------
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
 
   // --- 4. Capture each page (in parallel — captures are independent DOM
   // reads/canvas draws per element, only the jsPDF page insertion below
@@ -295,4 +367,7 @@ export async function generateDocumentPdf(
   const pdfBase64 = pdf.output("datauristring");
   pdf.save(filename);
   return { filename, pdfBase64 };
+  } finally {
+    restoreImages();
+  }
 }
