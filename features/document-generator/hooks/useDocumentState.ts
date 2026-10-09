@@ -110,6 +110,10 @@ export function useDocumentState() {
     setDeclaration: (text: string) =>
       dispatch({ type: "SET_DECLARATION", payload: text }),
 
+    // --- Mother Tongue -------------------------------------------------------
+    setMotherTongue: (text: string) =>
+      dispatch({ type: "SET_MOTHER_TONGUE", payload: text }),
+
     // --- English Certificate ------------------------------------------------
     setEnglishCertificate: (patch: Partial<EnglishCertificate>) =>
       dispatch({ type: "SET_ENGLISH_CERTIFICATE", payload: patch }),
@@ -191,6 +195,16 @@ export function useDocumentState() {
     updateCertification: (id: string, patch: Partial<Certification>) =>
       certifications.update(id, patch),
     removeCertification: (id: string) => certifications.remove(id),
+
+    // --- Section Reordering --------------------------------------------------
+    moveSectionUp: (sectionId: string) =>
+      dispatch({ type: "MOVE_SECTION", payload: { sectionId, direction: "up" } }),
+    moveSectionDown: (sectionId: string) =>
+      dispatch({ type: "MOVE_SECTION", payload: { sectionId, direction: "down" } }),
+    setSectionOrder: (order: string[]) =>
+      dispatch({ type: "SET_SECTION_ORDER", payload: order }),
+    resetSectionOrder: () =>
+      dispatch({ type: "RESET_SECTION_ORDER" }),
 
     // --- Reset --------------------------------------------------------------
     reset: useCallback(() => dispatch({ type: "RESET" }), [dispatch]),

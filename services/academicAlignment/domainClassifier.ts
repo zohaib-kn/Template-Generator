@@ -348,6 +348,20 @@ export function classifySourceDomain(
         };
       }
     }
+
+    // Priority 5: verified subjects (crucial for school streams e.g. "Computer Science, English, Chemistry, Physics, Mathematics")
+    if (qual.subjects && qual.subjects.trim().length > 0) {
+      const match = matchDiscipline(qual.subjects.trim());
+      if (match) {
+        return {
+          domain: match.domain,
+          subDomain: match.subDomain,
+          confidence: match.confidence,
+          classifiedFrom: `qualification.subjects: "${qual.subjects}"`,
+          rawSource: qual.subjects,
+        };
+      }
+    }
   }
 
   // Step 6: UNKNOWN if no match can be established

@@ -26,6 +26,7 @@ import type {
   NormalizedEnglishTest,
 } from "@/types/normalizedStudent";
 import type { CourseCategory } from "@/features/document-generator/guidance/types";
+import { looksLikeSubjectsList } from "./mapNormalizedToResume";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -124,12 +125,20 @@ function mapQualification(q: CrmAcademicQualification, idx: number): NormalizedQ
   const endDate = toDateOnly(q.endDate);
   const completionYear = endDate ? endDate.split("-")[0] : undefined;
 
+  const rawQual = q.qualification?.trim();
+  // Capture subjects from either CRM field variant, or if qualification looks like a subjects list
+  const subjects =
+    q.subjects?.trim() ||
+    q.subjectsCombination?.trim() ||
+    (rawQual && looksLikeSubjectsList(rawQual) ? rawQual : undefined);
+
   return {
     id: q._id ?? `norm-qual-${idx}`,
     levelOfStudy: q.levelOfStudy?.trim(),
     qualification: qualTitle,
     institution: q.institution?.trim(),
     boardOrUniversity: q.boardOrUniversity?.trim(),
+    subjects,
     city: q.cityOfStudy?.trim(),
     country: resolveCountryAndNationality(q.countryOfStudy).country,
     score: q.score?.trim(),

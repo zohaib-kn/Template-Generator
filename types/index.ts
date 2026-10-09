@@ -31,6 +31,8 @@ export type {
   Certification,
 } from "./document";
 
+export { DEFAULT_MOVABLE_SECTION_ORDER } from "./document";
+
 
 export type {
   TemplateId,

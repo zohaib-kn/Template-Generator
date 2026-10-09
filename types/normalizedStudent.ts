@@ -27,6 +27,8 @@ export interface NormalizedQualification {
   levelOfStudy?: string;      // e.g. "10th", "12th", "Undergraduate", "Postgraduate"
   qualification?: string;     // e.g. "B.Com", "B.Tech", "Computer Science"
   fieldOfStudy?: string;      // explicit field of study / major (e.g. "Mechanical Engineering", "Finance")
+  /** Comma-separated subjects list — populated for 10th / 12th entries only */
+  subjects?: string;
   institution?: string;       // school or university name
   boardOrUniversity?: string; // board or awarding body (NOTE: metadata only, not an academic domain classifier)
   city?: string;

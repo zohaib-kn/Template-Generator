@@ -3,78 +3,40 @@
 import { useDocumentState } from "../hooks/useDocumentState";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
-
-const LEVEL_OPTIONS = [
-  "Native",
-  "C2 – Mastery",
-  "C1 – Advanced",
-  "B2 – Upper Intermediate",
-  "B1 – Intermediate",
-  "A2 – Elementary",
-  "A1 – Beginner",
-];
 
 export function LanguagesForm() {
-  const { data, addLanguage, updateLanguage, removeLanguage } =
-    useDocumentState();
-  const entries = data.languages ?? [];
+  const { data, setMotherTongue } = useDocumentState();
+
+  // If data.motherTongue is set, use it. Otherwise, fallback to any existing "native" language entry if migrating.
+  const currentMotherTongue =
+    data.motherTongue ??
+    data.languages?.find(
+      (l) =>
+        l.level?.toLowerCase().includes("native") ||
+        l.level?.toLowerCase().includes("mother")
+    )?.language ??
+    "";
 
   return (
-    <div className="space-y-3 pt-2">
-      {entries.length === 0 && (
-        <EmptyState message='No languages yet. Click "Add Language" below.' />
-      )}
-
-      {entries.map((entry, idx) => (
-        <div
-          key={entry.id}
-          className="flex items-end gap-3 bg-slate-50 rounded-xl border border-slate-200 p-3"
-        >
-          <div className="flex-1">
-            <Label htmlFor={`lang-name-${entry.id}`}>Language</Label>
-            <Input
-              id={`lang-name-${entry.id}`}
-              value={entry.language ?? ""}
-              onChange={(e) =>
-                updateLanguage(entry.id, { language: e.target.value })
-              }
-              placeholder={idx === 0 ? "English" : "Arabic, French…"}
-            />
-          </div>
-          <div className="flex-1">
-            <Label htmlFor={`lang-level-${entry.id}`}>Level</Label>
-            <select
-              id={`lang-level-${entry.id}`}
-              value={entry.level ?? ""}
-              onChange={(e) =>
-                updateLanguage(entry.id, { level: e.target.value })
-              }
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-navy/40 focus:border-transparent transition-all duration-150"
-            >
-              <option value="">Select level…</option>
-              {LEVEL_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => removeLanguage(entry.id)}
-            className="mb-0.5"
-          >
-            ✕
-          </Button>
+    <div className="space-y-4 pt-2">
+      <div className="bg-slate-50/80 rounded-xl border border-slate-200/80 p-4 space-y-3">
+        <div>
+          <Label htmlFor="mother-tongue" className="text-xs font-semibold text-slate-800">
+            Mother Tongue(s)
+          </Label>
+          <Input
+            id="mother-tongue"
+            value={currentMotherTongue}
+            onChange={(e) => setMotherTongue(e.target.value)}
+            placeholder="e.g. Hindi, Punjabi"
+            className="mt-1 bg-white"
+          />
         </div>
-      ))}
-
-      <Button variant="outline" size="sm" onClick={addLanguage} className="w-full">
-        + Add Language
-      </Button>
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Specify the candidate&apos;s native language(s). English proficiency, IELTS band scores, and test details are managed in{" "}
+          <strong className="text-slate-700 font-medium">Section 12 (English Certificate / IELTS)</strong>.
+        </p>
+      </div>
     </div>
   );
 }

@@ -71,6 +71,10 @@ export interface CrmAcademicQualification {
   startDate?: string;         // ISO-8601
   endDate?: string;           // ISO-8601
   duration?: string;
+  /** Subjects studied — populated by some CRM versions for 10th / 12th entries */
+  subjects?: string;
+  /** Alternative key used by other CRM versions for the same subjects list */
+  subjectsCombination?: string;
 }
 
 export interface CrmWorkExperience {

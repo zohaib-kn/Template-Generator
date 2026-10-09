@@ -529,8 +529,8 @@ export function ResumeContextPanel({
                             ? "Not Specified"
                             : alignmentResult.sourceField.domain.replace(/_/g, " ")}
                           {alignmentResult.sourceField.subDomain &&
-                          alignmentResult.sourceField.subDomain !== "UNKNOWN_SUBDOMAIN" &&
-                          alignmentResult.sourceField.subDomain !== "UNKNOWN"
+                          (alignmentResult.sourceField.subDomain as string) !== "UNKNOWN_SUBDOMAIN" &&
+                          (alignmentResult.sourceField.subDomain as string) !== "UNKNOWN"
                             ? ` (${alignmentResult.sourceField.subDomain.replace(/_/g, " ")})`
                             : ""}
                         </span>
@@ -544,8 +544,8 @@ export function ResumeContextPanel({
                             ? "Not Specified"
                             : alignmentResult.targetField.domain.replace(/_/g, " ")}
                           {alignmentResult.targetField.subDomain &&
-                          alignmentResult.targetField.subDomain !== "UNKNOWN_SUBDOMAIN" &&
-                          alignmentResult.targetField.subDomain !== "UNKNOWN"
+                          (alignmentResult.targetField.subDomain as string) !== "UNKNOWN_SUBDOMAIN" &&
+                          (alignmentResult.targetField.subDomain as string) !== "UNKNOWN"
                             ? ` (${alignmentResult.targetField.subDomain.replace(/_/g, " ")})`
                             : ""}
                         </span>
