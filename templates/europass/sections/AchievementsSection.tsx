@@ -17,9 +17,13 @@ export const AchievementsSection = memo(function AchievementsSection({
   const visible = entries.filter((e) => e.title || e.description);
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "ACHIEVEMENTS & AWARDS"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "ACHIEVEMENTS & AWARDS"} />
+      )}
       {visible.map((achievement) => (
         <div key={achievement.id} className={styles.educationEntry}>
           {achievement.title && (
@@ -35,7 +39,7 @@ export const AchievementsSection = memo(function AchievementsSection({
               )}
               {achievement.dateYear && (
                 <span className={styles.datesBadge}>
-                  [{achievement.dateYear}]
+                  [ {achievement.dateYear} ]
                 </span>
               )}
             </div>

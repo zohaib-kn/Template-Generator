@@ -17,9 +17,13 @@ export const LeadershipSection = memo(function LeadershipSection({
   const visible = entries.filter((e) => e.activity || e.description);
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "LEADERSHIP & EXTRACURRICULAR"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "LEADERSHIP & EXTRACURRICULAR"} />
+      )}
       {visible.map((item) => (
         <div key={item.id} className={styles.educationEntry}>
           {item.activity && (
@@ -34,7 +38,7 @@ export const LeadershipSection = memo(function LeadershipSection({
                 </span>
               )}
               {item.duration && (
-                <span className={styles.datesBadge}>[{item.duration}]</span>
+                <span className={styles.datesBadge}>[ {item.duration} ]</span>
               )}
             </div>
           )}

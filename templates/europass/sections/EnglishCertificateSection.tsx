@@ -5,6 +5,7 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
 interface EnglishCertificateSectionProps {
   cert?: EnglishCertificate;
+  title?: string;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -20,6 +21,7 @@ function formatDateDMY(iso?: string): string {
 
 export const EnglishCertificateSection = memo(function EnglishCertificateSection({
   cert,
+  title,
 }: EnglishCertificateSectionProps) {
   if (
     !cert ||
@@ -34,6 +36,8 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
     return null;
   }
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   const hasSubscores = Boolean(
     cert.listening || cert.reading || cert.writing || cert.speaking
   );
@@ -46,10 +50,12 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="ENGLISH LANGUAGE CERTIFICATE" />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "ENGLISH LANGUAGE CERTIFICATE"} />
+      )}
 
       {cert.examName && (
-        <div className={styles.certificateTitle}>{cert.examName}</div>
+        <h3 className={styles.qualificationTitle}>{cert.examName}</h3>
       )}
 
       {(cert.score || cert.cefrLevel) && (
@@ -118,13 +124,16 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
       )}
 
       {bullets.length > 0 && (
-        <ul className={styles.certificateBullets}>
+        <div className={styles.bulletList}>
           {bullets.map((bullet, idx) => (
-            <li key={idx}>
-              {bullet.startsWith("•") ? bullet : `• ${bullet}`}
-            </li>
+            <div key={idx} className={styles.bulletItem}>
+              <span className={styles.bulletDot} aria-hidden="true">•</span>
+              <span className={styles.bulletText}>
+                {bullet.replace(/^[•*\-\s]+/, "")}
+              </span>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </section>
   );

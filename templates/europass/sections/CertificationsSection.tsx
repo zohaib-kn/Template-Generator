@@ -17,9 +17,13 @@ export const CertificationsSection = memo(function CertificationsSection({
   const visible = entries.filter((e) => e.name || e.provider);
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "CERTIFICATIONS"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "CERTIFICATIONS"} />
+      )}
       {visible.map((cert) => (
         <div key={cert.id} className={styles.educationEntry}>
           {cert.name && (
@@ -32,7 +36,7 @@ export const CertificationsSection = memo(function CertificationsSection({
                 <span className={styles.institutionName}>{cert.provider}</span>
               )}
               {cert.completionDate && (
-                <span className={styles.datesBadge}>[{cert.completionDate}]</span>
+                <span className={styles.datesBadge}>[ {cert.completionDate} ]</span>
               )}
             </div>
           )}

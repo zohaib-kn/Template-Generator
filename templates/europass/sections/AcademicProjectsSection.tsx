@@ -18,9 +18,13 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
   const visible = entries.filter((e) => e.title || e.description);
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "ACADEMIC PROJECTS"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "ACADEMIC PROJECTS"} />
+      )}
       {visible.map((project) => (
         <div key={project.id} className={styles.educationEntry}>
           {project.title && (
@@ -33,7 +37,7 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
                 <span className={styles.institutionName}>{project.role}</span>
               )}
               {project.dateYear && (
-                <span className={styles.datesBadge}>[{project.dateYear}]</span>
+                <span className={styles.datesBadge}>[ {project.dateYear} ]</span>
               )}
             </div>
           )}

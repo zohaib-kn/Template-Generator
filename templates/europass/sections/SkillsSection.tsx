@@ -5,16 +5,22 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
 interface SkillsSectionProps {
   entries?: SkillEntry[];
+  title?: string;
 }
 
 export const SkillsSection = memo(function SkillsSection({
   entries,
+  title,
 }: SkillsSectionProps) {
   if (!entries || entries.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="ACADEMIC & TRANSFERABLE SKILLS" />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "SKILLS"} />
+      )}
       <ul className={styles.simpleList}>
         {entries.map((skill) => (
           <li key={skill.id}>

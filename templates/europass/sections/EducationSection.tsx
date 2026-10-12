@@ -20,7 +20,7 @@ function formatDateDMY(iso?: string): string {
 }
 
 function renderDescriptionWithLinks(desc: string) {
-  // Splits by pipe "|" so we can color pipe separators with #d3d3d3
+  // Splits by pipe "|" so we can color pipe separators with #94a3b8
   const parts = desc.split("|");
   return parts.map((part, pIdx) => {
     const trimmed = part.trim();
@@ -28,7 +28,7 @@ function renderDescriptionWithLinks(desc: string) {
     const urlMatch = trimmed.match(/(https?:\/\/[^\s]+)/);
     return (
       <span key={pIdx}>
-        {pIdx > 0 && <span className={styles.pipeDivider}>|</span>}
+        {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
         {urlMatch ? (
           <>
             {trimmed.slice(0, urlMatch.index)}
@@ -56,9 +56,13 @@ export const EducationSection = memo(function EducationSection({
 }: EducationSectionProps) {
   if (!entries || entries.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "EDUCATION AND TRAINING"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "EDUCATION AND TRAINING"} />
+      )}
       {entries.map((entry) => {
         const start = formatDateDMY(entry.startDate);
         const end = formatDateDMY(entry.endDate);
@@ -73,12 +77,12 @@ export const EducationSection = memo(function EducationSection({
               <div className={styles.institutionRow}>
                 {entry.institution && (
                   <span className={styles.institutionName}>
-                    {entry.institution}
+                    {entry.institution}{" "}
                   </span>
                 )}
                 {hasDate && (
                   <span className={styles.datesBadge}>
-                    [{start}{end ? ` – ${end}` : ""}]
+                    [ {start}{end ? ` – ${end}` : ""} ]
                   </span>
                 )}
               </div>

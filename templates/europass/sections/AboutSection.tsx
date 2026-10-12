@@ -4,6 +4,7 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 
 interface AboutSectionProps {
   text?: string;
+  title?: string;
 }
 
 /**
@@ -28,14 +29,18 @@ function highlightText(text: string): ReactNode[] {
 
 export const AboutSection = memo(function AboutSection({
   text,
+  title,
 }: AboutSectionProps) {
   if (!text) return null;
 
   const paragraphs = text.split("\n").filter((p) => p.trim().length > 0);
+  const showTitle = title === undefined ? true : Boolean(title);
 
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="ACADEMIC PROFILE" />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "ABOUT ME"} />
+      )}
       {paragraphs.map((p, idx) => (
         <p key={idx} className={styles.aboutMeText}>
           {highlightText(p)}

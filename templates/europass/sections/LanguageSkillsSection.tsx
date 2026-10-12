@@ -6,11 +6,13 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 interface LanguageSkillsSectionProps {
   motherTongue?: string;
   entries?: LanguageEntry[];
+  title?: string;
 }
 
 export const LanguageSkillsSection = memo(function LanguageSkillsSection({
   motherTongue,
   entries,
+  title,
 }: LanguageSkillsSectionProps) {
   // Determine effective mother tongue:
   // 1. Dedicated motherTongue prop
@@ -35,9 +37,13 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
 
   if (!effectiveMotherTongue && otherLanguages.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="LANGUAGE SKILLS" />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "LANGUAGE SKILLS"} />
+      )}
 
       {/* Mother tongue */}
       {effectiveMotherTongue && (
