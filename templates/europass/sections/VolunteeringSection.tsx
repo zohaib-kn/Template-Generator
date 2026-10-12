@@ -38,9 +38,13 @@ export const VolunteeringSection = memo(function VolunteeringSection({
   );
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "VOLUNTEERING / COMMUNITY ENGAGEMENT"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "VOLUNTEERING / COMMUNITY ENGAGEMENT"} />
+      )}
       {visible.map((vol) => {
         const dateRange = formatDateRange(vol.startDate, vol.endDate);
         return (
@@ -55,7 +59,7 @@ export const VolunteeringSection = memo(function VolunteeringSection({
                   <span className={styles.institutionName}>{vol.role}</span>
                 )}
                 {dateRange && (
-                  <span className={styles.datesBadge}>[{dateRange}]</span>
+                  <span className={styles.datesBadge}>[ {dateRange} ]</span>
                 )}
               </div>
             )}

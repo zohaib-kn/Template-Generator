@@ -30,9 +30,16 @@ import { EnglishCertificateSection } from "./sections/EnglishCertificateSection"
 import { SkillsSection } from "./sections/SkillsSection";
 import { HobbiesSection } from "./sections/HobbiesSection";
 import { DeclarationSection } from "./sections/DeclarationSection";
+import { ResumeInteractiveSection } from "@/features/document-generator/components/ResumeInteractiveSection";
+import { RESUME_SECTION_METADATA } from "@/features/document-generator/components/ResumeSectionSidebar";
+import { parseDescriptionToBullets } from "./utils/descriptionParser";
 
 interface EuropassTemplateProps {
   data: DocumentData;
+  isInteractive?: boolean;
+  activeSectionId?: string;
+  onSelectSection?: (sectionId: string) => void;
+  onAddEntry?: (sectionId: string) => void;
 }
 
 interface PageItemAssignment {
@@ -41,6 +48,9 @@ interface PageItemAssignment {
   title?: string;
   startIndex?: number;
   endIndex?: number;
+  splitEntryIndex?: number;
+  bulletSplitCount?: number;
+  splitPart?: 1 | 2;
 }
 
 const useIsomorphicLayoutEffect =
@@ -66,7 +76,10 @@ function arePagesEqual(
         (item, j) =>
           item.key === b[i][j].key &&
           item.startIndex === b[i][j].startIndex &&
-          item.endIndex === b[i][j].endIndex
+          item.endIndex === b[i][j].endIndex &&
+          item.splitEntryIndex === b[i][j].splitEntryIndex &&
+          item.bulletSplitCount === b[i][j].bulletSplitCount &&
+          item.splitPart === b[i][j].splitPart
       )
   );
 }
@@ -82,7 +95,13 @@ function arePagesEqual(
  * across pages so that unused space on Page 1 is fully utilized, while preventing
  * overflow clipping on subsequent pages.
  */
-export function EuropassTemplate({ data }: EuropassTemplateProps) {
+export function EuropassTemplate({
+  data,
+  isInteractive = false,
+  activeSectionId,
+  onSelectSection,
+  onAddEntry,
+}: EuropassTemplateProps) {
   const measureRef = useRef<HTMLDivElement>(null);
 
   // Normalize repeatable arrays
@@ -173,7 +192,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         case "aboutMe":
         case "about":
           if (aboutMe && aboutMe.trim().length > 0) {
-            allItems.push({ key: "about", secKey: "about" });
+            allItems.push({ key: "about", secKey: "about", title: "ABOUT ME" });
           }
           break;
         case "education":
@@ -254,22 +273,22 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           break;
         case "languages":
           if (hasLanguages) {
-            allItems.push({ key: "languages", secKey: "languages" });
+            allItems.push({ key: "languages", secKey: "languages", title: "LANGUAGE SKILLS" });
           }
           break;
         case "englishCertificate":
           if (hasEnglishCert) {
-            allItems.push({ key: "englishCertificate", secKey: "englishCertificate" });
+            allItems.push({ key: "englishCertificate", secKey: "englishCertificate", title: "ENGLISH LANGUAGE CERTIFICATE" });
           }
           break;
         case "skills":
           if (skills && skills.length > 0) {
-            allItems.push({ key: "skills", secKey: "skills" });
+            allItems.push({ key: "skills", secKey: "skills", title: "SKILLS" });
           }
           break;
         case "hobbies":
           if (hobbies && hobbies.length > 0) {
-            allItems.push({ key: "hobbies", secKey: "hobbies" });
+            allItems.push({ key: "hobbies", secKey: "hobbies", title: "HOBBIES AND INTERESTS" });
           }
           break;
         case "recommendations":
@@ -279,7 +298,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           break;
         case "declaration":
           if (declaration && declaration.trim().length > 0) {
-            allItems.push({ key: "declaration", secKey: "declaration" });
+            allItems.push({ key: "declaration", secKey: "declaration", title: "DECLARATION" });
           }
           break;
       }
@@ -322,7 +341,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         case "about":
         case "aboutMe":
           return aboutMe.trim().length > 0 ? (
-            <AboutSection text={aboutMe} />
+            <AboutSection text={aboutMe} title={item.title} />
           ) : null;
         case "education": {
           const slice = educationEntries.slice(
@@ -334,10 +353,51 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           ) : null;
         }
         case "internships": {
-          const slice = internshipEntries.slice(
-            item.startIndex ?? 0,
-            item.endIndex ?? internshipEntries.length
-          );
+          let slice: typeof internshipEntries;
+          if (
+            item.splitEntryIndex !== undefined &&
+            item.bulletSplitCount !== undefined &&
+            item.splitPart !== undefined
+          ) {
+            const splitIdx = item.splitEntryIndex;
+            const bCount = item.bulletSplitCount;
+            const target = internshipEntries[splitIdx];
+            const allBullets = parseDescriptionToBullets(target?.description || "");
+
+            if (item.splitPart === 1) {
+              const regular = internshipEntries.slice(
+                item.startIndex ?? 0,
+                splitIdx
+              );
+              const part1Target = {
+                ...target,
+                description: allBullets
+                  .slice(0, bCount)
+                  .map((b) => `• ${b}`)
+                  .join("\n"),
+              };
+              slice = [...regular, part1Target];
+            } else {
+              const part2Target = {
+                ...target,
+                hideHeader: true,
+                description: allBullets
+                  .slice(bCount)
+                  .map((b) => `• ${b}`)
+                  .join("\n"),
+              };
+              const regular = internshipEntries.slice(
+                splitIdx + 1,
+                item.endIndex ?? internshipEntries.length
+              );
+              slice = [part2Target, ...regular];
+            }
+          } else {
+            slice = internshipEntries.slice(
+              item.startIndex ?? 0,
+              item.endIndex ?? internshipEntries.length
+            );
+          }
           return slice.length > 0 ? (
             <InternshipSection entries={slice} title={item.title} />
           ) : null;
@@ -394,23 +454,23 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         }
         case "languages":
           return hasLanguages ? (
-            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
+            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} title={item.title} />
           ) : null;
         case "englishCertificate":
           return hasEnglishCert && englishCertificate ? (
-            <EnglishCertificateSection cert={englishCertificate} />
+            <EnglishCertificateSection cert={englishCertificate} title={item.title} />
           ) : null;
         case "skills":
-          return skills.length > 0 ? <SkillsSection entries={skills} /> : null;
+          return skills.length > 0 ? <SkillsSection entries={skills} title={item.title} /> : null;
         case "hobbies":
-          return hobbies.length > 0 ? <HobbiesSection entries={hobbies} /> : null;
+          return hobbies.length > 0 ? <HobbiesSection entries={hobbies} title={item.title} /> : null;
         case "recommendations":
           return recommendations.length > 0 ? (
             <RecommendationsSection entries={recommendations} />
           ) : null;
         case "declaration":
           return declaration.trim().length > 0 ? (
-            <DeclarationSection text={declaration} />
+            <DeclarationSection text={declaration} title={item.title} />
           ) : null;
         default:
           return null;
@@ -442,15 +502,15 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     if (!measureRef.current) return;
     const container = measureRef.current;
 
-    // A4 height is 297mm. Padding is 8.5mm top + 26mm bottom = 34.5mm.
-    // Usable height inside padding: ~262.5mm (~992px at 96 DPI).
+    // A4 height is 297mm. Padding is 12mm top + 16mm bottom = 28mm.
+    // Usable height inside padding: 269mm (~1016px at 96 DPI).
     // Reserve safety buffer from bottom decorations.
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
     ) as HTMLElement | null;
     const usableHeight = pageContentEl
-      ? pageContentEl.offsetHeight - 26
-      : 262 * (96 / 25.4) - 26;
+      ? pageContentEl.offsetHeight - 22
+      : 269 * (96 / 25.4) - 22;
 
     const headerEl = container.querySelector(
       '[data-measure="header"]'
@@ -472,24 +532,25 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
     };
 
     // Helper: place an atomic section
-    const placeAtomic = (key: string) => {
+    const placeAtomic = (key: string, defaultTitle?: string) => {
       const el = container.querySelector(
         `[data-measure="${key}"]`
       ) as HTMLElement | null;
       const h = el ? getElementHeightWithMargins(el) : 80;
 
       if (h <= remainingHeight || computedPages[pageIdx].length === 0) {
-        computedPages[pageIdx].push({ key, secKey: key });
+        computedPages[pageIdx].push({ key, secKey: key, title: defaultTitle });
         remainingHeight -= h;
       } else {
         advanceToNextPage();
-        computedPages[pageIdx].push({ key, secKey: key });
+        computedPages[pageIdx].push({ key, secKey: key, title: defaultTitle });
         remainingHeight = maxPageN - h;
       }
     };
 
     // Helper: place a repeatable/splittable section
-    function placeSplittable<T>(
+    // Helper: place a repeatable/splittable section with bullet-level split support
+    function placeSplittable<T extends { id?: string; description?: string }>(
       secKey: string,
       defaultTitle: string,
       entries: T[]
@@ -524,13 +585,115 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         return;
       }
 
-      // 2. Section doesn't fit entirely, check if title + at least 1 entry fits
-      if (titleHeight + entryHeights[0] + 16 <= remainingHeight) {
+      // Helper function to check if entry `entryIdx` can split its bullet points
+      const getBulletSplitInfo = (entryIdx: number, availableHeight: number) => {
+        const entryEl = container.querySelector(
+          `[data-measure-entry="${secKey}"][data-index="${entryIdx}"]`
+        ) as HTMLElement | null;
+        if (!entryEl) return null;
+
+        const bulletEls = entryEl.querySelectorAll<HTMLElement>(`.${styles.bulletItem}`);
+        if (bulletEls.length < 3) return null;
+
+        const bulletHeights = Array.from(bulletEls).map((b) => getElementHeightWithMargins(b));
+        const totalBulletsHeight = bulletHeights.reduce((a, b) => a + b, 0);
+        const headerHeight = Math.max(30, entryHeights[entryIdx] - totalBulletsHeight);
+
+        // Header + at least 2 bullets must fit with safety buffer
+        if (headerHeight + bulletHeights[0] + bulletHeights[1] + 12 > availableHeight) {
+          return null;
+        }
+
+        let remH = availableHeight - headerHeight - 12;
+        let bCount = 0;
+        while (bCount < bulletHeights.length && bulletHeights[bCount] <= remH) {
+          remH -= bulletHeights[bCount];
+          bCount++;
+        }
+
+        // Must fit at least 2 bullets on current page, and leave at least 1 bullet for next page
+        if (bCount >= 2 && bCount < bulletHeights.length) {
+          const part2Height = bulletHeights.slice(bCount).reduce((a, b) => a + b, 0);
+          return { bCount, part2Height };
+        }
+        return null;
+      };
+
+      // 2. Section doesn't fit entirely on current page.
+      // Check if at least 1 entry fits or entry 0 can split its bullets:
+      if (
+        titleHeight + entryHeights[0] + 16 <= remainingHeight ||
+        getBulletSplitInfo(0, remainingHeight - titleHeight) !== null
+      ) {
         let rem = remainingHeight - titleHeight;
         let k = 0;
         while (k < entries.length && entryHeights[k] + 16 <= rem) {
           rem -= entryHeights[k];
           k++;
+        }
+
+        // Check if entry k can split its bullets into the remaining space
+        if (k < entries.length) {
+          const splitInfo = getBulletSplitInfo(k, rem);
+          if (splitInfo) {
+            // Entry k splits its bullets across the page boundary
+            computedPages[pageIdx].push({
+              key: `${secKey}_part1`,
+              secKey,
+              title: defaultTitle,
+              startIndex: 0,
+              endIndex: k + 1,
+              splitEntryIndex: k,
+              bulletSplitCount: splitInfo.bCount,
+              splitPart: 1,
+            });
+
+            advanceToNextPage();
+            const remainingEntriesHeight = entryHeights.slice(k + 1).reduce((acc, val) => acc + val, 0);
+            const totalPart2Height = splitInfo.part2Height + remainingEntriesHeight;
+
+            if (totalPart2Height <= maxPageN) {
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: entries.length,
+                splitEntryIndex: k,
+                bulletSplitCount: splitInfo.bCount,
+                splitPart: 2,
+              });
+              remainingHeight = maxPageN - totalPart2Height;
+            } else {
+              let k2 = k + 1;
+              let rem2 = maxPageN - splitInfo.part2Height;
+              while (k2 < entries.length && entryHeights[k2] <= rem2) {
+                rem2 -= entryHeights[k2];
+                k2++;
+              }
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: k2,
+                splitEntryIndex: k,
+                bulletSplitCount: splitInfo.bCount,
+                splitPart: 2,
+              });
+              advanceToNextPage();
+              computedPages[pageIdx].push({
+                key: `${secKey}_part3`,
+                secKey,
+                title: "",
+                startIndex: k2,
+                endIndex: entries.length,
+              });
+              const remHeights3 = entryHeights.slice(k2);
+              remainingHeight = maxPageN - remHeights3.reduce((acc, val) => acc + val, 0);
+            }
+            return;
+          }
         }
 
         if (k > 0) {
@@ -546,21 +709,20 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           advanceToNextPage();
           const remEntries = entries.slice(k);
           const remHeights = entryHeights.slice(k);
-          const remTotal =
-            titleHeight + remHeights.reduce((acc, val) => acc + val, 0);
+          const remTotal = remHeights.reduce((acc, val) => acc + val, 0);
 
           if (remTotal <= maxPageN) {
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
               secKey,
-              title: `${defaultTitle} (Continued)`,
+              title: "",
               startIndex: k,
               endIndex: entries.length,
             });
             remainingHeight = maxPageN - remTotal;
           } else {
             let k2 = 0;
-            let rem2 = maxPageN - titleHeight;
+            let rem2 = maxPageN;
             while (k2 < remEntries.length && remHeights[k2] <= rem2) {
               rem2 -= remHeights[k2];
               k2++;
@@ -568,7 +730,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
               secKey,
-              title: `${defaultTitle} (Continued)`,
+              title: "",
               startIndex: k,
               endIndex: k + k2,
             });
@@ -576,14 +738,14 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
             computedPages[pageIdx].push({
               key: `${secKey}_part3`,
               secKey,
-              title: `${defaultTitle} (Continued)`,
+              title: "",
               startIndex: k + k2,
               endIndex: entries.length,
             });
             const remHeights3 = remHeights.slice(k2);
             remainingHeight =
               maxPageN -
-              (titleHeight + remHeights3.reduce((acc, val) => acc + val, 0));
+              remHeights3.reduce((acc, val) => acc + val, 0);
           }
           return;
         }
@@ -618,14 +780,14 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         computedPages[pageIdx].push({
           key: `${secKey}_part2`,
           secKey,
-          title: `${defaultTitle} (Continued)`,
+          title: "",
           startIndex: k,
           endIndex: entries.length,
         });
         const remHeights = entryHeights.slice(k);
         remainingHeight =
           maxPageN -
-          (titleHeight + remHeights.reduce((acc, val) => acc + val, 0));
+          remHeights.reduce((acc, val) => acc + val, 0);
       }
     }
 
@@ -635,7 +797,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         case "aboutMe":
         case "about":
           if (aboutMe && aboutMe.trim().length > 0) {
-            placeAtomic("about");
+            placeAtomic("about", "ABOUT ME");
           }
           break;
         case "education":
@@ -667,22 +829,22 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           break;
         case "languages":
           if (hasLanguages) {
-            placeAtomic("languages");
+            placeAtomic("languages", "LANGUAGE SKILLS");
           }
           break;
         case "englishCertificate":
           if (hasEnglishCert) {
-            placeAtomic("englishCertificate");
+            placeAtomic("englishCertificate", "ENGLISH LANGUAGE CERTIFICATE");
           }
           break;
         case "skills":
           if (skills && skills.length > 0) {
-            placeAtomic("skills");
+            placeAtomic("skills", "SKILLS");
           }
           break;
         case "hobbies":
           if (hobbies && hobbies.length > 0) {
-            placeAtomic("hobbies");
+            placeAtomic("hobbies", "HOBBIES AND INTERESTS");
           }
           break;
         case "recommendations":
@@ -692,7 +854,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
           break;
         case "declaration":
           if (declaration && declaration.trim().length > 0) {
-            placeAtomic("declaration");
+            placeAtomic("declaration", "DECLARATION");
           }
           break;
       }
@@ -747,7 +909,7 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
       >
         <div
           data-measure-page
-          style={{ height: "262mm", boxSizing: "border-box" }}
+          style={{ height: "269mm", boxSizing: "border-box" }}
         />
         <div data-measure="header">
           <EuropassHeader personal={data.personal} />
@@ -872,10 +1034,67 @@ export function EuropassTemplate({ data }: EuropassTemplateProps) {
         const pageNumber = pIdx + 1;
         return (
           <EuropassPage key={pageNumber} pageNumber={pageNumber}>
-            {pageNumber === 1 && <EuropassHeader personal={data.personal} />}
-            {pageItems.map((item) => (
-              <Fragment key={item.key}>{renderPageItem(item)}</Fragment>
-            ))}
+            {pageNumber === 1 && (
+              isInteractive ? (
+                <ResumeInteractiveSection
+                  sectionId="personalDetails"
+                  title="Personal Details"
+                  isSelected={activeSectionId === "personalDetails"}
+                  onEdit={() => onSelectSection?.("personalDetails")}
+                >
+                  <EuropassHeader personal={data.personal} />
+                </ResumeInteractiveSection>
+              ) : (
+                <EuropassHeader personal={data.personal} />
+              )
+            )}
+            {pageItems.map((item) => {
+              const content = renderPageItem(item);
+              if (!content) return null;
+              if (!isInteractive) {
+                return <Fragment key={item.key}>{content}</Fragment>;
+              }
+
+              const canonicalKey =
+                item.secKey === "about"
+                  ? "aboutMe"
+                  : item.secKey === "leadership"
+                  ? "leadershipActivities"
+                  : item.secKey;
+
+              const meta = RESUME_SECTION_METADATA[canonicalKey] ?? { title: canonicalKey };
+              const isRepeatable = [
+                "education",
+                "internships",
+                "academicProjects",
+                "certifications",
+                "academicInterests",
+                "achievements",
+                "leadershipActivities",
+                "volunteering",
+                "languages",
+                "skills",
+                "hobbies",
+                "recommendations",
+              ].includes(canonicalKey);
+
+              const isContinuation = item.title === "";
+
+              return (
+                <Fragment key={item.key}>
+                  <ResumeInteractiveSection
+                    sectionId={canonicalKey}
+                    title={meta.title}
+                    isRepeatable={isRepeatable && !isContinuation}
+                    isSelected={activeSectionId === canonicalKey}
+                    onEdit={() => onSelectSection?.(canonicalKey)}
+                    onAddEntry={isRepeatable && !isContinuation ? () => onAddEntry?.(canonicalKey) : undefined}
+                  >
+                    {content}
+                  </ResumeInteractiveSection>
+                </Fragment>
+              );
+            })}
           </EuropassPage>
         );
       })}

@@ -24,6 +24,11 @@ import { getAdmissionsGuidance } from "../guidance/getAdmissionsGuidance";
 import { ResumeWorkspaceHeader } from "./ResumeWorkspaceHeader";
 import { ResumeSectionSidebar, RESUME_SECTION_METADATA } from "./ResumeSectionSidebar";
 import { ResumeSectionEditor } from "./ResumeSectionEditor";
+import { ResumeDocumentWorkspace } from "./ResumeDocumentWorkspace";
+import { ResumeEditDrawer } from "./ResumeEditDrawer";
+import { AddContentModal } from "./AddContentModal";
+import { RearrangeSectionsModal } from "./RearrangeSectionsModal";
+import { ResumeSectionsDrawer } from "./ResumeSectionsDrawer";
 import { AcademicProfileProvider } from "../context/AcademicProfileContext";
 import { ResumeContextPanel } from "./ResumeContextPanel";
 import { ResumeStudentDetailsModal } from "./ResumeStudentDetailsModal";
@@ -37,7 +42,24 @@ import { EuropassTemplate } from "@/templates/europass/EuropassTemplate";
  * Inner shell — rendered inside DocumentProvider so it can read and update context.
  */
 function GeneratorLayout() {
-  const { data, loadStudent, reset } = useDocumentState();
+  const {
+    data,
+    loadStudent,
+    reset,
+    setPersonal,
+    addEducation,
+    addInternship,
+    addAcademicProject,
+    addCertification,
+    addAcademicInterest,
+    addAchievement,
+    addLeadershipActivity,
+    addVolunteering,
+    addLanguage,
+    addSkill,
+    addHobby,
+    addRecommendation,
+  } = useDocumentState();
   const {
     selectedStudentData,
     selectedStudentId,
@@ -69,10 +91,16 @@ function GeneratorLayout() {
   const [devToolsOpen, setDevToolsOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
 
+  // ── Document-First Modals and Drawers state ──────────────────────────────
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+  const [isAddContentOpen, setIsAddContentOpen] = useState(false);
+  const [isRearrangeOpen, setIsRearrangeOpen] = useState(false);
+  const [isSectionsDrawerOpen, setIsSectionsDrawerOpen] = useState(false);
+
   // ── Collapsible sidebars & responsive layout state ─────────────────────────
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [viewMode, setViewMode] = useState<"split" | "editor" | "preview">("split");
+  const [viewMode, setViewMode] = useState<"edit" | "preview" | "split" | "editor">("edit");
 
   // ── Application Target is read & synced directly from GlobalStudentContext ──
 
@@ -204,6 +232,79 @@ function GeneratorLayout() {
     },
     [confirmIntentionalTransition]
   );
+
+  const handleAddRepeatableEntry = useCallback((secId: string) => {
+    switch (secId) {
+      case "education":
+        addEducation();
+        break;
+      case "internships":
+        addInternship();
+        break;
+      case "academicProjects":
+        addAcademicProject();
+        break;
+      case "certifications":
+        addCertification();
+        break;
+      case "academicInterests":
+        addAcademicInterest();
+        break;
+      case "achievements":
+        addAchievement();
+        break;
+      case "leadershipActivities":
+        addLeadershipActivity();
+        break;
+      case "volunteering":
+        addVolunteering();
+        break;
+      case "languages":
+        addLanguage();
+        break;
+      case "skills":
+        addSkill();
+        break;
+      case "hobbies":
+        addHobby();
+        break;
+      case "recommendations":
+        addRecommendation();
+        break;
+    }
+  }, [
+    addEducation,
+    addInternship,
+    addAcademicProject,
+    addCertification,
+    addAcademicInterest,
+    addAchievement,
+    addLeadershipActivity,
+    addVolunteering,
+    addLanguage,
+    addSkill,
+    addHobby,
+    addRecommendation,
+  ]);
+
+  const handleRemoveSection = useCallback((secId: string) => {
+    switch (secId) {
+      case "aboutMe":
+        loadStudent({ ...data, aboutMe: "" });
+        break;
+      case "declaration":
+        loadStudent({ ...data, declaration: "" });
+        break;
+      case "englishCertificate":
+        loadStudent({ ...data, englishCertificate: undefined });
+        break;
+      default:
+        loadStudent({ ...data, [secId]: [] });
+        break;
+    }
+    setSavedNoticeText(`✓ Removed ${secId} from resume.`);
+    setTimeout(() => setSavedNoticeText(null), 3000);
+  }, [data, loadStudent]);
 
   // ── React to global student selection ──────────────────────────────────────
   useEffect(() => {
@@ -478,8 +579,12 @@ function GeneratorLayout() {
         onOpenStudentSelect={() => setStudentSelectOpen(true)}
         onClearStudent={handleClearStudent}
         onOpenImport={() => setImportModalOpen(true)}
+        onOpenAddContent={() => setIsAddContentOpen(true)}
+        onOpenRearrange={() => setIsRearrangeOpen(true)}
+        onOpenSectionsDrawer={() => setIsSectionsDrawerOpen(true)}
         filledSectionsCount={filledCount}
         totalSectionsCount={totalCount}
+        activeSectionsCount={filledCount}
         isSavingDraft={isSavingDraft}
         savedNoticeText={savedNoticeText}
         onSaveDraft={handleSaveDraft}
@@ -492,7 +597,7 @@ function GeneratorLayout() {
         isGeneratingPdf={isGeneratingPdf}
         pdfErrorMessage={pdfErrorMessage}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(m) => setViewMode(m)}
         isContextOpen={isContextOpen}
         onToggleContext={() => setIsContextOpen((v) => !v)}
         isSidebarCollapsed={isSidebarCollapsed}
@@ -504,65 +609,75 @@ function GeneratorLayout() {
       {/* ── Main Multi-Panel Workspace ── */}
       <AcademicProfileProvider applicationTarget={applicationTarget}>
         <div className="flex flex-1 overflow-hidden relative">
-          {/* ── Left: Resume Structure Navigation Sidebar ── */}
-          <ResumeSectionSidebar
+          {/* ── Document-First Main Canvas Workspace ── */}
+          <ResumeDocumentWorkspace
             data={data}
-            guidance={guidance}
-            selectedSectionId={selectedSectionId}
-            onSelectSection={setSelectedSectionId}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={() => setIsSidebarCollapsed((v) => !v)}
+            isStudentActive={isStudentActive}
+            isEmpty={filledCount === 0}
+            viewMode={viewMode}
+            activeSectionId={selectedSectionId}
+            onSelectSection={(secId) => {
+              setSelectedSectionId(secId);
+              setIsEditDrawerOpen(true);
+            }}
+            onAddEntry={(secId) => {
+              handleAddRepeatableEntry(secId);
+              setSelectedSectionId(secId);
+              setIsEditDrawerOpen(true);
+            }}
+            onOpenAddContent={() => setIsAddContentOpen(true)}
+            onOpenStudentSelect={() => setStudentSelectOpen(true)}
+            onOpenImport={() => setImportModalOpen(true)}
+            onStartManual={() => {
+              if (!data.personal?.fullName) {
+                setPersonal({ fullName: "Candidate Name" });
+              }
+              setSelectedSectionId("personalDetails");
+              setIsEditDrawerOpen(true);
+            }}
           />
 
-          {/* ── Center: Split Workspace (Section Editor + Live Resume Preview) ── */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Section Editor (hidden when in preview-only mode on small screens) */}
-            {viewMode !== "preview" && (
-              <div
-                className={`flex flex-col h-full ${
-                  viewMode === "editor"
-                    ? "flex-1"
-                    : "w-full md:w-[460px] lg:w-[480px] xl:w-[500px] flex-shrink-0"
-                }`}
-              >
-                <ResumeSectionEditor
-                  selectedSectionId={selectedSectionId}
-                  guidance={guidance}
-                  onSelectSection={setSelectedSectionId}
-                />
-              </div>
-            )}
+          {/* ── Contextual Edit Drawer (Slide-Over, reuses existing forms) ── */}
+          <ResumeEditDrawer
+            isOpen={isEditDrawerOpen}
+            onClose={() => setIsEditDrawerOpen(false)}
+            selectedSectionId={selectedSectionId}
+            crmSnapshot={currentSnapshot}
+            onRemoveSection={handleRemoveSection}
+          />
 
-            {/* Live Document Preview (hidden when in editor-only mode) */}
-            {viewMode !== "editor" && (
-              <section
-                className="flex-1 overflow-y-auto overflow-x-hidden bg-preview-bg flex flex-col items-center"
-                aria-label="Live A4 resume document preview"
-              >
-                {/* Document Preview Meta Header */}
-                <div className="w-full max-w-[794px] px-6 pt-5 pb-2.5 flex items-center justify-between flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
-                      Live Preview
-                    </span>
-                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/80 font-medium">
-                      Updates live
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-medium">
-                    Europass · A4 Standard
-                  </span>
-                </div>
+          {/* ── Sections Navigation Drawer (Slide-Over quick-jump list) ── */}
+          <ResumeSectionsDrawer
+            isOpen={isSectionsDrawerOpen}
+            onClose={() => setIsSectionsDrawerOpen(false)}
+            data={data}
+            selectedSectionId={selectedSectionId}
+            onSelectSection={(secId) => {
+              setSelectedSectionId(secId);
+              setIsEditDrawerOpen(true);
+            }}
+            onOpenAddContent={() => setIsAddContentOpen(true)}
+          />
 
-                {/* Scaled A4 Document Page */}
-                <div className="w-full max-w-[794px] px-4 pb-12 flex justify-center">
-                  <PreviewScaler contentWidth={794}>
-                    <EuropassTemplate data={data} />
-                  </PreviewScaler>
-                </div>
-              </section>
-            )}
-          </div>
+          {/* ── Add Content Modal ── */}
+          <AddContentModal
+            isOpen={isAddContentOpen}
+            onClose={() => setIsAddContentOpen(false)}
+            data={data}
+            guidance={guidance}
+            onSelectSection={(secId) => {
+              setSelectedSectionId(secId);
+              setIsEditDrawerOpen(true);
+            }}
+            onOpenImport={() => setImportModalOpen(true)}
+          />
+
+          {/* ── Rearrange Sections Modal ── */}
+          <RearrangeSectionsModal
+            isOpen={isRearrangeOpen}
+            onClose={() => setIsRearrangeOpen(false)}
+            data={data}
+          />
 
           {/* ── Right: Profile & Target Context Drawer (Slide-Over, 0px in flow) ── */}
           <ResumeContextPanel

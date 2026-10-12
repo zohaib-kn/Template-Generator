@@ -31,9 +31,13 @@ export const InternshipSection = memo(function InternshipSection({
   );
   if (visible.length === 0) return null;
 
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title={title ?? "WORK EXPERIENCE / INTERNSHIPS"} />
+      {showTitle && (
+        <EuropassSectionTitle title={title || "WORK EXPERIENCE / INTERNSHIPS"} />
+      )}
       {visible.map((item) => {
         const start = formatDateDMY(item.startDate);
         const end = formatDateDMY(item.endDate);
@@ -41,24 +45,24 @@ export const InternshipSection = memo(function InternshipSection({
 
         return (
           <div key={item.id} className={styles.educationEntry}>
-            {item.role && (
+            {!item.hideHeader && item.role && (
               <h3 className={styles.qualificationTitle}>{item.role}</h3>
             )}
 
-            {(item.company || item.location || hasDate) && (
+            {!item.hideHeader && (item.company || item.location || hasDate) && (
               <div className={styles.institutionRow}>
                 {item.company && (
                   <span className={styles.institutionName}>{item.company}</span>
                 )}
                 {item.location && (
                   <>
-                    {item.company && <span className={styles.pipeDivider}>|</span>}
+                    {item.company && <span className={styles.pipeDivider}> | </span>}
                     <span className={styles.identityValue}>{item.location}</span>
                   </>
                 )}
                 {hasDate && (
                   <span className={styles.datesBadge}>
-                    [{start}{end ? ` – ${end}` : ""}]
+                    [ {start}{end ? ` – ${end}` : ""} ]
                   </span>
                 )}
               </div>
@@ -66,15 +70,18 @@ export const InternshipSection = memo(function InternshipSection({
 
             {item.description && (() => {
               const bullets = parseDescriptionToBullets(item.description);
-              return bullets.length === 1 ? (
+              return bullets.length === 1 && !item.hideHeader ? (
                 // Single point: render as plain text — avoids a lone orphaned bullet
                 <div className={styles.educationDetails}>{bullets[0]}</div>
               ) : (
-                <ul className={styles.descriptionBulletList}>
+                <div className={styles.bulletList}>
                   {bullets.map((point, i) => (
-                    <li key={i} className={styles.descriptionBulletItem}>{point}</li>
+                    <div key={i} className={styles.bulletItem}>
+                      <span className={styles.bulletDot} aria-hidden="true">•</span>
+                      <span className={styles.bulletText}>{point}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               );
             })()}
           </div>

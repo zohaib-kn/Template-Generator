@@ -23,10 +23,10 @@ const MIN_ITEM_LENGTH = 10;
 
 /**
  * Strip a leading bullet marker character from a string.
- * Handles •, -, *, –, — followed by optional whitespace.
+ * Handles •, -, *, –, —, quotes, ticks followed by optional whitespace.
  */
 function stripLeadingMarker(s: string): string {
-  return s.replace(/^[\u2022\-\*\u2013\u2014]\s*/, "").trim();
+  return s.replace(/^[\u2022\-\*\u2013\u2014\u2018\u2019\'\"·]\s*/, "").trim();
 }
 
 /**
@@ -76,7 +76,7 @@ export function parseDescriptionToBullets(raw: string): string[] {
   const manualBulletLines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => /^[\u2022\-\*\u2013\u2014]/.test(l));
+    .filter((l) => /^[\u2022\-\*\u2013\u2014\u2018\u2019\'\"·]/.test(l));
 
   if (manualBulletLines.length >= 2) {
     const cleaned = cleanAndCap(manualBulletLines);

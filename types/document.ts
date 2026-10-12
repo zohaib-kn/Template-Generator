@@ -166,6 +166,8 @@ export interface InternshipEntry {
   startDate?: string;
   endDate?: string;
   description?: string;
+  /** Whether to suppress role/company header when continuing split bullets onto the next page */
+  hideHeader?: boolean;
 }
 
 // ---------------------------------------------------------------------------
