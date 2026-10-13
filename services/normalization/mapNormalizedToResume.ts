@@ -72,14 +72,22 @@ function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry 
   // ── School-level branch (10th / 12th) ──────────────────────────────────
   if (isSchool) {
     let cleanTitle: string;
-    if (is12thLevel(level)) {
-      cleanTitle = "Higher Secondary Education (12th)";
+    if (rawQual && !looksLikeSubjectsList(rawQual)) {
+      if (/\b(grade\s*12|12th|class\s*12|higher\s*secondary)\b/i.test(rawQual)) {
+        cleanTitle = "Grade 12th";
+      } else if (/\b(grade\s*10|10th|class\s*10|secondary|matriculation|ssc)\b/i.test(rawQual)) {
+        cleanTitle = "Grade 10th";
+      } else {
+        cleanTitle = rawQual;
+      }
+    } else if (is12thLevel(level)) {
+      cleanTitle = "Grade 12th";
     } else if (is10thLevel(level)) {
-      cleanTitle = "Secondary Education (10th)";
+      cleanTitle = "Grade 10th";
     } else if (/\b(physics|chemistry|biology|accountancy|economics|computer\s*science)\b/i.test(rawQual)) {
-      cleanTitle = "Higher Secondary Education (12th)";
+      cleanTitle = "Grade 12th";
     } else {
-      cleanTitle = "Secondary Education (10th)";
+      cleanTitle = "Grade 10th";
     }
 
     // Resolve subjects: prefer the dedicated field, fall back to qualification
@@ -156,15 +164,16 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
   const internships: InternshipEntry[] = profile.workExperience.map((w, i) => mapWorkEntry(w, i));
 
   const eng = profile.tests.english;
-  const englishCertificate = eng?.overallScore
+  const englishCertificate = (eng?.overallScore || eng?.subscores)
     ? {
-        examName: eng.type || "English Proficiency Test",
+        examName: eng.type || "IELTS",
         score: eng.overallScore,
         dateTaken: eng.testDate,
         listening: eng.subscores?.listening,
         reading: eng.subscores?.reading,
         writing: eng.subscores?.writing,
         speaking: eng.subscores?.speaking,
+        trfNumber: eng.trfNumber,
       }
     : undefined;
 

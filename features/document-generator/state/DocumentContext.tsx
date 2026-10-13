@@ -114,6 +114,16 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
     if (selectedStudentData && selectedStudentId && selectedStudentId !== currentLoadedIdRef.current) {
       currentLoadedIdRef.current = selectedStudentId;
 
+      // Normalize fresh CRM student data
+      let freshResumeData: DocumentData | null = null;
+      try {
+        const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source: "senior-crm-api" });
+        const { student } = mapNormalizedToResume(normalized);
+        freshResumeData = student;
+      } catch (err) {
+        console.warn("[DocumentProvider] Error normalizing fresh student CRM data:", err);
+      }
+
       // 1. Check if there is an active session draft for THIS specific student in sessionStorage
       if (typeof window !== "undefined") {
         try {
@@ -122,7 +132,27 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
           if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed && typeof parsed === "object") {
-              dispatch({ type: "LOAD_STUDENT", payload: sanitizeCachedEducation(parsed) });
+              const sanitized = sanitizeCachedEducation(parsed);
+
+              // Backfill fresh CRM English certificate (IELTS scores & sub-scores) if cached draft is incomplete
+              if (freshResumeData?.englishCertificate) {
+                const freshCert = freshResumeData.englishCertificate;
+                const cachedCert = sanitized.englishCertificate || {};
+
+                sanitized.englishCertificate = {
+                  ...cachedCert,
+                  examName: cachedCert.examName || freshCert.examName,
+                  score: cachedCert.score || freshCert.score,
+                  dateTaken: cachedCert.dateTaken || freshCert.dateTaken,
+                  listening: cachedCert.listening || freshCert.listening,
+                  reading: cachedCert.reading || freshCert.reading,
+                  writing: cachedCert.writing || freshCert.writing,
+                  speaking: cachedCert.speaking || freshCert.speaking,
+                  trfNumber: cachedCert.trfNumber || freshCert.trfNumber,
+                };
+              }
+
+              dispatch({ type: "LOAD_STUDENT", payload: sanitized });
               return;
             }
           }
@@ -138,12 +168,8 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       }
 
       // 3. Otherwise load fresh normalized data from CRM
-      try {
-        const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source: "senior-crm-api" });
-        const { student } = mapNormalizedToResume(normalized);
-        dispatch({ type: "LOAD_STUDENT", payload: student });
-      } catch (err) {
-        console.warn("[DocumentProvider] Failed to load selected student into resume:", err);
+      if (freshResumeData) {
+        dispatch({ type: "LOAD_STUDENT", payload: freshResumeData });
       }
     } else if (!selectedStudentId && currentLoadedIdRef.current !== null) {
       currentLoadedIdRef.current = null;
@@ -163,6 +189,44 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "RESET" });
     }
   }, [selectedStudentData, selectedStudentId]);
+
+  // Synchronize incoming CRM IELTS subscores if active resume state is missing them
+  useEffect(() => {
+    if (!selectedStudentData) return;
+    try {
+      const normalized = mapCrmToNormalizedStudent(selectedStudentData, { source: "senior-crm-api" });
+      const freshCert = normalized.tests.english;
+      if (!freshCert) return;
+
+      const currentCert = data.englishCertificate;
+      const needsSync = Boolean(
+        (freshCert.subscores?.listening && !currentCert?.listening) ||
+        (freshCert.subscores?.reading && !currentCert?.reading) ||
+        (freshCert.subscores?.writing && !currentCert?.writing) ||
+        (freshCert.subscores?.speaking && !currentCert?.speaking) ||
+        (freshCert.trfNumber && !currentCert?.trfNumber)
+      );
+
+      if (needsSync) {
+        dispatch({
+          type: "SET_ENGLISH_CERTIFICATE",
+          payload: {
+            ...currentCert,
+            examName: currentCert?.examName || freshCert.type || "IELTS",
+            score: currentCert?.score || freshCert.overallScore,
+            dateTaken: currentCert?.dateTaken || freshCert.testDate,
+            listening: currentCert?.listening || freshCert.subscores?.listening,
+            reading: currentCert?.reading || freshCert.subscores?.reading,
+            writing: currentCert?.writing || freshCert.subscores?.writing,
+            speaking: currentCert?.speaking || freshCert.subscores?.speaking,
+            trfNumber: currentCert?.trfNumber || freshCert.trfNumber,
+          },
+        });
+      }
+    } catch {
+      // ignore sync error
+    }
+  }, [selectedStudentData, data.englishCertificate]);
 
   // Keep sessionStorage in sync for the active student
   useEffect(() => {

@@ -72,6 +72,7 @@ export interface NormalizedEnglishTest {
     writing?: string;
     speaking?: string;
   };
+  trfNumber?: string;
   waiver?: boolean;
   waiver12thEnglishMark?: string;
 }

@@ -19,6 +19,12 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
+function cleanValue(val: string | undefined, prefixPattern: RegExp): string {
+  if (!val) return "";
+  const cleaned = val.replace(prefixPattern, "").trim();
+  return cleaned || val.trim();
+}
+
 export const EnglishCertificateSection = memo(function EnglishCertificateSection({
   cert,
   title,
@@ -31,110 +37,127 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
       !cert.listening &&
       !cert.reading &&
       !cert.writing &&
-      !cert.speaking)
+      !cert.speaking &&
+      !cert.trfNumber)
   ) {
     return null;
   }
 
   const showTitle = title === undefined ? true : Boolean(title);
+  const examUpper = (cert.examName || "IELTS").toUpperCase();
+  const isIelts = examUpper.includes("IELTS");
+  
+  // If title was omitted or passed as generic "ENGLISH LANGUAGE CERTIFICATE", use "IELTS" (or exam name)
+  const defaultTitles = ["ENGLISH LANGUAGE CERTIFICATE", "ENGLISH PROFICIENCY TEST", "IELTS"];
+  const isDefaultTitle = !title || defaultTitles.includes(title.trim().toUpperCase());
+  const sectionHeading = !isDefaultTitle ? title : (isIelts ? "IELTS" : examUpper);
+  const formattedDate = formatDateDMY(cert.dateTaken);
 
-  const hasSubscores = Boolean(
-    cert.listening || cert.reading || cert.writing || cert.speaking
-  );
+  // Derive descriptive subtitle
+  const subtitle = isIelts
+    ? "International English Language Testing System"
+    : cert.examName && cert.examName !== sectionHeading
+    ? cert.examName
+    : null;
 
-  // Render bullets from issuingBody or custom text if lines exist
-  const bullets = (cert.issuingBody ?? "")
+  // Custom additional bullets from issuingBody
+  const extraBullets = (cert.issuingBody ?? "")
     .split("\n")
     .map((b) => b.trim())
     .filter(Boolean);
 
   return (
     <section className={styles.sectionWrapper}>
-      {showTitle && (
-        <EuropassSectionTitle title={title || "ENGLISH LANGUAGE CERTIFICATE"} />
+      {showTitle && <EuropassSectionTitle title={sectionHeading} />}
+
+      {/* Date of Exam Badge (Matching Europass standard [ DD/MM/YYYY ]) */}
+      {formattedDate && (
+        <div className={styles.datesBadge} style={{ marginBottom: "1.5mm" }}>
+          [ {formattedDate} ]
+        </div>
       )}
 
-      {cert.examName && (
-        <h3 className={styles.qualificationTitle}>{cert.examName}</h3>
+      {/* Test Full Title / Subtitle */}
+      {subtitle && (
+        <h3 className={styles.qualificationTitle} style={{ marginBottom: "1.8mm" }}>
+          {subtitle}
+        </h3>
       )}
 
-      {(cert.score || cert.cefrLevel) && (
-        <div className={styles.certificateScore}>
-          {cert.score && (
-            <span>
-              {cert.score.includes(":") || cert.score.toLowerCase().includes("overall") ? (
-                cert.score
-              ) : (
-                <>
-                  <strong>Overall Band:</strong> {cert.score}
-                </>
-              )}
+      {/* Perfect Vertical Column of Scores and Test Details */}
+      <div className={styles.bulletList}>
+        {cert.score && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Overall Band Score - {cleanValue(cert.score, /^(?:Overall\s*(?:Band)?\s*(?:Score)?|Band)\s*[-:]?\s*/i)}
             </span>
-          )}
-          {cert.cefrLevel && (
-            <span className={styles.cefrBadge}>
-              {cert.score && <span className={styles.metaDivider}>·</span>}
-              <strong>CEFR Level:</strong> {cert.cefrLevel}
+          </div>
+        )}
+
+        {cert.listening && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Listening - {cleanValue(cert.listening, /^Listening\s*[-:]?\s*/i)}
             </span>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {hasSubscores && (
-        <div className={styles.certificateSubscores}>
-          {cert.listening && (
-            <div className={styles.subscoreItem}>
-              <span className={styles.subscoreLabel}>Listening:</span>
-              <span className={styles.subscoreValue}>{cert.listening}</span>
-            </div>
-          )}
-          {cert.reading && (
-            <div className={styles.subscoreItem}>
-              <span className={styles.subscoreLabel}>Reading:</span>
-              <span className={styles.subscoreValue}>{cert.reading}</span>
-            </div>
-          )}
-          {cert.writing && (
-            <div className={styles.subscoreItem}>
-              <span className={styles.subscoreLabel}>Writing:</span>
-              <span className={styles.subscoreValue}>{cert.writing}</span>
-            </div>
-          )}
-          {cert.speaking && (
-            <div className={styles.subscoreItem}>
-              <span className={styles.subscoreLabel}>Speaking:</span>
-              <span className={styles.subscoreValue}>{cert.speaking}</span>
-            </div>
-          )}
-        </div>
-      )}
+        {cert.reading && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Reading - {cleanValue(cert.reading, /^Reading\s*[-:]?\s*/i)}
+            </span>
+          </div>
+        )}
 
-      {(cert.dateTaken || cert.trfNumber) && (
-        <div className={styles.certificateMeta}>
-          {cert.dateTaken && (
-            <span>Date taken: {formatDateDMY(cert.dateTaken)}</span>
-          )}
-          {cert.dateTaken && cert.trfNumber && (
-            <span className={styles.metaDivider}>·</span>
-          )}
-          {cert.trfNumber && (
-            <span>TRF No: {cert.trfNumber}</span>
-          )}
-        </div>
-      )}
+        {cert.writing && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Writing - {cleanValue(cert.writing, /^Writing\s*[-:]?\s*/i)}
+            </span>
+          </div>
+        )}
 
-      {bullets.length > 0 && (
-        <div className={styles.bulletList}>
-          {bullets.map((bullet, idx) => (
-            <div key={idx} className={styles.bulletItem}>
-              <span className={styles.bulletDot} aria-hidden="true">•</span>
-              <span className={styles.bulletText}>
-                {bullet.replace(/^[•*\-\s]+/, "")}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+        {cert.speaking && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Speaking - {cleanValue(cert.speaking, /^Speaking\s*[-:]?\s*/i)}
+            </span>
+          </div>
+        )}
+
+        {cert.cefrLevel && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              CEFR Level - {cleanValue(cert.cefrLevel, /^CEFR\s*(?:Level)?\s*[-:]?\s*/i)}
+            </span>
+          </div>
+        )}
+
+        {cert.trfNumber && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Test Report Form Number - {cleanValue(cert.trfNumber, /^(?:Test\s*Report\s*(?:Form)?\s*(?:Number)?|TRF\s*(?:No\.?|Number)?)\s*[-:]?\s*/i)}
+            </span>
+          </div>
+        )}
+
+        {extraBullets.map((bullet, idx) => (
+          <div key={idx} className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              {bullet.replace(/^[•*\-\s]+/, "")}
+            </span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 });

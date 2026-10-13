@@ -24,7 +24,7 @@ export const HobbiesSection = memo(function HobbiesSection({
       {showTitle && (
         <EuropassSectionTitle title={title || "HOBBIES AND INTERESTS"} />
       )}
-      <div className={styles.subheadingGray}>Hobbies</div>
+      <div className={styles.subheadingGray}>Hobbies and Interests</div>
       <div className={styles.bulletList}>
         {visible.map((hobby) => (
           <div key={hobby.id} className={styles.bulletItem}>

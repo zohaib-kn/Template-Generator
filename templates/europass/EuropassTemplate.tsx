@@ -8,7 +8,6 @@ import {
   useState,
   useMemo,
   useCallback,
-  type ReactNode,
 } from "react";
 import { DEFAULT_MOVABLE_SECTION_ORDER, type DocumentData } from "@/types";
 import styles from "./europass.module.css";
@@ -334,6 +333,15 @@ export function EuropassTemplate({
   const [pageAssignments, setPageAssignments] = useState<
     PageItemAssignment[][] | null
   >(null);
+  const [fontReadyTrigger, setFontReadyTrigger] = useState(0);
+
+  useEffect(() => {
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        setFontReadyTrigger((v) => v + 1);
+      });
+    }
+  }, []);
 
   const renderPageItem = useCallback(
     (item: PageItemAssignment) => {
@@ -502,15 +510,15 @@ export function EuropassTemplate({
     if (!measureRef.current) return;
     const container = measureRef.current;
 
-    // A4 height is 297mm. Padding is 12mm top + 16mm bottom = 28mm.
-    // Usable height inside padding: 269mm (~1016px at 96 DPI).
+    // A4 height is 297mm. Measured padding is 7.3mm top + 11.2mm bottom = 18.5mm.
+    // Usable height inside padding: 278.5mm (~1052px at 96 DPI).
     // Reserve safety buffer from bottom decorations.
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
     ) as HTMLElement | null;
     const usableHeight = pageContentEl
-      ? pageContentEl.offsetHeight - 22
-      : 269 * (96 / 25.4) - 22;
+      ? pageContentEl.offsetHeight - 38
+      : 278.5 * (96 / 25.4) - 38;
 
     const headerEl = container.querySelector(
       '[data-measure="header"]'
@@ -834,7 +842,8 @@ export function EuropassTemplate({
           break;
         case "englishCertificate":
           if (hasEnglishCert) {
-            placeAtomic("englishCertificate", "ENGLISH LANGUAGE CERTIFICATE");
+            const isIeltsExam = (englishCertificate?.examName || "IELTS").toUpperCase().includes("IELTS");
+            placeAtomic("englishCertificate", isIeltsExam ? "IELTS" : (englishCertificate?.examName?.toUpperCase() || "ENGLISH LANGUAGE CERTIFICATE"));
           }
           break;
         case "skills":
@@ -883,6 +892,7 @@ export function EuropassTemplate({
     leadershipEntries,
     volunteeringEntries,
     certificationEntries,
+    fontReadyTrigger,
   ]);
 
   const currentPages = pageAssignments ?? fallbackPages;
@@ -908,9 +918,13 @@ export function EuropassTemplate({
         aria-hidden="true"
       >
         <div
-          data-measure-page
-          style={{ height: "269mm", boxSizing: "border-box" }}
-        />
+          className={styles.pageContent}
+          style={{ height: "auto", minHeight: "auto", padding: "12mm 13mm 16mm 13mm", boxSizing: "border-box" }}
+        >
+          <div
+            data-measure-page
+            style={{ height: "269mm", boxSizing: "border-box" }}
+          />
         <div data-measure="header">
           <EuropassHeader personal={data.personal} />
         </div>
@@ -1027,6 +1041,7 @@ export function EuropassTemplate({
             <CertificationsSection entries={[e]} title="" />
           </div>
         ))}
+        </div>
       </div>
 
       {/* Rendered Physical Pages */}

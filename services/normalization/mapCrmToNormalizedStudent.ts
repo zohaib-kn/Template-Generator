@@ -165,17 +165,110 @@ function mapWorkEntry(w: CrmWorkExperience, idx: number): NormalizedWorkExperien
   };
 }
 
+function toScoreString(val: unknown): string | undefined {
+  if (val === undefined || val === null) return undefined;
+  const s = String(val).trim();
+  return s.length > 0 ? s : undefined;
+}
+
 function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | undefined {
   if (!tests || tests.length === 0) return undefined;
-  const first = tests[0];
-  if (!first) return undefined;
+  
+  // Find test that matches IELTS / English or has an overallScore or subscores, fallback to first
+  const targetTest =
+    tests.find((t) => {
+      const anyT = t as Record<string, any>;
+      const name = (
+        (t as { type?: string }).type ||
+        (t as { testName?: string }).testName ||
+        (t as { name?: string }).name ||
+        anyT.test ||
+        ""
+      ).toLowerCase();
+      return name.includes("ielts") || name.includes("english") || name.includes("toefl") || name.includes("pte");
+    }) ||
+    tests.find((t) => {
+      const anyT = t as Record<string, any>;
+      return Boolean(
+        t.overallScore ||
+        t.listening ||
+        anyT.listeningScore ||
+        anyT.overall ||
+        anyT.score ||
+        anyT.scores ||
+        anyT.subscores ||
+        anyT.subScores ||
+        anyT.components
+      );
+    }) ||
+    tests[0];
+
+  if (!targetTest) return undefined;
+  const anyT = targetTest as Record<string, any>;
+
+  const listening =
+    toScoreString(targetTest.listening) ||
+    toScoreString(anyT.listeningScore) ||
+    toScoreString(targetTest.scores?.listening) ||
+    toScoreString(targetTest.subscores?.listening) ||
+    toScoreString(anyT.subScores?.listening) ||
+    toScoreString(anyT.components?.listening);
+
+  const reading =
+    toScoreString(targetTest.reading) ||
+    toScoreString(anyT.readingScore) ||
+    toScoreString(targetTest.scores?.reading) ||
+    toScoreString(targetTest.subscores?.reading) ||
+    toScoreString(anyT.subScores?.reading) ||
+    toScoreString(anyT.components?.reading);
+
+  const writing =
+    toScoreString(targetTest.writing) ||
+    toScoreString(anyT.writingScore) ||
+    toScoreString(targetTest.scores?.writing) ||
+    toScoreString(targetTest.subscores?.writing) ||
+    toScoreString(anyT.subScores?.writing) ||
+    toScoreString(anyT.components?.writing);
+
+  const speaking =
+    toScoreString(targetTest.speaking) ||
+    toScoreString(anyT.speakingScore) ||
+    toScoreString(targetTest.scores?.speaking) ||
+    toScoreString(targetTest.subscores?.speaking) ||
+    toScoreString(anyT.subScores?.speaking) ||
+    toScoreString(anyT.components?.speaking);
+
+  const trfNumber =
+    toScoreString(targetTest.trfNumber) ||
+    toScoreString(targetTest.testReportNumber) ||
+    toScoreString(targetTest.testReportFormNumber) ||
+    toScoreString(anyT.trf) ||
+    toScoreString(anyT.trfNo) ||
+    toScoreString(anyT.testReportFormNo);
+
+  const overallScore =
+    toScoreString(targetTest.overallScore) ||
+    toScoreString(anyT.overall) ||
+    toScoreString(anyT.score);
+
+  const subscores =
+    listening || reading || writing || speaking
+      ? {
+          listening,
+          reading,
+          writing,
+          speaking,
+        }
+      : undefined;
 
   return {
-    type: (first as { type?: string }).type || "IELTS",
-    overallScore: first.overallScore?.trim() || undefined,
-    testDate: toDateOnly(first.testDate),
-    waiver: first.waiver,
-    waiver12thEnglishMark: first.waiver12thEnglishMark?.trim(),
+    type: (targetTest as { type?: string }).type || (targetTest as { testName?: string }).testName || (targetTest as { name?: string }).name || "IELTS",
+    overallScore,
+    testDate: toDateOnly(targetTest.testDate || anyT.dateTaken || anyT.dateOfExam || anyT.examDate),
+    subscores,
+    trfNumber,
+    waiver: targetTest.waiver,
+    waiver12thEnglishMark: toScoreString(targetTest.waiver12thEnglishMark),
   };
 }
 
@@ -273,7 +366,20 @@ export function mapCrmToNormalizedStudent(
   const workExperience = (s.workExperience ?? []).map((w, i) => mapWorkEntry(w, i));
 
   // 8. Standardized tests
-  const englishTest = mapEnglishTest(s.tests);
+  const anyS = s as Record<string, any>;
+  const anySnap = snapshot as Record<string, any>;
+  const rawTests: CrmTest[] | undefined =
+    (s.tests && s.tests.length > 0)
+      ? s.tests
+      : (snapshot.tests && snapshot.tests.length > 0)
+      ? snapshot.tests
+      : (Array.isArray(anyS.testScores) && anyS.testScores.length > 0)
+      ? anyS.testScores
+      : (Array.isArray(anySnap.testScores) && anySnap.testScores.length > 0)
+      ? anySnap.testScores
+      : s.tests ?? snapshot.tests;
+
+  const englishTest = mapEnglishTest(rawTests);
 
   // 9. Applied programs (preserving all)
   const allPrograms = (snapshot.appliedPrograms ?? []).map((p, i) => mapAppliedProgram(p, i));

@@ -185,7 +185,7 @@ export function ResumeStudentDetailsModal({
                   {tests.map((t, i) => (
                     <div key={t._id ?? i} className="p-2.5 rounded-lg bg-slate-50 border border-slate-100">
                       <p className="font-semibold text-slate-800">Language Examination / Test</p>
-                      <Row label="Overall Score" value={t.overallScore} />
+                      <Row label="Overall Score" value={t.overallScore != null ? String(t.overallScore) : undefined} />
                       <Row label="Test Date" value={t.testDate?.split("T")[0]} />
                     </div>
                   ))}

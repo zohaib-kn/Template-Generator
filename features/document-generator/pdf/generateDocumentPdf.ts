@@ -249,6 +249,20 @@ function sanitizeModernColorFunctions(cssText: string): string {
 }
 
 /**
+ * Cleanly extracts printable text from an A4 page element by cloning it and
+ * stripping all editor UI toolbars, action buttons, and ignore elements.
+ */
+function extractSanitizedPageText(pageEl: HTMLElement): string {
+  if (!pageEl) return "";
+  const clone = pageEl.cloneNode(true) as HTMLElement;
+  const elementsToStrip = clone.querySelectorAll(
+    '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"], button'
+  );
+  elementsToStrip.forEach((el) => el.remove());
+  return clone.innerText || "";
+}
+
+/**
  * Generate and immediately download a PDF from the currently-rendered A4
  * document pages on the page.
  *
@@ -416,7 +430,14 @@ export async function generateDocumentPdf(
               }
             });
 
-            // 10. Enforce font rendering stability and strip modern shadows via high-priority style tag
+            // 10. Strip any interactive toolbars or editor buttons from cloned element
+            clonedElement
+              .querySelectorAll(
+                '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"], button'
+              )
+              .forEach((btn) => btn.remove());
+
+            // 11. Enforce font rendering stability and strip modern shadows via high-priority style tag
             const style = clonedDoc.createElement("style");
             style.textContent = `
               *, *::before, *::after {
@@ -449,20 +470,43 @@ export async function generateDocumentPdf(
       pdf.addPage("a4", "portrait");
     }
 
-    // Embed invisible text layer behind the image for searchability and text extraction
     const pageEl = pageElements[i];
-    const pageText = pageEl?.innerText || "";
+
+    // 5a. Embed sanitized, selectable text layer positioned across the page for ATS & copy-paste
+    const pageText = extractSanitizedPageText(pageEl);
     if (pageText.trim()) {
-      pdf.setFontSize(2);
+      pdf.setFontSize(9.5);
       pdf.setTextColor(255, 255, 255);
-      const lines = pdf.splitTextToSize(pageText, A4_W_MM - 20);
-      pdf.text(lines, 10, 10);
+      const lines = pdf.splitTextToSize(pageText, A4_W_MM - 18.1);
+      const lineHeightMm = 4.2;
+      let curY = 12;
+      for (const line of lines) {
+        if (curY > A4_H_MM - 12) break;
+        pdf.text(line, 9.2, curY);
+        curY += lineHeightMm;
+      }
     }
 
-    // Fill the entire A4 PDF page with the captured image (no added margins —
-    // the A4 page component already contains its own internal margins).
-    // Use bicubic interpolation ("SLOW") for superior rendering fidelity and text sharpness.
+    // 5b. Fill the entire A4 PDF page with the captured image (bicubic interpolation)
     pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "SLOW");
+
+    // 5c. Attach real, clickable PDF hyperlinks on top of the image
+    const aTags = Array.from(pageEl.querySelectorAll<HTMLAnchorElement>("a[href]"));
+    const pageRect = pageEl.getBoundingClientRect();
+    if (pageRect.width > 0 && pageRect.height > 0) {
+      aTags.forEach((a) => {
+        const href = a.getAttribute("href");
+        if (!href || href === "#" || href.startsWith("javascript:")) return;
+        const rect = a.getBoundingClientRect();
+        const relX = (rect.left - pageRect.left) * (A4_W_MM / pageRect.width);
+        const relY = (rect.top - pageRect.top) * (A4_H_MM / pageRect.height);
+        const relW = rect.width * (A4_W_MM / pageRect.width);
+        const relH = rect.height * (A4_H_MM / pageRect.height);
+        if (relW > 0 && relH > 0) {
+          pdf.link(relX, relY, relW, relH, { url: href });
+        }
+      });
+    }
   });
 
   // --- 6. Set Metadata & Download ---------------------------------------------

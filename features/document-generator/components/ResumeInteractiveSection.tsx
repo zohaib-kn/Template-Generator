@@ -47,6 +47,7 @@ export function ResumeInteractiveSection({
       <div
         data-html2canvas-ignore="true"
         data-no-print="true"
+        data-pdf-ignore="true"
         className={`absolute -top-3 right-3 z-30 transition-all duration-150 flex items-center gap-1 bg-white/95 backdrop-blur-xs border border-slate-200/90 rounded-md shadow-xs px-1.5 py-0.5 text-xs select-none ${
           isHovered || isSelected ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
