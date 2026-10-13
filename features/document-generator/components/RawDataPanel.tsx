@@ -226,10 +226,10 @@ export function RawDataPanel({ snapshot, source }: RawDataPanelProps) {
           )}
           {tests.map((t, i) => (
             <div key={t._id ?? i} className="mb-2 pl-1 border-l-2 border-amber-200">
-              <Row label="Overall Score" value={t.overallScore} />
+              <Row label="Overall Score" value={t.overallScore != null ? String(t.overallScore) : undefined} />
               <Row label="Test Date" value={t.testDate?.split("T")[0]} />
               <Row label="Waiver" value={t.waiver ? "Yes" : "No"} />
-              <Row label="12th English Mark" value={t.waiver12thEnglishMark} />
+              <Row label="12th English Mark" value={t.waiver12thEnglishMark != null ? String(t.waiver12thEnglishMark) : undefined} />
             </div>
           ))}
 

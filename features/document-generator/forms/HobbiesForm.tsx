@@ -16,7 +16,7 @@ export function HobbiesForm() {
   return (
     <div className="space-y-3 pt-2">
       {entries.length === 0 && (
-        <EmptyState message='No interests yet. Click "Add Interest" below.' />
+        <EmptyState message='No hobbies or interests yet. Click "Add Hobby / Interest" below.' />
       )}
 
       {entries.map((entry, idx) => (
@@ -30,12 +30,12 @@ export function HobbiesForm() {
           />
 
           <div>
-            <Label htmlFor={`hobby-name-${entry.id}`}>Interest / Hobby</Label>
+            <Label htmlFor={`hobby-name-${entry.id}`}>Hobby / Interest</Label>
             <Input
               id={`hobby-name-${entry.id}`}
               value={entry.name ?? ""}
               onChange={(e) => updateHobby(entry.id, { name: e.target.value })}
-              placeholder="e.g. Cinematography"
+              placeholder="e.g. Reading, Photography, Gardening…"
             />
           </div>
 
@@ -64,7 +64,7 @@ export function HobbiesForm() {
       ))}
 
       <Button variant="outline" size="sm" onClick={addHobby} className="w-full">
-        + Add Interest
+        + Add Hobby / Interest
       </Button>
     </div>
   );

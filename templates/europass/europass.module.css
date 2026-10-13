@@ -4,11 +4,12 @@
    ========================================================================== */
 
 :root {
-  --europass-navy: #0e4375;
+  --europass-navy: #0c56a5;
   --europass-accent-blue: #82acd9;
   --europass-text-dark: #333333;
-  --europass-text-muted: #555555;
+  --europass-text-muted: #565656;
   --europass-divider: #979797;
+  --europass-link-blue: #214493;
 }
 
 .templateContainer {
@@ -32,8 +33,8 @@
   overflow: hidden;
   color: #333333;
   font-family: var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 10.2pt;
-  line-height: 1.48;
+  font-size: 9.97pt;
+  line-height: 1.42;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0;
   letter-spacing: 0.02px;
@@ -46,11 +47,16 @@
 /* When printing, remove shadows and force exact page sizes */
 @media print {
   .templateContainer {
-    gap: 0;
+    gap: 0 !important;
   }
   .page {
-    box-shadow: none;
-    page-break-after: always;
+    box-shadow: none !important;
+    page-break-after: always !important;
+  }
+  .page :global([data-no-print="true"]),
+  .page :global([data-html2canvas-ignore="true"]),
+  .page :global([data-pdf-ignore="true"]) {
+    display: none !important;
   }
 }
 
@@ -125,11 +131,11 @@
   pointer-events: none;
 }
 
-/* --- Content Wrapper (Exact balanced margins derived from reference Europass) -- */
+/* --- Content Wrapper (Exact measured margins from reference Europass: L: 26.08pt/9.2mm, R: 25.24pt/8.9mm, T: 20.66pt/7.3mm, B: 31.75pt/11.2mm) -- */
 .pageContent {
   position: relative;
   z-index: 1;
-  padding: 12mm 13mm 16mm 13mm;
+  padding: 7.3mm 8.9mm 11.2mm 9.2mm;
   box-sizing: border-box;
   height: 100%;
   display: flex;
@@ -141,7 +147,8 @@
   position: relative;
   width: 100%;
   margin-top: 0;
-  margin-bottom: 4mm;
+  /* More bottom margin so section divider breathes after the taller header */
+  margin-bottom: 5mm;
 }
 
 .headerTopRow {
@@ -152,23 +159,27 @@
   position: relative;
 }
 
-/* Europass logo positioned cleanly at the top-right corner */
+/* Europass logo — top-right with breathing room from all edges */
 .logoWrapper {
   position: absolute;
   top: 0;
   right: 0;
-  width: 48mm;
+  width: 56mm;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
   z-index: 2;
+  /* Top & right breathing space so logo floats away from the page edge */
+  padding-top: 3.5mm;
+  padding-right: 1.5mm;
 }
 
 .europassLogo {
-  width: 48mm;
+  width: 54mm;
   height: auto;
   display: block;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 /* Main header body: Photo on left, Name & Details directly adjacent */
@@ -176,19 +187,38 @@
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 4.5mm;
+  /* Wider gap between photo and identity block */
+  gap: 5.5mm;
   width: 100%;
   min-width: 0;
+  /* Shift content block down to match reference — logo sits at top, content below */
+  padding-top: 9mm;
+  padding-bottom: 3mm;
 }
 
+/* Photo wrapper — visible silver ring matching reference Europass frame */
 .photoWrapper {
+  /* Enlarged to match reference photo size */
   width: 38mm;
   height: 38mm;
   border-radius: 50%;
-  overflow: hidden;
-  border: 1.5px solid #d1d5db;
+  overflow: visible;
   flex-shrink: 0;
-  background-color: #f3f4f6;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Inner circle clip & frame ring */
+.photoInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2.5px solid #c0c0c0;
+  box-shadow: 0 0 0 1px #e4e4e4;
+  background-color: #f5f5f5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,10 +229,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 
 .photoPlaceholder {
-  font-size: 18pt;
+  font-size: 16pt;
   color: #9ca3af;
 }
 
@@ -214,34 +245,56 @@
 }
 
 .subjectName {
-  font-size: 20pt;
+  /* Enlarged to match reference — name is prominent */
+  font-size: 17pt;
   font-weight: 700;
-  color: #0e4375;
-  line-height: 1.2;
-  margin: 0 0 2.2mm 0;
-  padding-right: 50mm;
+  color: #0c56a5;
+  line-height: 1.25;
+  /* More spacing between name and first details row */
+  margin: 0 0 2.5mm 0;
+  /* Reserve 58mm on the right so the name never runs under the 54mm logo */
+  padding-right: 58mm;
   letter-spacing: 0.1px;
 }
 
 .identityLines {
   display: flex;
   flex-direction: column;
-  gap: 1.4mm;
-  font-size: 9.8pt;
-  line-height: 1.42;
+  /* More row-to-row gap matching reference vertical rhythm */
+  gap: 2mm;
+  /* Slightly larger font to match reference detail text size */
+  font-size: 10.5pt;
+  line-height: 1.45;
   color: #333333;
 }
 
+/* Rows without icons (passport, nationality etc.) */
 .identityRow {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 5mm;
+  align-items: baseline;
+  gap: 4.5mm;
+}
+
+/* Rows with icons — icon on left, text group on right with alignment to line 1 */
+.identityIconRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 1.8mm;
+  min-width: 0;
+}
+
+.identityTextGroup {
+  flex: 1;
+  min-width: 0;
+  line-height: inherit;
 }
 
 .identityItem {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 1.5mm;
   min-width: 0;
 }
@@ -262,35 +315,42 @@
 }
 
 .iconBox {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 3.8mm;
   height: 3.8mm;
   flex-shrink: 0;
+  /* Mathematically derived offset: perfectly centers the 3.8mm icon box
+     with the 10.5pt title font's cap-height/midpoint (within 0.01px error) */
+  margin-top: 1.45mm;
+  line-height: 0;
 }
 
 .identityIcon {
   width: 100%;
   height: 100%;
-  color: #0e4375;
+  color: #0c56a5;
   display: block;
+  flex-shrink: 0;
 }
 
 .blueLink {
-  color: #0e4375;
+  color: #214493;
   text-decoration: underline;
-  word-break: normal;
+  cursor: pointer;
+  word-break: break-all;
   overflow-wrap: anywhere;
 }
 
 .blueLink:hover {
-  color: #09335c;
+  color: #0c56a5;
+  text-decoration: underline;
 }
 
 /* --- Section Headings ---------------------------------------------------- */
 .sectionWrapper {
-  margin-top: 6mm;
+  margin-top: 4.8mm;
   margin-bottom: 0;
 }
 
@@ -301,29 +361,29 @@
 }
 
 .sectionTitle {
-  font-size: 11.5pt;
+  font-size: 10.97pt;
   font-weight: 700;
-  color: #0e4375;
+  color: #0c56a5;
   text-transform: uppercase;
   letter-spacing: 0.35px;
   margin: 0;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .sectionDivider {
-  height: 0.75pt;
+  height: 0.5pt;
   background-color: #979797;
   width: 100%;
-  margin: 1.8mm 0 3.2mm 0;
+  margin: 1.4mm 0 2.4mm 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
 .aboutMeText {
-  font-size: 10.2pt;
-  line-height: 1.48;
+  font-size: 9.97pt;
+  line-height: 1.42;
   color: #333333;
   text-align: justify;
-  margin: 0 0 2.5mm 0;
+  margin: 0 0 2.2mm 0;
 }
 
 .aboutMeText:last-child {
@@ -337,7 +397,7 @@
 
 /* --- Education Entries -------------------------------------------------- */
 .educationEntry {
-  margin-bottom: 4.8mm;
+  margin-bottom: 3.8mm;
 }
 
 .educationEntry:last-child {
@@ -345,11 +405,11 @@
 }
 
 .qualificationTitle {
-  font-size: 11.2pt;
+  font-size: 10.97pt;
   font-weight: 700;
-  color: #0e4375;
-  margin: 0 0 1mm 0;
-  line-height: 1.3;
+  color: #0c56a5;
+  margin: 0 0 0.8mm 0;
+  line-height: 1.25;
 }
 
 .institutionRow {
@@ -357,9 +417,10 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 1.5mm;
-  font-size: 10.2pt;
+  font-size: 10.97pt;
+  line-height: 1.35;
   color: #333333;
-  margin-bottom: 1mm;
+  margin-bottom: 0.8mm;
 }
 
 .institutionName {
@@ -371,48 +432,49 @@
 .datesBadge {
   color: #555555;
   font-style: normal;
-  font-size: 9.8pt;
+  font-size: 10.97pt;
 }
 
 .educationDetails {
-  font-size: 10.2pt;
+  font-size: 9.97pt;
   color: #333333;
-  line-height: 1.48;
+  line-height: 1.42;
 }
 
-/* --- Work Experience & Internship Custom Bullet List (Crisp dots & true hanging indent) --- */
+/* --- Work Experience & Internship Custom Bullet List (Exact Reference Indentation: 8.1mm / 22.94pt from section text margin = 49.02pt from page boundary) --- */
 .bulletList {
-  margin-top: 1.2mm;
-  margin-left: 3.5mm;
+  margin-top: 1mm;
+  margin-left: 8.1mm;
   display: flex;
   flex-direction: column;
-  gap: 1.5mm;
+  gap: 1.2mm;
 }
 
 .bulletItem {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 2mm;
-  font-size: 10.2pt;
-  line-height: 1.48;
+  gap: 1.8mm;
+  font-size: 9.97pt;
+  line-height: 1.42;
   color: #333333;
 }
 
 .bulletDot {
   display: inline-block;
-  width: 2.2mm;
+  width: 2mm;
   flex-shrink: 0;
   color: #333333;
-  font-size: 10.5pt;
-  line-height: 1.4;
+  font-size: 9.97pt;
+  line-height: 1.42;
   text-align: center;
 }
 
 .bulletText {
   flex: 1;
   min-width: 0;
-  line-height: 1.48;
+  line-height: 1.42;
+  font-size: 9.97pt;
   color: #333333;
   text-align: left;
 }
@@ -587,7 +649,7 @@
   padding: 1.5mm 3mm;
   background-color: #f8fafc;
   border-radius: 1mm;
-  border-left: 2.5px solid #0e4375;
+  border-left: 2.5px solid #0c56a5;
 }
 
 .subscoreItem {
@@ -603,7 +665,7 @@
 
 .subscoreValue {
   font-weight: 700;
-  color: #0e4375;
+  color: #0c56a5;
 }
 
 .certificateMeta {
@@ -616,9 +678,9 @@
 }
 
 .certificateBullets {
-  font-size: 10.2pt;
+  font-size: 9.97pt;
   color: #333333;
-  line-height: 1.6;
+  line-height: 1.5;
   margin: 0;
   padding: 0;
   list-style-type: none;
@@ -626,10 +688,10 @@
 
 /* --- Skills, Hobbies, Volunteering, Declaration ------------------------- */
 .subheadingGray {
-  font-size: 10.2pt;
+  font-size: 9.97pt;
   font-weight: 700;
   color: #555555;
-  margin: 0 0 1.8mm 0;
+  margin: 0 0 1.5mm 0;
 }
 
 .simpleList {

@@ -130,15 +130,52 @@ export interface CrmAppliedProgram {
 
 export interface CrmTest {
   _id?: string;
+  testName?: string;
+  name?: string;
+  type?: string;
   /** Overall band/score. CRM field: "overallScore" */
-  overallScore?: string;
+  overallScore?: string | number;
+  overall?: string | number;
+  score?: string | number;
   /** Date the test was taken. CRM field: "testDate" */
   testDate?: string;          // ISO-8601
+  dateTaken?: string;
+  dateOfExam?: string;
+  examDate?: string;
+  listening?: string | number;
+  reading?: string | number;
+  writing?: string | number;
+  speaking?: string | number;
+  listeningScore?: string | number;
+  readingScore?: string | number;
+  writingScore?: string | number;
+  speakingScore?: string | number;
+  subscores?: {
+    listening?: string | number;
+    reading?: string | number;
+    writing?: string | number;
+    speaking?: string | number;
+  };
+  subScores?: {
+    listening?: string | number;
+    reading?: string | number;
+    writing?: string | number;
+    speaking?: string | number;
+  };
+  scores?: {
+    listening?: string | number;
+    reading?: string | number;
+    writing?: string | number;
+    speaking?: string | number;
+  };
+  trfNumber?: string;
+  testReportNumber?: string;
+  testReportFormNumber?: string;
   yetToReceive?: boolean;
   yetToReceiveDate?: string;
   waiver?: boolean;
   waiver12thEnglishMarkCheck?: boolean;
-  waiver12thEnglishMark?: string;
+  waiver12thEnglishMark?: string | number;
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +220,7 @@ export interface CrmStudent {
 
 export interface CrmSnapshot {
   student?: CrmStudent;
+  tests?: CrmTest[];
   documents?: CrmDocument[];
   documentExtractions?: unknown[];
   shortlistedPrograms?: CrmAppliedProgram[];
