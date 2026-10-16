@@ -62,8 +62,21 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
                   <span className={styles.institutionName}>{project.role}</span>
                 )
               )}
-              {project.dateYear && (
-                <span className={styles.datesBadge}>[ {project.dateYear} ]</span>
+              {(isInteractive || project.dateYear) && (
+                <span className={styles.datesBadge}>
+                  [{" "}
+                  {isInteractive && onUpdate ? (
+                    <EditableText
+                      value={project.dateYear ?? ""}
+                      onChange={(v) => onUpdate(project.id, { dateYear: v })}
+                      isInteractive={isInteractive}
+                      placeholder="Year"
+                    />
+                  ) : (
+                    project.dateYear
+                  )}{" "}
+                  ]
+                </span>
               )}
             </div>
           )}

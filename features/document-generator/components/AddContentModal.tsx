@@ -128,6 +128,13 @@ const SECTION_OPTIONS: SectionOption[] = [
     icon: "✍",
     isRepeatable: false,
   },
+  {
+    id: "portfolio",
+    title: "Portfolio",
+    description: "Add link to student's portfolio, website, or projects.",
+    icon: "🌐",
+    isRepeatable: false,
+  },
 ];
 
 export function AddContentModal({
@@ -202,6 +209,13 @@ export function AddContentModal({
         return { isAdded: (data.recommendations ?? []).length > 0, count: (data.recommendations ?? []).length };
       case "declaration":
         return { isAdded: Boolean(data.declaration && data.declaration.trim().length > 0) };
+      case "portfolio":
+        return {
+          isAdded: Boolean(
+            (data.personal?.portfolioUrl && data.personal.portfolioUrl.trim().length > 0) ||
+            (data.portfolioUrl && data.portfolioUrl.trim().length > 0)
+          ),
+        };
       default:
         return { isAdded: false };
     }

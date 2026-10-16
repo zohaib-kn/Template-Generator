@@ -4,6 +4,7 @@ import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { parseDescriptionToBullets } from "../utils/descriptionParser";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
 
 interface InternshipSectionProps {
   entries?: InternshipEntry[];
@@ -100,10 +101,14 @@ export const InternshipSection = memo(function InternshipSection({
                     )}
                   </>
                 )}
-                {hasDate && (
-                  <span className={styles.datesBadge}>
-                    [ {start}{end ? ` – ${end}` : ""} ]
-                  </span>
+                {(hasDate || isInteractive) && (
+                  <EditableDateRange
+                    startDate={item.startDate}
+                    endDate={item.endDate}
+                    onUpdate={(patch) => onUpdate?.(item.id, patch)}
+                    isInteractive={isInteractive}
+                    className={styles.datesBadge}
+                  />
                 )}
               </div>
             )}

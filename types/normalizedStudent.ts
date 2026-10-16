@@ -142,6 +142,7 @@ export interface NormalizedStudentProfile {
     passportExpiryDate?: string;
     placeOfBirth?: string;
     photoUrl?: string;
+    portfolioUrl?: string;
   };
 
   /** Academic background */

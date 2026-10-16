@@ -22,6 +22,7 @@ import { SkillsForm } from "../forms/SkillsForm";
 import { HobbiesForm } from "../forms/HobbiesForm";
 import { RecommendationsForm } from "../forms/RecommendationsForm";
 import { DeclarationForm } from "../forms/DeclarationForm";
+import { PortfolioForm } from "../forms/PortfolioForm";
 
 interface ResumeEditDrawerProps {
   isOpen: boolean;
@@ -113,6 +114,8 @@ export function ResumeEditDrawer({
         return <RecommendationsForm />;
       case "declaration":
         return <DeclarationForm />;
+      case "portfolio":
+        return <PortfolioForm />;
       default:
         return <PersonalDetailsForm />;
     }

@@ -52,9 +52,21 @@ export const AchievementsSection = memo(function AchievementsSection({
                 ●
               </span>
               <span className={styles.achievementBulletText}>
-                {yearPrefix && (
-                  <span className={styles.achievementYear}>{yearPrefix}</span>
-                )}
+                {yearPrefix ? (
+                  isInteractive && onUpdate ? (
+                    <span className={styles.achievementYear}>
+                      <EditableText
+                        value={achievement.dateYear ?? ""}
+                        onChange={(v) => onUpdate(achievement.id, { dateYear: v })}
+                        isInteractive={isInteractive}
+                        placeholder="Year"
+                      />{" "}
+                      —{" "}
+                    </span>
+                  ) : (
+                    <span className={styles.achievementYear}>{yearPrefix}</span>
+                  )
+                ) : null}
                 {isInteractive && onUpdate ? (
                   <>
                     <EditableText

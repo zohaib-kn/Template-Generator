@@ -279,19 +279,58 @@
 }
 
 /* Rows with icons — icon on left, text group on right with alignment to line 1 */
-.identityIconRow {
+.identityIconRow,
+.contactRow {
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 1.8mm;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
   min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  line-height: 1.45;
+  box-sizing: border-box;
 }
 
-.identityTextGroup {
-  flex: 1;
+.iconBox,
+.contactIconBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 5.6mm;
+  width: 5.6mm;
+  height: 5.6mm;
+  margin: 0;
+  padding: 0 1.8mm 0 0;
+  line-height: normal;
+  box-sizing: border-box;
+}
+
+.identityIcon,
+.contactIcon {
+  display: block;
+  width: 3.8mm;
+  height: 3.8mm;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  color: #0c56a5;
+}
+
+.identityTextGroup,
+.contactText {
+  display: block;
+  flex: 1 1 0%;
   min-width: 0;
-  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.45;
+  color: #333333;
+  overflow-wrap: anywhere;
 }
 
 .identityItem {
@@ -314,27 +353,6 @@
 .identityValueNoWrap {
   color: #333333;
   white-space: nowrap;
-}
-
-.iconBox {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.8mm;
-  height: 3.8mm;
-  flex-shrink: 0;
-  /* Mathematically derived offset: perfectly centers the 3.8mm icon box
-     with the 10.5pt title font's cap-height/midpoint (within 0.01px error) */
-  margin-top: 1.45mm;
-  line-height: 0;
-}
-
-.identityIcon {
-  width: 100%;
-  height: 100%;
-  color: #0c56a5;
-  display: block;
-  flex-shrink: 0;
 }
 
 .blueLink {

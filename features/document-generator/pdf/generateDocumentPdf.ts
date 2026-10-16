@@ -340,6 +340,19 @@ export async function generateDocumentPdf(
               .querySelectorAll('[data-html2canvas-ignore="true"], [data-no-print="true"]')
               .forEach((el) => el.remove());
 
+            // Precise optical vertical alignment for Europass contact icons in html2canvas
+            // html2canvas FontMetrics places text baseline ~21px below range top, drawing
+            // text ~1.7mm lower than inline SVGs. position:relative shifts the SVG bounds
+            // precisely into optical cap-height center without expanding the row.
+            const contactRows = clonedElement.querySelectorAll<HTMLElement>('[class*="identityIconRow"]');
+            contactRows.forEach((row) => {
+              const svg = row.querySelector<SVGElement | HTMLElement>('svg');
+              if (svg) {
+                svg.style.position = "relative";
+                svg.style.top = "1.7mm";
+              }
+            });
+
             // 2. Strip interactive section wrapper styles (drop rings, hover tints, borders)
             clonedElement
               .querySelectorAll<HTMLElement>('[data-section-id]')

@@ -45,6 +45,7 @@ export const RESUME_SECTION_METADATA: Record<
   hobbies:              { order: 14, title: "Hobbies and Interests",               group: "strength" },
   recommendations:      { order: 15, title: "Recommendations",                     group: "closing" },
   declaration:          { order: 16, title: "Declaration",                         group: "closing" },
+  portfolio:            { order: 17, title: "Portfolio",                          group: "profile" },
 };
 
 export function ResumeSectionSidebar({
