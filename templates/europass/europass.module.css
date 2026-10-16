@@ -147,8 +147,8 @@
   position: relative;
   width: 100%;
   margin-top: 0;
-  /* More bottom margin so section divider breathes after the taller header */
-  margin-bottom: 5mm;
+  /* Balanced bottom margin for header */
+  margin-bottom: 3.5mm;
 }
 
 .headerTopRow {
@@ -164,18 +164,18 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 56mm;
+  width: 52mm;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
   z-index: 2;
-  /* Top & right breathing space so logo floats away from the page edge */
-  padding-top: 3.5mm;
-  padding-right: 1.5mm;
+  /* Generous top & right breathing space so logo floats away from the page edge and blue ear */
+  padding-top: 6.5mm;
+  padding-right: 4.5mm;
 }
 
 .europassLogo {
-  width: 54mm;
+  width: 48mm;
   height: auto;
   display: block;
   object-fit: contain;
@@ -186,14 +186,14 @@
 .headerBody {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   /* Wider gap between photo and identity block */
   gap: 5.5mm;
   width: 100%;
   min-width: 0;
-  /* Shift content block down to match reference — logo sits at top, content below */
-  padding-top: 9mm;
-  padding-bottom: 3mm;
+  /* Shift personal details block down for breathing room below the top edge and logo */
+  padding-top: 13.5mm;
+  padding-bottom: 3.5mm;
 }
 
 /* Photo wrapper — visible silver ring matching reference Europass frame */
@@ -228,6 +228,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
   display: block;
   border-radius: 50%;
 }
@@ -242,6 +243,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .subjectName {
@@ -250,10 +252,10 @@
   font-weight: 700;
   color: #0c56a5;
   line-height: 1.25;
-  /* More spacing between name and first details row */
+  /* Spacing between name and personal details rows */
   margin: 0 0 2.5mm 0;
-  /* Reserve 58mm on the right so the name never runs under the 54mm logo */
-  padding-right: 58mm;
+  /* Reserve 54mm on the right so the name never runs under the logo */
+  padding-right: 54mm;
   letter-spacing: 0.1px;
 }
 
@@ -336,22 +338,34 @@
 }
 
 .blueLink {
-  color: #214493;
+  color: #0c56a5;
   text-decoration: underline;
+  text-decoration-color: #0c56a5;
+  text-decoration-thickness: 0.55pt;
+  text-underline-offset: 2.2px;
   cursor: pointer;
   word-break: break-all;
   overflow-wrap: anywhere;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
 }
 
 .blueLink:hover {
-  color: #0c56a5;
+  color: #003e7e;
   text-decoration: underline;
+  text-decoration-color: #003e7e;
+  text-underline-offset: 2.2px;
 }
 
 /* --- Section Headings ---------------------------------------------------- */
 .sectionWrapper {
-  margin-top: 4.8mm;
+  margin-top: 3.6mm;
   margin-bottom: 0;
+}
+
+.pageContent > .sectionWrapper:first-child,
+.pageContent > div:first-child > .sectionWrapper,
+.pageContent > div:first-child .sectionWrapper {
+  margin-top: 0;
 }
 
 .sectionHeadingRow {
@@ -367,14 +381,14 @@
   text-transform: uppercase;
   letter-spacing: 0.35px;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 .sectionDivider {
-  height: 0.5pt;
+  height: 0.75pt;
   background-color: #979797;
   width: 100%;
-  margin: 1.4mm 0 2.4mm 0;
+  margin: 1.5mm 0 2.0mm 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
@@ -397,7 +411,7 @@
 
 /* --- Education Entries -------------------------------------------------- */
 .educationEntry {
-  margin-bottom: 3.8mm;
+  margin-bottom: 3.2mm;
 }
 
 .educationEntry:last-child {
@@ -408,7 +422,7 @@
   font-size: 10.97pt;
   font-weight: 700;
   color: #0c56a5;
-  margin: 0 0 0.8mm 0;
+  margin: 0 0 1.0mm 0;
   line-height: 1.25;
 }
 
@@ -420,7 +434,27 @@
   font-size: 10.97pt;
   line-height: 1.35;
   color: #333333;
-  margin-bottom: 0.8mm;
+  margin-bottom: 1.2mm;
+}
+
+.entrySubRow {
+  margin-top: 1.2mm;
+  font-size: 9.97pt;
+  color: #333333;
+  line-height: 1.42;
+}
+
+.entryLinkRow {
+  margin-top: 1.2mm;
+  font-size: 9.97pt;
+  line-height: 1.42;
+}
+
+.entryImpactRow {
+  margin-top: 1.2mm;
+  font-size: 9.97pt;
+  color: #333333;
+  line-height: 1.42;
 }
 
 .institutionName {
@@ -435,22 +469,46 @@
   font-size: 10.97pt;
 }
 
+.certificateSubtitle {
+  font-size: 9.97pt;
+  font-weight: 700;
+  color: #333333;
+  margin: 0 0 0.5mm 0;
+  line-height: 1.3;
+}
+
+.certificateFormName {
+  font-size: 9.97pt;
+  font-weight: 700;
+  color: #333333;
+  margin: 0 0 0.8mm 0;
+  line-height: 1.3;
+}
+
+.subheadingGray {
+  font-size: 9.97pt;
+  font-weight: 700;
+  color: #333333;
+  margin: 0 0 1.2mm 0;
+  line-height: 1.35;
+}
+
 .educationDetails {
   font-size: 9.97pt;
   color: #333333;
   line-height: 1.42;
 }
 
-/* --- Work Experience & Internship Custom Bullet List (Exact Reference Indentation: 8.1mm / 22.94pt from section text margin = 49.02pt from page boundary) --- */
-.bulletList {
-  margin-top: 1mm;
-  margin-left: 8.1mm;
+/* --- Hobbies & Personal Interests Bullet List (Aligned under 'H' with left margin) --- */
+.hobbiesBulletList {
+  margin-top: 1.2mm;
+  margin-left: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.2mm;
+  gap: 1.6mm;
 }
 
-.bulletItem {
+.hobbiesBulletItem {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -460,23 +518,104 @@
   color: #333333;
 }
 
-.bulletDot {
+.hobbiesBulletDot {
   display: inline-block;
   width: 2mm;
   flex-shrink: 0;
   color: #333333;
   font-size: 9.97pt;
   line-height: 1.42;
+  text-align: left;
+}
+
+/* --- Work Experience & Internship Custom Bullet List (Exact Reference Indentation: 8.1mm / 22.94pt from section text margin = 49.02pt from page boundary) --- */
+.bulletList {
+  margin-top: 1.4mm;
+  margin-left: 8.1mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4mm;
+}
+
+.bulletItem {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1.8mm;
+  font-size: 9.97pt;
+  line-height: 1.38;
+  color: #333333;
+}
+
+.bulletDot {
+  display: inline-block;
+  width: 2mm;
+  flex-shrink: 0;
+  color: #333333;
+  font-size: 9.97pt;
+  line-height: 1.38;
   text-align: center;
 }
 
 .bulletText {
   flex: 1;
   min-width: 0;
-  line-height: 1.42;
+  line-height: 1.38;
   font-size: 9.97pt;
   color: #333333;
   text-align: left;
+}
+
+/* --- Achievements & Awards Compact Bullet List (Matches Europass Reference Layout) --- */
+.achievementList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.8mm;
+  margin-top: 1.2mm;
+}
+
+.achievementBulletItem {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 2mm;
+  font-size: 9.97pt;
+  line-height: 1.45;
+  color: #333333;
+}
+
+.achievementBulletDot {
+  display: inline-block;
+  width: 2.2mm;
+  flex-shrink: 0;
+  color: #333333;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.achievementBulletText {
+  flex: 1;
+  min-width: 0;
+}
+
+.achievementYear {
+  font-weight: 600;
+  color: #333333;
+}
+
+.achievementTitle {
+  font-weight: 700;
+  color: #0c56a5;
+}
+
+.achievementOrg {
+  font-style: italic;
+  color: #555555;
+}
+
+.achievementDesc {
+  color: #333333;
 }
 
 /* Legacy fallback for descriptionBulletList */
@@ -505,7 +644,7 @@
 /* --- Recommendations ---------------------------------------------------- */
 .recommenderMeta {
   font-size: 10.2pt;
-  margin-bottom: 2mm;
+  margin-bottom: 1.5mm;
   color: #333333;
 }
 
@@ -525,7 +664,7 @@
 
 .recommendationParagraph {
   font-size: 10.2pt;
-  line-height: 1.48;
+  line-height: 1.45;
   color: #333333;
   text-align: left;
   margin: 0 0 2.2mm 0;
@@ -545,13 +684,13 @@
 /* --- Language Skills (Page 2) ------------------------------------------- */
 .motherTongueRow {
   font-size: 10.2pt;
-  margin-bottom: 2.2mm;
+  margin-bottom: 3.0mm;
   color: #333333;
 }
 
 .otherLanguagesRow {
   font-size: 10.2pt;
-  margin-bottom: 2.2mm;
+  margin-bottom: 3.0mm;
   color: #333333;
 }
 
@@ -703,6 +842,24 @@
   list-style-type: none;
 }
 
+.skillsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.6mm 6.0mm;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+  font-size: 10.0pt;
+  color: #333333;
+  line-height: 1.42;
+}
+
+.skillGridItem {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5mm;
+}
+
 .numberedList {
   font-size: 10.2pt;
   color: #333333;
@@ -725,7 +882,7 @@
 
 .declarationText {
   font-size: 10.2pt;
-  line-height: 1.48;
+  line-height: 1.55;
   color: #333333;
-  margin-top: 1.5mm;
+  margin-top: 0;
 }

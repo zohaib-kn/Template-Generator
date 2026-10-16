@@ -78,6 +78,15 @@ export function RawDataPanel({ snapshot, source }: RawDataPanelProps) {
   const docs = snapshot.documents ?? s.documents ?? [];
   const programs = snapshot.appliedPrograms ?? [];
 
+  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, any>;
+  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, any>;
+  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, any>;
+  const rawAchievements =
+    (anyMasterInfo.academicAchievements as string) ||
+    (anyRawAcademicDetails.academicAchievements as string) ||
+    ((s as any).academicAchievements as string) ||
+    "";
+
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
       {/* ── Header / Toggle ── */}
@@ -197,6 +206,17 @@ export function RawDataPanel({ snapshot, source }: RawDataPanelProps) {
           ))}
 
           <Divider />
+
+          {/* ── Academic Achievements ── */}
+          {rawAchievements && (
+            <>
+              <SectionHeader icon="🏆" title="Academic Achievements" />
+              <div className="mb-2 p-2 bg-amber-100/50 rounded text-[11px] text-slate-700 whitespace-pre-line leading-relaxed max-h-40 overflow-y-auto">
+                {rawAchievements}
+              </div>
+              <Divider />
+            </>
+          )}
 
           {/* ── Work Experience ── */}
           <SectionHeader icon="💼" title="Work Experience" count={workExp.length} />

@@ -52,7 +52,8 @@ export function AcademicProjectsForm() {
             <Label htmlFor={`proj-desc-${entry.id}`}>Description</Label>
             <Textarea
               id={`proj-desc-${entry.id}`}
-              rows={3}
+              rows={6}
+              className="min-h-[140px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateAcademicProject(entry.id, { description: e.target.value })

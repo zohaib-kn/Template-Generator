@@ -32,13 +32,13 @@ import { DeclarationSection } from "./sections/DeclarationSection";
 import { ResumeInteractiveSection } from "@/features/document-generator/components/ResumeInteractiveSection";
 import { RESUME_SECTION_METADATA } from "@/features/document-generator/components/ResumeSectionSidebar";
 import { parseDescriptionToBullets } from "./utils/descriptionParser";
+import { useDocumentState } from "@/features/document-generator/hooks/useDocumentState";
 
 interface EuropassTemplateProps {
   data: DocumentData;
   isInteractive?: boolean;
   activeSectionId?: string;
   onSelectSection?: (sectionId: string) => void;
-  onAddEntry?: (sectionId: string) => void;
 }
 
 interface PageItemAssignment {
@@ -63,6 +63,14 @@ function getElementHeightWithMargins(el: HTMLElement): number {
   return el.offsetHeight + marginTop + marginBottom;
 }
 
+function getSplittableEntryHeight(el: HTMLElement): number {
+  const section = (el.firstElementChild as HTMLElement) || el;
+  const entryChild = (section.firstElementChild as HTMLElement) || section;
+  const childStyle = window.getComputedStyle(entryChild);
+  const childMarginBottom = parseFloat(childStyle.marginBottom) || 0;
+  return Math.max(el.offsetHeight, section.offsetHeight, entryChild.offsetHeight + childMarginBottom);
+}
+
 function arePagesEqual(
   a: PageItemAssignment[][] | null,
   b: PageItemAssignment[][]
@@ -83,6 +91,24 @@ function arePagesEqual(
   );
 }
 
+export const EUROPASS_DEFAULT_SECTION_ORDER: string[] = [
+  "aboutMe",
+  "education",
+  "languages",
+  "englishCertificate",
+  "internships",
+  "academicProjects",
+  "achievements",
+  "certifications",
+  "leadershipActivities",
+  "volunteering",
+  "skills",
+  "academicInterests",
+  "hobbies",
+  "recommendations",
+  "declaration",
+];
+
 /**
  * Authoritative Europass template renderer.
  * Reconstructs the exact single-column layout, header, and light-blue decorations
@@ -99,9 +125,28 @@ export function EuropassTemplate({
   isInteractive = false,
   activeSectionId,
   onSelectSection,
-  onAddEntry,
 }: EuropassTemplateProps) {
   const measureRef = useRef<HTMLDivElement>(null);
+
+  const {
+    setPersonal,
+    setAboutMe,
+    setDeclaration,
+    setMotherTongue,
+    setEnglishCertificate,
+    updateEducation,
+    updateInternship,
+    updateAcademicProject,
+    updateAchievement,
+    updateLeadershipActivity,
+    updateCertification,
+    updateVolunteering,
+    updateLanguage,
+    updateSkill,
+    updateHobby,
+    updateRecommendation,
+    updateAcademicInterest,
+  } = useDocumentState();
 
   // Normalize repeatable arrays
   const educationEntries = useMemo(
@@ -175,10 +220,17 @@ export function EuropassTemplate({
 
   const movableOrder = useMemo(() => {
     const custom = data.sectionOrder;
-    if (!custom || custom.length === 0) return DEFAULT_MOVABLE_SECTION_ORDER;
+    const isGenericDefault =
+      custom &&
+      custom.length === DEFAULT_MOVABLE_SECTION_ORDER.length &&
+      custom.every((id, idx) => id === DEFAULT_MOVABLE_SECTION_ORDER[idx]);
+
+    if (!custom || custom.length === 0 || isGenericDefault) {
+      return EUROPASS_DEFAULT_SECTION_ORDER;
+    }
     return [
       ...custom,
-      ...DEFAULT_MOVABLE_SECTION_ORDER.filter((id) => !custom.includes(id)),
+      ...EUROPASS_DEFAULT_SECTION_ORDER.filter((id) => !custom.includes(id)),
     ];
   }, [data.sectionOrder]);
 
@@ -292,7 +344,7 @@ export function EuropassTemplate({
           break;
         case "recommendations":
           if (recommendations && recommendations.length > 0) {
-            allItems.push({ key: "recommendations", secKey: "recommendations" });
+            allItems.push({ key: "recommendations", secKey: "recommendations", title: "RECOMMENDATIONS" });
           }
           break;
         case "declaration":
@@ -303,10 +355,54 @@ export function EuropassTemplate({
       }
     }
 
-    const p1 = allItems.slice(0, 3);
-    const p2 = allItems.slice(3);
-    const pages: PageItemAssignment[][] = [p1];
-    if (p2.length > 0) pages.push(p2);
+    // Estimated packing for initial fallback before layout measurement completes
+    const pages: PageItemAssignment[][] = [[]];
+    let pIdx = 0;
+    // Page 1 has header (~220px), so ~820px remaining. Subsequent pages ~1040px.
+    let remH = 820;
+
+    const estimateItemHeight = (item: PageItemAssignment) => {
+      switch (item.secKey) {
+        case "about":
+        case "aboutMe":
+          return 140;
+        case "education":
+          return 38 + educationEntries.length * 110;
+        case "languages":
+          return 80;
+        case "englishCertificate":
+          return 200;
+        case "internships":
+          return 38 + internshipEntries.length * 130;
+        case "academicProjects":
+          return 38 + projectEntries.length * 120;
+        case "achievements":
+          return 38 + achievementEntries.length * 70;
+        case "certifications":
+          return 38 + certificationEntries.length * 80;
+        case "skills":
+          return 120;
+        case "hobbies":
+          return 100;
+        case "recommendations":
+          return 38 + recommendations.length * 150;
+        default:
+          return 100;
+      }
+    };
+
+    for (const item of allItems) {
+      const estH = estimateItemHeight(item);
+      if (estH <= remH || pages[pIdx].length === 0) {
+        pages[pIdx].push(item);
+        remH -= estH;
+      } else {
+        pIdx++;
+        pages[pIdx] = [item];
+        remH = 1040 - estH;
+      }
+    }
+
     return pages;
   }, [
     movableOrder,
@@ -348,8 +444,13 @@ export function EuropassTemplate({
       switch (item.secKey) {
         case "about":
         case "aboutMe":
-          return aboutMe.trim().length > 0 ? (
-            <AboutSection text={aboutMe} title={item.title} />
+          return aboutMe.trim().length > 0 || isInteractive ? (
+            <AboutSection
+              text={aboutMe}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={setAboutMe}
+            />
           ) : null;
         case "education": {
           const slice = educationEntries.slice(
@@ -357,7 +458,12 @@ export function EuropassTemplate({
             item.endIndex ?? educationEntries.length
           );
           return slice.length > 0 ? (
-            <EducationSection entries={slice} title={item.title} />
+            <EducationSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateEducation}
+            />
           ) : null;
         }
         case "internships": {
@@ -407,12 +513,21 @@ export function EuropassTemplate({
             );
           }
           return slice.length > 0 ? (
-            <InternshipSection entries={slice} title={item.title} />
+            <InternshipSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateInternship}
+            />
           ) : null;
         }
         case "academicInterests":
-          return academicInterests.length > 0 ? (
-            <AcademicInterestsSection entries={academicInterests} />
+          return academicInterests.length > 0 || isInteractive ? (
+            <AcademicInterestsSection
+              entries={academicInterests}
+              isInteractive={isInteractive}
+              onUpdate={updateAcademicInterest}
+            />
           ) : null;
         case "academicProjects": {
           const slice = projectEntries.slice(
@@ -420,7 +535,12 @@ export function EuropassTemplate({
             item.endIndex ?? projectEntries.length
           );
           return slice.length > 0 ? (
-            <AcademicProjectsSection entries={slice} title={item.title} />
+            <AcademicProjectsSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateAcademicProject}
+            />
           ) : null;
         }
         case "achievements": {
@@ -429,7 +549,12 @@ export function EuropassTemplate({
             item.endIndex ?? achievementEntries.length
           );
           return slice.length > 0 ? (
-            <AchievementsSection entries={slice} title={item.title} />
+            <AchievementsSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateAchievement}
+            />
           ) : null;
         }
         case "leadership":
@@ -439,7 +564,12 @@ export function EuropassTemplate({
             item.endIndex ?? leadershipEntries.length
           );
           return slice.length > 0 ? (
-            <LeadershipSection entries={slice} title={item.title} />
+            <LeadershipSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateLeadershipActivity}
+            />
           ) : null;
         }
         case "volunteering": {
@@ -448,7 +578,12 @@ export function EuropassTemplate({
             item.endIndex ?? volunteeringEntries.length
           );
           return slice.length > 0 ? (
-            <VolunteeringSection entries={slice} title={item.title} />
+            <VolunteeringSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateVolunteering}
+            />
           ) : null;
         }
         case "certifications": {
@@ -457,34 +592,81 @@ export function EuropassTemplate({
             item.endIndex ?? certificationEntries.length
           );
           return slice.length > 0 ? (
-            <CertificationsSection entries={slice} title={item.title} />
+            <CertificationsSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateCertification}
+            />
           ) : null;
         }
         case "languages":
-          return hasLanguages ? (
-            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} title={item.title} />
+          return hasLanguages || isInteractive ? (
+            <LanguageSkillsSection
+              motherTongue={motherTongue}
+              entries={languages}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdateMotherTongue={setMotherTongue}
+              onUpdateEntry={updateLanguage}
+            />
           ) : null;
         case "englishCertificate":
-          return hasEnglishCert && englishCertificate ? (
-            <EnglishCertificateSection cert={englishCertificate} title={item.title} />
+          return (hasEnglishCert && englishCertificate) || isInteractive ? (
+            <EnglishCertificateSection
+              cert={englishCertificate || undefined}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={setEnglishCertificate}
+            />
           ) : null;
         case "skills":
-          return skills.length > 0 ? <SkillsSection entries={skills} title={item.title} /> : null;
-        case "hobbies":
-          return hobbies.length > 0 ? <HobbiesSection entries={hobbies} title={item.title} /> : null;
-        case "recommendations":
-          return recommendations.length > 0 ? (
-            <RecommendationsSection entries={recommendations} />
+          return skills.length > 0 || isInteractive ? (
+            <SkillsSection
+              entries={skills}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateSkill}
+            />
           ) : null;
+        case "hobbies":
+          return hobbies.length > 0 || isInteractive ? (
+            <HobbiesSection
+              entries={hobbies}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateHobby}
+            />
+          ) : null;
+        case "recommendations": {
+          const slice = recommendations.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? recommendations.length
+          );
+          return slice.length > 0 ? (
+            <RecommendationsSection
+              entries={slice}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={updateRecommendation}
+            />
+          ) : null;
+        }
         case "declaration":
-          return declaration.trim().length > 0 ? (
-            <DeclarationSection text={declaration} title={item.title} />
+          return declaration.trim().length > 0 || isInteractive ? (
+            <DeclarationSection
+              text={declaration}
+              title={item.title}
+              isInteractive={isInteractive}
+              onUpdate={setDeclaration}
+            />
           ) : null;
         default:
           return null;
       }
     },
     [
+      isInteractive,
       aboutMe,
       declaration,
       englishCertificate,
@@ -503,6 +685,22 @@ export function EuropassTemplate({
       skills,
       hobbies,
       recommendations,
+      setAboutMe,
+      setDeclaration,
+      setMotherTongue,
+      setEnglishCertificate,
+      updateEducation,
+      updateInternship,
+      updateAcademicInterest,
+      updateAcademicProject,
+      updateAchievement,
+      updateLeadershipActivity,
+      updateVolunteering,
+      updateCertification,
+      updateLanguage,
+      updateSkill,
+      updateHobby,
+      updateRecommendation,
     ]
   );
 
@@ -511,14 +709,14 @@ export function EuropassTemplate({
     const container = measureRef.current;
 
     // A4 height is 297mm. Measured padding is 7.3mm top + 11.2mm bottom = 18.5mm.
-    // Usable height inside padding: 278.5mm (~1052px at 96 DPI).
-    // Reserve safety buffer from bottom decorations.
+    // Usable height inside padding: 278.5mm (~1052.6px at 96 DPI).
+    // Reserve minimal 8px safety buffer for sub-pixel text rendering.
+    const A4_USABLE_HEIGHT_PX = 278.5 * (96 / 25.4) - 8;
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
     ) as HTMLElement | null;
-    const usableHeight = pageContentEl
-      ? pageContentEl.offsetHeight - 38
-      : 278.5 * (96 / 25.4) - 38;
+    const measuredPageH = pageContentEl?.offsetHeight ?? 0;
+    const usableHeight = measuredPageH > 500 ? measuredPageH - 8 : A4_USABLE_HEIGHT_PX;
 
     const headerEl = container.querySelector(
       '[data-measure="header"]'
@@ -539,14 +737,14 @@ export function EuropassTemplate({
       remainingHeight = maxPageN;
     };
 
-    // Helper: place an atomic section
+    // Helper: place an atomic section with 6px sub-pixel tolerance
     const placeAtomic = (key: string, defaultTitle?: string) => {
       const el = container.querySelector(
         `[data-measure="${key}"]`
       ) as HTMLElement | null;
       const h = el ? getElementHeightWithMargins(el) : 80;
 
-      if (h <= remainingHeight || computedPages[pageIdx].length === 0) {
+      if (h <= remainingHeight + 6 || computedPages[pageIdx].length === 0) {
         computedPages[pageIdx].push({ key, secKey: key, title: defaultTitle });
         remainingHeight -= h;
       } else {
@@ -574,14 +772,14 @@ export function EuropassTemplate({
         const el = container.querySelector(
           `[data-measure-entry="${secKey}"][data-index="${i}"]`
         ) as HTMLElement | null;
-        return el ? getElementHeightWithMargins(el) : 100;
+        return el ? getSplittableEntryHeight(el) : 100;
       });
 
       const totalHeight =
         titleHeight + entryHeights.reduce((acc, val) => acc + val, 0);
 
-      // 1. Entire section fits on current page
-      if (totalHeight <= remainingHeight) {
+      // 1. Entire section fits on current page (with 6px sub-pixel tolerance)
+      if (totalHeight <= remainingHeight + 6) {
         computedPages[pageIdx].push({
           key: `${secKey}_all`,
           secKey,
@@ -601,26 +799,26 @@ export function EuropassTemplate({
         if (!entryEl) return null;
 
         const bulletEls = entryEl.querySelectorAll<HTMLElement>(`.${styles.bulletItem}`);
-        if (bulletEls.length < 3) return null;
+        if (bulletEls.length < 2) return null;
 
         const bulletHeights = Array.from(bulletEls).map((b) => getElementHeightWithMargins(b));
         const totalBulletsHeight = bulletHeights.reduce((a, b) => a + b, 0);
         const headerHeight = Math.max(30, entryHeights[entryIdx] - totalBulletsHeight);
 
-        // Header + at least 2 bullets must fit with safety buffer
-        if (headerHeight + bulletHeights[0] + bulletHeights[1] + 12 > availableHeight) {
+        // Header + at least 1 bullet must fit with small buffer
+        if (headerHeight + bulletHeights[0] + 4 > availableHeight) {
           return null;
         }
 
-        let remH = availableHeight - headerHeight - 12;
+        let remH = availableHeight - headerHeight - 4;
         let bCount = 0;
         while (bCount < bulletHeights.length && bulletHeights[bCount] <= remH) {
           remH -= bulletHeights[bCount];
           bCount++;
         }
 
-        // Must fit at least 2 bullets on current page, and leave at least 1 bullet for next page
-        if (bCount >= 2 && bCount < bulletHeights.length) {
+        // Must fit at least 1 bullet on current page, and leave at least 1 bullet for next page
+        if (bCount >= 1 && bCount < bulletHeights.length) {
           const part2Height = bulletHeights.slice(bCount).reduce((a, b) => a + b, 0);
           return { bCount, part2Height };
         }
@@ -630,12 +828,12 @@ export function EuropassTemplate({
       // 2. Section doesn't fit entirely on current page.
       // Check if at least 1 entry fits or entry 0 can split its bullets:
       if (
-        titleHeight + entryHeights[0] + 16 <= remainingHeight ||
+        titleHeight + entryHeights[0] <= remainingHeight ||
         getBulletSplitInfo(0, remainingHeight - titleHeight) !== null
       ) {
         let rem = remainingHeight - titleHeight;
         let k = 0;
-        while (k < entries.length && entryHeights[k] + 16 <= rem) {
+        while (k < entries.length && entryHeights[k] <= rem) {
           rem -= entryHeights[k];
           k++;
         }
@@ -719,7 +917,7 @@ export function EuropassTemplate({
           const remHeights = entryHeights.slice(k);
           const remTotal = remHeights.reduce((acc, val) => acc + val, 0);
 
-          if (remTotal <= maxPageN) {
+          if (remTotal <= maxPageN + 6) {
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
               secKey,
@@ -777,25 +975,126 @@ export function EuropassTemplate({
           rem -= entryHeights[k];
           k++;
         }
-        computedPages[pageIdx].push({
-          key: `${secKey}_part1`,
-          secKey,
-          title: defaultTitle,
-          startIndex: 0,
-          endIndex: k,
-        });
-        advanceToNextPage();
-        computedPages[pageIdx].push({
-          key: `${secKey}_part2`,
-          secKey,
-          title: "",
-          startIndex: k,
-          endIndex: entries.length,
-        });
-        const remHeights = entryHeights.slice(k);
-        remainingHeight =
-          maxPageN -
-          remHeights.reduce((acc, val) => acc + val, 0);
+
+        // Check if entry k can split its bullets into remaining space on this new page
+        if (k < entries.length) {
+          const splitInfo = getBulletSplitInfo(k, rem);
+          if (splitInfo) {
+            computedPages[pageIdx].push({
+              key: `${secKey}_part1`,
+              secKey,
+              title: defaultTitle,
+              startIndex: 0,
+              endIndex: k + 1,
+              splitEntryIndex: k,
+              bulletSplitCount: splitInfo.bCount,
+              splitPart: 1,
+            });
+
+            advanceToNextPage();
+            const remainingEntriesHeight = entryHeights.slice(k + 1).reduce((acc, val) => acc + val, 0);
+            const totalPart2Height = splitInfo.part2Height + remainingEntriesHeight;
+
+            if (totalPart2Height <= maxPageN) {
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: entries.length,
+                splitEntryIndex: k,
+                bulletSplitCount: splitInfo.bCount,
+                splitPart: 2,
+              });
+              remainingHeight = maxPageN - totalPart2Height;
+            } else {
+              let k2 = k + 1;
+              let rem2 = maxPageN - splitInfo.part2Height;
+              while (k2 < entries.length && entryHeights[k2] <= rem2) {
+                rem2 -= entryHeights[k2];
+                k2++;
+              }
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: k2,
+                splitEntryIndex: k,
+                bulletSplitCount: splitInfo.bCount,
+                splitPart: 2,
+              });
+              advanceToNextPage();
+              computedPages[pageIdx].push({
+                key: `${secKey}_part3`,
+                secKey,
+                title: "",
+                startIndex: k2,
+                endIndex: entries.length,
+              });
+              const remHeights3 = entryHeights.slice(k2);
+              remainingHeight = maxPageN - remHeights3.reduce((acc, val) => acc + val, 0);
+            }
+            return;
+          }
+        }
+
+        if (k > 0) {
+          computedPages[pageIdx].push({
+            key: `${secKey}_part1`,
+            secKey,
+            title: defaultTitle,
+            startIndex: 0,
+            endIndex: k,
+          });
+          advanceToNextPage();
+          const remHeights = entryHeights.slice(k);
+          const remTotal = remHeights.reduce((acc, val) => acc + val, 0);
+          if (remTotal <= maxPageN) {
+            computedPages[pageIdx].push({
+              key: `${secKey}_part2`,
+              secKey,
+              title: "",
+              startIndex: k,
+              endIndex: entries.length,
+            });
+            remainingHeight = maxPageN - remTotal;
+          } else {
+            let k2 = 0;
+            let rem2 = maxPageN;
+            const remEntries = entries.slice(k);
+            while (k2 < remEntries.length && remHeights[k2] <= rem2) {
+              rem2 -= remHeights[k2];
+              k2++;
+            }
+            computedPages[pageIdx].push({
+              key: `${secKey}_part2`,
+              secKey,
+              title: "",
+              startIndex: k,
+              endIndex: k + k2,
+            });
+            advanceToNextPage();
+            computedPages[pageIdx].push({
+              key: `${secKey}_part3`,
+              secKey,
+              title: "",
+              startIndex: k + k2,
+              endIndex: entries.length,
+            });
+            const remHeights3 = remHeights.slice(k2);
+            remainingHeight = maxPageN - remHeights3.reduce((acc, val) => acc + val, 0);
+          }
+        } else {
+          computedPages[pageIdx].push({
+            key: `${secKey}_all`,
+            secKey,
+            title: defaultTitle,
+            startIndex: 0,
+            endIndex: entries.length,
+          });
+          remainingHeight = maxPageN - totalHeight;
+        }
       }
     }
 
@@ -857,9 +1156,7 @@ export function EuropassTemplate({
           }
           break;
         case "recommendations":
-          if (recommendations && recommendations.length > 0) {
-            placeAtomic("recommendations");
-          }
+          placeSplittable("recommendations", "RECOMMENDATIONS", recommendations);
           break;
         case "declaration":
           if (declaration && declaration.trim().length > 0) {
@@ -919,11 +1216,11 @@ export function EuropassTemplate({
       >
         <div
           className={styles.pageContent}
-          style={{ height: "auto", minHeight: "auto", padding: "12mm 13mm 16mm 13mm", boxSizing: "border-box" }}
+          style={{ height: "auto", minHeight: "auto", padding: "7.3mm 8.9mm 11.2mm 9.2mm", boxSizing: "border-box" }}
         >
           <div
             data-measure-page
-            style={{ height: "269mm", boxSizing: "border-box" }}
+            style={{ height: "278.5mm", boxSizing: "border-box" }}
           />
         <div data-measure="header">
           <EuropassHeader personal={data.personal} />
@@ -945,9 +1242,9 @@ export function EuropassTemplate({
             <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
           </div>
         )}
-        {data.englishCertificate && (
+        {hasEnglishCert && englishCertificate && (
           <div data-measure="englishCertificate">
-            <EnglishCertificateSection cert={data.englishCertificate} />
+            <EnglishCertificateSection cert={englishCertificate} />
           </div>
         )}
         {data.skills && (
@@ -960,11 +1257,6 @@ export function EuropassTemplate({
             <HobbiesSection entries={data.hobbies} />
           </div>
         )}
-        {data.recommendations && (
-          <div data-measure="recommendations">
-            <RecommendationsSection entries={data.recommendations} />
-          </div>
-        )}
         {data.declaration && (
           <div data-measure="declaration">
             <DeclarationSection text={data.declaration} />
@@ -973,7 +1265,7 @@ export function EuropassTemplate({
 
         {/* Splittable repeatable sections */}
         {/* Education */}
-        <div data-measure-title="education">
+        <div data-measure-title="education" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="EDUCATION AND TRAINING" />
         </div>
         {educationEntries.map((e, idx) => (
@@ -983,7 +1275,7 @@ export function EuropassTemplate({
         ))}
 
         {/* Internships */}
-        <div data-measure-title="internships">
+        <div data-measure-title="internships" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="WORK EXPERIENCE / INTERNSHIPS" />
         </div>
         {internshipEntries.map((e, idx) => (
@@ -993,7 +1285,7 @@ export function EuropassTemplate({
         ))}
 
         {/* Academic Projects */}
-        <div data-measure-title="academicProjects">
+        <div data-measure-title="academicProjects" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="ACADEMIC PROJECTS" />
         </div>
         {projectEntries.map((e, idx) => (
@@ -1003,7 +1295,7 @@ export function EuropassTemplate({
         ))}
 
         {/* Achievements */}
-        <div data-measure-title="achievements">
+        <div data-measure-title="achievements" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="ACHIEVEMENTS & AWARDS" />
         </div>
         {achievementEntries.map((e, idx) => (
@@ -1013,7 +1305,7 @@ export function EuropassTemplate({
         ))}
 
         {/* Leadership */}
-        <div data-measure-title="leadership">
+        <div data-measure-title="leadership" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="LEADERSHIP & EXTRACURRICULAR" />
         </div>
         {leadershipEntries.map((e, idx) => (
@@ -1023,7 +1315,7 @@ export function EuropassTemplate({
         ))}
 
         {/* Volunteering */}
-        <div data-measure-title="volunteering">
+        <div data-measure-title="volunteering" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="VOLUNTEERING / COMMUNITY ENGAGEMENT" />
         </div>
         {volunteeringEntries.map((e, idx) => (
@@ -1033,12 +1325,22 @@ export function EuropassTemplate({
         ))}
 
         {/* Certifications */}
-        <div data-measure-title="certifications">
+        <div data-measure-title="certifications" className={styles.sectionWrapper}>
           <EuropassSectionTitle title="CERTIFICATIONS" />
         </div>
         {certificationEntries.map((e, idx) => (
           <div key={e.id} data-measure-entry="certifications" data-index={idx}>
             <CertificationsSection entries={[e]} title="" />
+          </div>
+        ))}
+
+        {/* Recommendations */}
+        <div data-measure-title="recommendations" className={styles.sectionWrapper}>
+          <EuropassSectionTitle title="RECOMMENDATIONS" />
+        </div>
+        {recommendations.map((e, idx) => (
+          <div key={e.id || idx} data-measure-entry="recommendations" data-index={idx}>
+            <RecommendationsSection entries={[e]} title="" />
           </div>
         ))}
         </div>
@@ -1057,7 +1359,11 @@ export function EuropassTemplate({
                   isSelected={activeSectionId === "personalDetails"}
                   onEdit={() => onSelectSection?.("personalDetails")}
                 >
-                  <EuropassHeader personal={data.personal} />
+                  <EuropassHeader
+                    personal={data.personal}
+                    isInteractive={isInteractive}
+                    onUpdatePersonal={setPersonal}
+                  />
                 </ResumeInteractiveSection>
               ) : (
                 <EuropassHeader personal={data.personal} />
@@ -1078,20 +1384,6 @@ export function EuropassTemplate({
                   : item.secKey;
 
               const meta = RESUME_SECTION_METADATA[canonicalKey] ?? { title: canonicalKey };
-              const isRepeatable = [
-                "education",
-                "internships",
-                "academicProjects",
-                "certifications",
-                "academicInterests",
-                "achievements",
-                "leadershipActivities",
-                "volunteering",
-                "languages",
-                "skills",
-                "hobbies",
-                "recommendations",
-              ].includes(canonicalKey);
 
               const isContinuation = item.title === "";
 
@@ -1100,10 +1392,8 @@ export function EuropassTemplate({
                   <ResumeInteractiveSection
                     sectionId={canonicalKey}
                     title={meta.title}
-                    isRepeatable={isRepeatable && !isContinuation}
                     isSelected={activeSectionId === canonicalKey}
                     onEdit={() => onSelectSection?.(canonicalKey)}
-                    onAddEntry={isRepeatable && !isContinuation ? () => onAddEntry?.(canonicalKey) : undefined}
                   >
                     {content}
                   </ResumeInteractiveSection>

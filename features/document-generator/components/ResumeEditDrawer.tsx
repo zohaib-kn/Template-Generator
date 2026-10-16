@@ -29,6 +29,7 @@ interface ResumeEditDrawerProps {
   selectedSectionId: string;
   crmSnapshot?: CrmSnapshot | null;
   onRemoveSection?: (sectionId: string) => void;
+  onAddEntry?: () => void;
 }
 
 export function ResumeEditDrawer({
@@ -37,6 +38,7 @@ export function ResumeEditDrawer({
   selectedSectionId,
   crmSnapshot,
   onRemoveSection,
+  onAddEntry,
 }: ResumeEditDrawerProps) {
   const { moveSectionUp, moveSectionDown, data } = useDocumentState();
 
@@ -213,7 +215,7 @@ export function ResumeEditDrawer({
 
         {/* ── Drawer Footer ── */}
         <div className="px-6 py-3.5 border-t border-slate-200/90 bg-slate-50/80 flex items-center justify-between flex-shrink-0">
-          <div>
+          <div className="flex items-center gap-3">
             {!isPersonalDetails && onRemoveSection && (
               <button
                 type="button"
@@ -226,6 +228,18 @@ export function ResumeEditDrawer({
                 className="text-xs text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
               >
                 Remove from Resume
+              </button>
+            )}
+
+            {onAddEntry && (
+              <button
+                type="button"
+                onClick={onAddEntry}
+                className="text-xs font-medium text-[#096491] hover:text-[#074f73] hover:underline cursor-pointer flex items-center gap-1"
+                title={`Add another entry to ${meta.title}`}
+              >
+                <span className="font-bold text-sm leading-none">+</span>
+                <span>Add Entry</span>
               </button>
             )}
           </div>

@@ -2,10 +2,14 @@ import { memo } from "react";
 import type { RecommendationEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface RecommendationsSectionProps {
   entries?: RecommendationEntry[];
   part?: 1 | 2;
+  title?: string;
+  isInteractive?: boolean;
+  onUpdate?: (id: string, patch: Partial<RecommendationEntry>) => void;
 }
 
 function renderContactLine(line: string) {
@@ -53,6 +57,9 @@ function renderContactLine(line: string) {
 export const RecommendationsSection = memo(function RecommendationsSection({
   entries,
   part,
+  title,
+  isInteractive = false,
+  onUpdate,
 }: RecommendationsSectionProps) {
   if (!entries || entries.length === 0) return null;
 
@@ -60,7 +67,6 @@ export const RecommendationsSection = memo(function RecommendationsSection({
   const fullText = entry.text ?? "";
 
   // Split content between Page 1 and Page 2
-  // The reference PDF splits right before "To conclude,"
   let p1Text = fullText;
   let p2Text = "";
 
@@ -69,7 +75,6 @@ export const RecommendationsSection = memo(function RecommendationsSection({
     p1Text = fullText.slice(0, splitIndex).trim();
     p2Text = fullText.slice(splitIndex).trim();
   } else {
-    // If dynamic custom text, split across paragraphs
     const paragraphs = fullText.split("\n\n").filter(Boolean);
     if (paragraphs.length > 2) {
       const splitAt = Math.ceil(paragraphs.length * 0.65);
@@ -78,7 +83,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
     }
   }
 
-  // --- Page 1 Rendering ---------------------------------------------------
+  // --- Page 1 Rendering ---
   if (part === 1) {
     const paragraphs = p1Text.split("\n\n").filter(Boolean);
     return (
@@ -88,30 +93,61 @@ export const RecommendationsSection = memo(function RecommendationsSection({
         {(entry.recommenderName || entry.recommenderTitle) && (
           <div className={styles.recommenderMeta}>
             <span className={styles.recommenderNameLabel}>Name:</span>{" "}
-            <span className={styles.recommenderName}>
-              {entry.recommenderName}
-            </span>
-            {entry.recommenderTitle && (
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={entry.recommenderName ?? ""}
+                onChange={(v) => onUpdate(entry.id, { recommenderName: v })}
+                isInteractive={isInteractive}
+                className={styles.recommenderName}
+                placeholder="Recommender Name"
+              />
+            ) : (
+              <span className={styles.recommenderName}>
+                {entry.recommenderName}
+              </span>
+            )}
+            {(isInteractive || entry.recommenderTitle) && (
               <>
                 <span className={styles.pipeDivider}>|</span>
-                <span className={styles.recommenderTitle}>
-                  {entry.recommenderTitle}
-                </span>
+                {isInteractive && onUpdate ? (
+                  <EditableText
+                    value={entry.recommenderTitle ?? ""}
+                    onChange={(v) => onUpdate(entry.id, { recommenderTitle: v })}
+                    isInteractive={isInteractive}
+                    className={styles.recommenderTitle}
+                    placeholder="Title / Position"
+                  />
+                ) : (
+                  <span className={styles.recommenderTitle}>
+                    {entry.recommenderTitle}
+                  </span>
+                )}
               </>
             )}
           </div>
         )}
 
-        {paragraphs.map((p, idx) => (
-          <p key={idx} className={styles.recommendationParagraph}>
-            {p}
-          </p>
-        ))}
+        {isInteractive && onUpdate ? (
+          <EditableText
+            value={p1Text}
+            onChange={(v) => onUpdate(entry.id, { text: p2Text ? `${v}\n\n${p2Text}` : v })}
+            isInteractive={isInteractive}
+            multiline
+            className={styles.recommendationParagraph}
+            placeholder="Recommendation text..."
+          />
+        ) : (
+          paragraphs.map((p, idx) => (
+            <p key={idx} className={styles.recommendationParagraph}>
+              {p}
+            </p>
+          ))
+        )}
       </section>
     );
   }
 
-  // --- Page 2 Rendering (Continuation) ------------------------------------
+  // --- Page 2 Rendering (Continuation) ---
   if (part === 2) {
     if (!p2Text) return null;
     const lines = p2Text.split("\n").filter((l) => l.trim().length > 0);
@@ -132,11 +168,22 @@ export const RecommendationsSection = memo(function RecommendationsSection({
 
     return (
       <div style={{ marginBottom: "2.5mm" }}>
-        {concludingParagraphs.map((cp, idx) => (
-          <p key={idx} className={styles.recommendationParagraph}>
-            {cp}
-          </p>
-        ))}
+        {isInteractive && onUpdate ? (
+          <EditableText
+            value={concludingParagraphs.join("\n\n")}
+            onChange={(v) => onUpdate(entry.id, { text: `${p1Text}\n\n${v}${contactLines.length ? `\n${contactLines.join("\n")}` : ""}` })}
+            isInteractive={isInteractive}
+            multiline
+            className={styles.recommendationParagraph}
+            placeholder="Concluding paragraph..."
+          />
+        ) : (
+          concludingParagraphs.map((cp, idx) => (
+            <p key={idx} className={styles.recommendationParagraph}>
+              {cp}
+            </p>
+          ))
+        )}
 
         {contactLines.map((cl, idx) => (
           <div key={idx} className={styles.recommendationContactRow}>
@@ -147,10 +194,12 @@ export const RecommendationsSection = memo(function RecommendationsSection({
     );
   }
 
-  // --- Default (Render all recommendation entries) ------------------------
+  // --- Default (Render all recommendation entries) ---
+  const showTitle = title === undefined ? true : Boolean(title);
+
   return (
     <section className={styles.sectionWrapper}>
-      <EuropassSectionTitle title="RECOMMENDATIONS" />
+      {showTitle && <EuropassSectionTitle title={title || "RECOMMENDATIONS"} />}
       {entries.map((recEntry, recIdx) => {
         const lines = (recEntry.text ?? "")
           .split("\n")
@@ -173,44 +222,70 @@ export const RecommendationsSection = memo(function RecommendationsSection({
         return (
           <div
             key={recEntry.id || recIdx}
-            style={{ marginBottom: recIdx < entries.length - 1 ? "4mm" : "0" }}
+            style={{ marginBottom: recIdx < entries.length - 1 ? "4.5mm" : "0" }}
           >
-            {(recEntry.recommenderName || recEntry.recommenderTitle) && (
+            {(isInteractive || recEntry.recommenderName || recEntry.recommenderTitle) && (
               <div className={styles.recommenderMeta}>
-                {recEntry.recommenderName && (
-                  <>
-                    <span className={styles.recommenderNameLabel}>Name:</span>{" "}
-                    <span className={styles.recommenderName}>
-                      {recEntry.recommenderName}
-                    </span>
-                  </>
+                <span className={styles.recommenderNameLabel}>Name:</span>{" "}
+                {isInteractive && onUpdate ? (
+                  <EditableText
+                    value={recEntry.recommenderName ?? ""}
+                    onChange={(v) => onUpdate(recEntry.id, { recommenderName: v })}
+                    isInteractive={isInteractive}
+                    className={styles.recommenderName}
+                    placeholder="Recommender Name"
+                  />
+                ) : (
+                  <span className={styles.recommenderName}>
+                    {recEntry.recommenderName}
+                  </span>
                 )}
-                {recEntry.recommenderTitle && (
+                {(isInteractive || recEntry.recommenderTitle) && (
                   <>
-                    {recEntry.recommenderName && (
-                      <span className={styles.pipeDivider}>|</span>
+                    <span className={styles.pipeDivider}>|</span>
+                    {isInteractive && onUpdate ? (
+                      <EditableText
+                        value={recEntry.recommenderTitle ?? ""}
+                        onChange={(v) => onUpdate(recEntry.id, { recommenderTitle: v })}
+                        isInteractive={isInteractive}
+                        className={styles.recommenderTitle}
+                        placeholder="Recommender Title"
+                      />
+                    ) : (
+                      <span className={styles.recommenderTitle}>
+                        {recEntry.recommenderTitle}
+                      </span>
                     )}
-                    <span className={styles.recommenderTitle}>
-                      {recEntry.recommenderTitle}
-                    </span>
                   </>
                 )}
               </div>
             )}
-            {regularParagraphs.map((p, idx) => (
-              <p key={idx} className={styles.recommendationParagraph}>
-                {p}
-              </p>
-            ))}
-            {contactLines.map((cl, idx) => (
-              <div key={idx} className={styles.recommendationContactRow}>
-                {renderContactLine(cl)}
-              </div>
-            ))}
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={recEntry.text ?? ""}
+                onChange={(v) => onUpdate(recEntry.id, { text: v })}
+                isInteractive={isInteractive}
+                multiline
+                className={styles.recommendationParagraph}
+                placeholder="Recommendation letter content..."
+              />
+            ) : (
+              <>
+                {regularParagraphs.map((p, idx) => (
+                  <p key={idx} className={styles.recommendationParagraph}>
+                    {p}
+                  </p>
+                ))}
+                {contactLines.map((cl, idx) => (
+                  <div key={idx} className={styles.recommendationContactRow}>
+                    {renderContactLine(cl)}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         );
       })}
     </section>
   );
 });
-

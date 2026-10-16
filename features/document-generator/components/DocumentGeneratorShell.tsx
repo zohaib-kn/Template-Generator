@@ -215,6 +215,21 @@ function GeneratorLayout() {
     internships: availableInternships,
   });
 
+  const REPEATABLE_SECTION_IDS = [
+    "education",
+    "internships",
+    "academicProjects",
+    "certifications",
+    "academicInterests",
+    "achievements",
+    "leadershipActivities",
+    "volunteering",
+    "languages",
+    "skills",
+    "hobbies",
+    "recommendations",
+  ];
+
   const [isConfirmingTransition, setIsConfirmingTransition] = useState(false);
   const handleConfirmTransition = useCallback(
     async (transitionContext: TransitionContext) => {
@@ -620,11 +635,6 @@ function GeneratorLayout() {
               setSelectedSectionId(secId);
               setIsEditDrawerOpen(true);
             }}
-            onAddEntry={(secId) => {
-              handleAddRepeatableEntry(secId);
-              setSelectedSectionId(secId);
-              setIsEditDrawerOpen(true);
-            }}
             onOpenAddContent={() => setIsAddContentOpen(true)}
             onOpenStudentSelect={() => setStudentSelectOpen(true)}
             onOpenImport={() => setImportModalOpen(true)}
@@ -644,6 +654,11 @@ function GeneratorLayout() {
             selectedSectionId={selectedSectionId}
             crmSnapshot={currentSnapshot}
             onRemoveSection={handleRemoveSection}
+            onAddEntry={
+              REPEATABLE_SECTION_IDS.includes(selectedSectionId)
+                ? () => handleAddRepeatableEntry(selectedSectionId)
+                : undefined
+            }
           />
 
           {/* ── Sections Navigation Drawer (Slide-Over quick-jump list) ── */}

@@ -58,6 +58,9 @@ export interface EducationEntry {
   startDate?: string; // ISO-8601 date string
   endDate?: string; // ISO-8601 date string, or empty if ongoing
   description?: string;
+  address?: string;
+  website?: string;
+  finalGrade?: string;
 }
 
 export interface RecommendationEntry {

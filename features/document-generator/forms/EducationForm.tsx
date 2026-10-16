@@ -91,11 +91,51 @@ export function EducationForm() {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor={`edu-addr-${entry.id}`}>Address / Location</Label>
+              <Input
+                id={`edu-addr-${entry.id}`}
+                value={entry.address ?? ""}
+                onChange={(e) =>
+                  updateEducation(entry.id, { address: e.target.value })
+                }
+                placeholder="e.g. Ghaziabad, India"
+              />
+            </div>
+            <div>
+              <Label htmlFor={`edu-web-${entry.id}`}>Website URL</Label>
+              <Input
+                id={`edu-web-${entry.id}`}
+                value={entry.website ?? ""}
+                onChange={(e) =>
+                  updateEducation(entry.id, { website: e.target.value })
+                }
+                placeholder="e.g. https://www.kdbpublicschool.com"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor={`edu-grade-${entry.id}`}>Final Grade</Label>
+              <Input
+                id={`edu-grade-${entry.id}`}
+                value={entry.finalGrade ?? ""}
+                onChange={(e) =>
+                  updateEducation(entry.id, { finalGrade: e.target.value })
+                }
+                placeholder="e.g. 93.80%/100"
+              />
+            </div>
+          </div>
+
           <div>
             <Label htmlFor={`edu-desc-${entry.id}`}>Description</Label>
             <Textarea
               id={`edu-desc-${entry.id}`}
-              rows={3}
+              rows={6}
+              className="min-h-[140px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateEducation(entry.id, { description: e.target.value })

@@ -13,7 +13,6 @@ interface ResumeDocumentWorkspaceProps {
   viewMode: "edit" | "preview" | "split" | "editor";
   activeSectionId: string;
   onSelectSection: (sectionId: string) => void;
-  onAddEntry: (sectionId: string) => void;
   onOpenAddContent: () => void;
   onOpenStudentSelect: () => void;
   onOpenImport: () => void;
@@ -27,7 +26,6 @@ export function ResumeDocumentWorkspace({
   viewMode,
   activeSectionId,
   onSelectSection,
-  onAddEntry,
   onOpenAddContent,
   onOpenStudentSelect,
   onOpenImport,
@@ -85,7 +83,6 @@ export function ResumeDocumentWorkspace({
             isInteractive={isInteractive}
             activeSectionId={activeSectionId}
             onSelectSection={onSelectSection}
-            onAddEntry={onAddEntry}
           />
         </PreviewScaler>
       </div>

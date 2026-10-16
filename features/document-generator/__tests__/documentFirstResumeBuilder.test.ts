@@ -210,4 +210,68 @@ describe("Document-First Resume Builder Architecture", () => {
     // Rest of document remains intact
     assert.strictEqual(cleared.education?.length, 1);
   });
+
+  it("TEST 19: CRM snapshot with masterInfo.academicAchievements maps to DocumentData.achievements", () => {
+    const rawSnapshot: CrmSnapshot = {
+      student: {
+        personalDetails: {
+          firstName: "Angad",
+          lastName: "Deep",
+          email: "angad@example.com",
+        },
+        masterInfo: {
+          academicAchievements: `High School Achievements (Grades 9-12):
+1. One of the Class 10 CBSE Board Exam toppers at K. D. B. Public School (2022-23).
+2. 1st position in Computer Science and English Core, Grade 11 (academic year 2023-24).
+3. One of the Top 3 performers out of 60+ interns, GeniusHub Web Development Internship (July 2024); Awards: Trophy, Certificate of Appreciation, a feature in Inspirin Magazine.
+
+Other Competitive Achievements (Chess):
+1. 4th place with Trophy, 4th Perados Chess Event, Adharsheela Global School (Nov 2022)`,
+        },
+      },
+    };
+
+    const normalized = mapCrmToNormalizedStudent(rawSnapshot);
+    assert.ok(normalized.academics.achievements);
+    assert.strictEqual(normalized.academics.achievements.length, 4);
+
+    // Verify item 1
+    const item1 = normalized.academics.achievements[0];
+    assert.strictEqual(item1.dateYear, "2022-23");
+    assert.ok(item1.title?.includes("Class 10 CBSE Board Exam toppers"));
+
+    // Verify item 3
+    const item3 = normalized.academics.achievements[2];
+    assert.strictEqual(item3.dateYear, "July 2024");
+    assert.ok(item3.title?.includes("GeniusHub Web Development Internship"));
+    assert.ok(item3.description?.includes("Trophy, Certificate of Appreciation"));
+
+    // Verify item 4 (chess)
+    const item4 = normalized.academics.achievements[3];
+    assert.strictEqual(item4.dateYear, "Nov 2022");
+    assert.strictEqual(item4.category, "Other Competitive Achievements (Chess)");
+
+    // Project to resume
+    const { student } = mapNormalizedToResume(normalized);
+    assert.ok(student.achievements);
+    assert.strictEqual(student.achievements.length, 4);
+    assert.strictEqual(student.achievements[0].title, item1.title);
+    assert.strictEqual(student.achievements[0].dateYear, "2022-23");
+  });
+
+  it("TEST 20: CRM snapshot with empty academicAchievements does not create spurious achievements", () => {
+    const emptySnapshot: CrmSnapshot = {
+      student: {
+        personalDetails: { firstName: "Test", lastName: "Student" },
+        masterInfo: { academicAchievements: "" },
+      },
+    };
+
+    const normalized = mapCrmToNormalizedStudent(emptySnapshot);
+    assert.strictEqual(normalized.academics.achievements, undefined);
+
+    const { student } = mapNormalizedToResume(normalized);
+    assert.strictEqual(student.achievements, undefined);
+  });
 });
+

@@ -1,10 +1,13 @@
 import { memo, type ReactNode } from "react";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface AboutSectionProps {
   text?: string;
   title?: string;
+  isInteractive?: boolean;
+  onUpdate?: (value: string) => void;
 }
 
 /**
@@ -30,10 +33,12 @@ function highlightText(text: string): ReactNode[] {
 export const AboutSection = memo(function AboutSection({
   text,
   title,
+  isInteractive = false,
+  onUpdate,
 }: AboutSectionProps) {
-  if (!text) return null;
+  if (!text && !isInteractive) return null;
 
-  const paragraphs = text.split("\n").filter((p) => p.trim().length > 0);
+  const paragraphs = (text ?? "").split("\n").filter((p) => p.trim().length > 0);
   const showTitle = title === undefined ? true : Boolean(title);
 
   return (
@@ -41,11 +46,22 @@ export const AboutSection = memo(function AboutSection({
       {showTitle && (
         <EuropassSectionTitle title={title || "ABOUT ME"} />
       )}
-      {paragraphs.map((p, idx) => (
-        <p key={idx} className={styles.aboutMeText}>
-          {highlightText(p)}
-        </p>
-      ))}
+      {isInteractive && onUpdate ? (
+        <EditableText
+          value={text ?? ""}
+          onChange={onUpdate}
+          isInteractive={isInteractive}
+          multiline
+          className={styles.aboutMeText}
+          placeholder="Write a short professional summary..."
+        />
+      ) : (
+        paragraphs.map((p, idx) => (
+          <p key={idx} className={styles.aboutMeText}>
+            {highlightText(p)}
+          </p>
+        ))
+      )}
     </section>
   );
 });

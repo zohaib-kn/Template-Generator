@@ -17,8 +17,9 @@ import type {
   InternshipEntry,
 } from "@/types";
 import { generateId } from "@/lib/generateId";
-import { useDocumentContext } from "../state/DocumentContext";
-import { useCallback, type Dispatch } from "react";
+import { DocumentContext } from "../state/DocumentContext";
+import { createEmptyDocumentData } from "../utils/documentDefaults";
+import { useCallback, useContext, type Dispatch } from "react";
 import type { DocumentAction } from "../state/documentReducer";
 
 /**
@@ -56,7 +57,9 @@ function listFieldActions<K extends string, E extends { id: string }>(
  * than calling dispatch directly.
  */
 export function useDocumentState() {
-  const { data, dispatch } = useDocumentContext();
+  const ctx = useContext(DocumentContext);
+  const data = ctx?.data ?? createEmptyDocumentData();
+  const dispatch = ctx?.dispatch ?? ((() => {}) as Dispatch<DocumentAction>);
 
   const education = listFieldActions<"education", EducationEntry>(dispatch, "education");
   const recommendations = listFieldActions<"recommendations", RecommendationEntry>(

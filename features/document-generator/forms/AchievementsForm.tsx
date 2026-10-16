@@ -79,7 +79,8 @@ export function AchievementsForm() {
             </Label>
             <Textarea
               id={`ach-desc-${entry.id}`}
-              rows={2}
+              rows={4}
+              className="min-h-[100px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateAchievement(entry.id, { description: e.target.value })

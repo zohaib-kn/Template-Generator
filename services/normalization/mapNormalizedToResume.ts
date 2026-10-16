@@ -6,9 +6,10 @@
  * for the Resume / CV Generator.
  */
 
-import type { DocumentData, EducationEntry, InternshipEntry } from "@/types";
+import type { DocumentData, EducationEntry, InternshipEntry, Achievement } from "@/types";
 import type { ApplicationTarget, DestinationCountry } from "@/features/document-generator/guidance/types";
 import type { NormalizedStudentProfile, NormalizedQualification, NormalizedWorkExperience } from "@/types/normalizedStudent";
+import { getInstitutionWebsite } from "@/features/document-generator/utils/institutionWebsites";
 
 const KNOWN_DESTINATIONS: DestinationCountry[] = [
   "United Kingdom",
@@ -64,18 +65,65 @@ export function isSchoolLevel(level?: string | null, rawQual?: string | null): b
   return is12thLevel(level) || is10thLevel(level) || looksLikeSubjectsList(rawQual);
 }
 
-function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry {
-  const level = q.levelOfStudy?.toLowerCase().trim() ?? "";
-  const rawQual = q.qualification?.trim() ?? "";
-  const isSchool = isSchoolLevel(level, rawQual);
+function buildEducationDetails(q: NormalizedQualification, resolvedSubjects?: string) {
+  const descParts: string[] = [];
 
-  // ── School-level branch (10th / 12th) ──────────────────────────────────
-  if (isSchool) {
+  // 1. Address
+  const address =
+    q.address ||
+    [q.city, q.country].filter(Boolean).join(", ") ||
+    q.city;
+  if (address) {
+    descParts.push(`Address: ${address}`);
+  }
+
+  // 2. Website URL (clickable)
+  const website = q.website || getInstitutionWebsite(q.institution);
+  if (website) {
+    descParts.push(`Website: ${website}`);
+  }
+
+  // 3. Final grade
+  const system = q.gradingSystem ? `/${q.gradingSystem}` : "";
+  const finalGrade = q.score ? `${q.score}${system}` : undefined;
+  if (finalGrade) {
+    descParts.push(`Final grade: ${finalGrade}`);
+  }
+
+  // 4. Subjects
+  if (resolvedSubjects) {
+    descParts.push(`Subjects: ${resolvedSubjects}`);
+  }
+
+  // 5. Language of instruction
+  if (q.primaryLanguage) {
+    descParts.push(`Language of instruction: ${q.primaryLanguage}`);
+  }
+
+  // 6. Backlogs
+  if (q.backlogs) {
+    descParts.push(`Backlogs: ${q.backlogs}`);
+  }
+
+  return {
+    description: descParts.length > 0 ? descParts.join(" | ") : undefined,
+    address,
+    website,
+    finalGrade,
+  };
+}
+
+function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry {
+  const level = (q.levelOfStudy || "").toLowerCase();
+  const rawQual = (q.qualification || "").trim();
+
+  if (isSchoolLevel(level) || isSchoolLevel(rawQual) || looksLikeSubjectsList(rawQual)) {
+    // School-level branch (10th / 12th)
     let cleanTitle: string;
     if (rawQual && !looksLikeSubjectsList(rawQual)) {
-      if (/\b(grade\s*12|12th|class\s*12|higher\s*secondary)\b/i.test(rawQual)) {
+      if (is12thLevel(rawQual)) {
         cleanTitle = "Grade 12th";
-      } else if (/\b(grade\s*10|10th|class\s*10|secondary|matriculation|ssc)\b/i.test(rawQual)) {
+      } else if (is10thLevel(rawQual)) {
         cleanTitle = "Grade 10th";
       } else {
         cleanTitle = rawQual;
@@ -96,15 +144,7 @@ function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry 
       q.subjects ||
       (looksLikeSubjectsList(rawQual) ? rawQual : undefined);
 
-    const descParts: string[] = [];
-    if (q.score) {
-      const system = q.gradingSystem ? `/${q.gradingSystem}` : "";
-      descParts.push(`Score: ${q.score}${system}`);
-    }
-    if (resolvedSubjects) descParts.push(`Subjects: ${resolvedSubjects}`);
-    if (q.primaryLanguage) descParts.push(`Language of instruction: ${q.primaryLanguage}`);
-    if (q.backlogs) descParts.push(`Backlogs: ${q.backlogs}`);
-    if (q.city) descParts.push(`City: ${q.city}`);
+    const details = buildEducationDetails(q, resolvedSubjects);
 
     return {
       id: q.id || `edu-${index}`,
@@ -114,19 +154,15 @@ function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry 
       fieldOfStudy: q.boardOrUniversity || q.fieldOfStudy,
       startDate: q.startDate,
       endDate: q.endDate,
-      description: descParts.length > 0 ? descParts.join(" | ") : undefined,
+      description: details.description,
+      address: details.address,
+      website: details.website,
+      finalGrade: details.finalGrade,
     };
   }
 
   // ── Degree-level branch (Undergraduate, Postgraduate, etc.) ────────────
-  const descParts: string[] = [];
-  if (q.score) {
-    const system = q.gradingSystem ? `/${q.gradingSystem}` : "";
-    descParts.push(`Score: ${q.score}${system}`);
-  }
-  if (q.primaryLanguage) descParts.push(`Language of instruction: ${q.primaryLanguage}`);
-  if (q.backlogs) descParts.push(`Backlogs: ${q.backlogs}`);
-  if (q.city) descParts.push(`City: ${q.city}`);
+  const details = buildEducationDetails(q);
 
   return {
     id: q.id || `edu-${index}`,
@@ -136,7 +172,10 @@ function mapEduEntry(q: NormalizedQualification, index: number): EducationEntry 
     fieldOfStudy: q.fieldOfStudy || q.boardOrUniversity,
     startDate: q.startDate,
     endDate: q.endDate,
-    description: descParts.length > 0 ? descParts.join(" | ") : undefined,
+    description: details.description,
+    address: details.address,
+    website: details.website,
+    finalGrade: details.finalGrade,
   };
 }
 
@@ -160,10 +199,17 @@ export interface ResumeProjectionResult {
 export function mapNormalizedToResume(profile: NormalizedStudentProfile): ResumeProjectionResult {
   const p = profile.personal;
 
-  const education: EducationEntry[] = profile.academics.qualifications.map((q, i) => mapEduEntry(q, i));
-  const internships: InternshipEntry[] = profile.workExperience.map((w, i) => mapWorkEntry(w, i));
+  const education: EducationEntry[] = (profile.academics?.qualifications ?? []).map((q, i) => mapEduEntry(q, i));
+  const internships: InternshipEntry[] = (profile.workExperience ?? []).map((w, i) => mapWorkEntry(w, i));
+  const achievements: Achievement[] = (profile.academics?.achievements ?? []).map((a, i) => ({
+    id: a.id || `ach-${i}`,
+    title: a.title,
+    organisation: a.organisation,
+    dateYear: a.dateYear,
+    description: a.description,
+  }));
 
-  const eng = profile.tests.english;
+  const eng = profile.tests?.english;
   const englishCertificate = (eng?.overallScore || eng?.subscores)
     ? {
         examName: eng.type || "IELTS",
@@ -177,7 +223,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       }
     : undefined;
 
-  const activeProg = profile.applications.activeProgram;
+  const activeProg = profile.applications?.activeProgram;
   const matchedCountry = KNOWN_DESTINATIONS.find(
     (c) => c.toLowerCase() === (activeProg?.country || "").toLowerCase()
   );
@@ -207,6 +253,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
     },
     education: education.length > 0 ? education : undefined,
     internships: internships.length > 0 ? internships : undefined,
+    achievements: achievements.length > 0 ? achievements : undefined,
     englishCertificate,
   };
 

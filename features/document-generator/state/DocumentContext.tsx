@@ -39,7 +39,7 @@ interface DocumentContextValue {
   dispatch: Dispatch<DocumentAction>;
 }
 
-const DocumentContext = createContext<DocumentContextValue | null>(null);
+export const DocumentContext = createContext<DocumentContextValue | null>(null);
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -150,6 +150,15 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
                   speaking: cachedCert.speaking || freshCert.speaking,
                   trfNumber: cachedCert.trfNumber || freshCert.trfNumber,
                 };
+              }
+
+              // Backfill fresh CRM achievements if cached draft does not have them
+              if (
+                freshResumeData?.achievements &&
+                freshResumeData.achievements.length > 0 &&
+                (!sanitized.achievements || sanitized.achievements.length === 0)
+              ) {
+                sanitized.achievements = freshResumeData.achievements;
               }
 
               dispatch({ type: "LOAD_STUDENT", payload: sanitized });

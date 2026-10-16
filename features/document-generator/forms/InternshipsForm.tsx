@@ -98,7 +98,8 @@ export function InternshipsForm() {
             </Label>
             <Textarea
               id={`intern-desc-${entry.id}`}
-              rows={3}
+              rows={8}
+              className="min-h-[180px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateInternship(entry.id, { description: e.target.value })

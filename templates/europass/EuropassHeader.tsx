@@ -1,24 +1,18 @@
 import { memo } from "react";
 import type { PersonalDetails } from "@/types";
 import styles from "./europass.module.css";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface EuropassHeaderProps {
   personal?: PersonalDetails;
+  isInteractive?: boolean;
+  onUpdatePersonal?: (patch: Partial<PersonalDetails>) => void;
 }
 
-/**
- * Wraps the country code in parentheses if present.
- * Examples:
- *   "+91 9205094872"   → "(+91) 9205094872"
- *   "(+91) 9205094872" → "(+91) 9205094872"  (already formatted, unchanged)
- *   "9205094872"       → "9205094872"         (no country code, unchanged)
- */
 function formatPhone(phone?: string): string {
   if (!phone) return "";
   const trimmed = phone.trim();
-  // Already wrapped — don't double-wrap
   if (trimmed.startsWith("(+")) return trimmed;
-  // Match country code: +XX or +XXX followed by a space or digit
   const match = trimmed.match(/^(\+\d{1,3})\s*(.*)/);
   if (match) {
     return `(${match[1]}) ${match[2]}`.trim();
@@ -39,6 +33,8 @@ function formatDateDMY(iso?: string): string {
 
 export const EuropassHeader = memo(function EuropassHeader({
   personal,
+  isInteractive = false,
+  onUpdatePersonal,
 }: EuropassHeaderProps) {
   if (!personal) return null;
 
@@ -46,11 +42,11 @@ export const EuropassHeader = memo(function EuropassHeader({
   const displayName = rawName.replace(/\s*[-–—]\s*$/, "").trim() || rawName;
 
   const hasIdentityLine1 =
-    personal.passportNumber || personal.nationality || personal.dateOfBirth;
-  const hasIdentityLine2 = personal.placeOfBirth || personal.gender;
-  const hasPhone = Boolean(personal.phone);
-  const hasEmail = Boolean(personal.email);
-  const hasAddress = Boolean(personal.address);
+    isInteractive || personal.passportNumber || personal.nationality || personal.dateOfBirth;
+  const hasIdentityLine2 = isInteractive || personal.placeOfBirth || personal.gender;
+  const hasPhone = isInteractive || Boolean(personal.phone);
+  const hasEmail = isInteractive || Boolean(personal.email);
+  const hasAddress = isInteractive || Boolean(personal.address);
 
   return (
     <header className={styles.headerContainer}>
@@ -78,8 +74,19 @@ export const EuropassHeader = memo(function EuropassHeader({
 
           {/* ── Identity Block: Name + Personal Details ─── */}
           <div className={styles.identityBlock}>
-            {displayName && (
-              <h1 className={styles.subjectName}>{displayName}</h1>
+            {isInteractive && onUpdatePersonal ? (
+              <EditableText
+                value={displayName}
+                onChange={(v) => onUpdatePersonal({ fullName: v })}
+                isInteractive={isInteractive}
+                className={styles.subjectName}
+                placeholder="Full Name"
+                as="h1"
+              />
+            ) : (
+              displayName && (
+                <h1 className={styles.subjectName}>{displayName}</h1>
+              )
             )}
 
             <div className={styles.identityLines}>
@@ -87,20 +94,40 @@ export const EuropassHeader = memo(function EuropassHeader({
               {/* Row 1: Passport · Nationality · Date of birth */}
               {hasIdentityLine1 && (
                 <div className={styles.identityRow}>
-                  {personal.passportNumber && (
+                  {(isInteractive || personal.passportNumber) && (
                     <span className={styles.identityItem}>
                       <span className={styles.identityLabel}>Passport:</span>{" "}
-                      <span className={styles.identityValue}>
-                        {personal.passportNumber}
-                      </span>
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.passportNumber ?? ""}
+                          onChange={(v) => onUpdatePersonal({ passportNumber: v })}
+                          isInteractive={isInteractive}
+                          className={styles.identityValue}
+                          placeholder="Passport No."
+                        />
+                      ) : (
+                        <span className={styles.identityValue}>
+                          {personal.passportNumber}
+                        </span>
+                      )}
                     </span>
                   )}
-                  {personal.nationality && (
+                  {(isInteractive || personal.nationality) && (
                     <span className={styles.identityItem}>
                       <span className={styles.identityLabel}>Nationality:</span>{" "}
-                      <span className={styles.identityValue}>
-                        {personal.nationality}
-                      </span>
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.nationality ?? ""}
+                          onChange={(v) => onUpdatePersonal({ nationality: v })}
+                          isInteractive={isInteractive}
+                          className={styles.identityValue}
+                          placeholder="Nationality"
+                        />
+                      ) : (
+                        <span className={styles.identityValue}>
+                          {personal.nationality}
+                        </span>
+                      )}
                     </span>
                   )}
                   {personal.dateOfBirth && (
@@ -117,18 +144,38 @@ export const EuropassHeader = memo(function EuropassHeader({
               {/* Row 2: Place of birth · Gender */}
               {hasIdentityLine2 && (
                 <div className={styles.identityRow}>
-                  {personal.placeOfBirth && (
+                  {(isInteractive || personal.placeOfBirth) && (
                     <span className={styles.identityItem}>
                       <span className={styles.identityLabel}>Place of birth:</span>{" "}
-                      <span className={styles.identityValue}>
-                        {personal.placeOfBirth}
-                      </span>
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.placeOfBirth ?? ""}
+                          onChange={(v) => onUpdatePersonal({ placeOfBirth: v })}
+                          isInteractive={isInteractive}
+                          className={styles.identityValue}
+                          placeholder="City, Country"
+                        />
+                      ) : (
+                        <span className={styles.identityValue}>
+                          {personal.placeOfBirth}
+                        </span>
+                      )}
                     </span>
                   )}
-                  {personal.gender && (
+                  {(isInteractive || personal.gender) && (
                     <span className={styles.identityItem}>
                       <span className={styles.identityLabel}>Gender:</span>{" "}
-                      <span className={styles.identityValue}>{personal.gender}</span>
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.gender ?? ""}
+                          onChange={(v) => onUpdatePersonal({ gender: v })}
+                          isInteractive={isInteractive}
+                          className={styles.identityValue}
+                          placeholder="Gender"
+                        />
+                      ) : (
+                        <span className={styles.identityValue}>{personal.gender}</span>
+                      )}
                     </span>
                   )}
                 </div>
@@ -149,12 +196,22 @@ export const EuropassHeader = memo(function EuropassHeader({
                   </span>
                   <div className={styles.identityTextGroup}>
                     <span className={styles.identityLabel}>Phone number:</span>{" "}
-                    <span className={styles.identityValueNoWrap}>{formatPhone(personal.phone)}</span>
+                    {isInteractive && onUpdatePersonal ? (
+                      <EditableText
+                        value={personal.phone ?? ""}
+                        onChange={(v) => onUpdatePersonal({ phone: v })}
+                        isInteractive={isInteractive}
+                        className={styles.identityValueNoWrap}
+                        placeholder="Phone number"
+                      />
+                    ) : (
+                      <span className={styles.identityValueNoWrap}>{formatPhone(personal.phone)}</span>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Row 4: Email address (with icon, clickable mailto link) */}
+              {/* Row 4: Email address (with icon) */}
               {hasEmail && (
                 <div className={styles.identityIconRow}>
                   <span className={styles.iconBox} aria-hidden="true">
@@ -169,13 +226,23 @@ export const EuropassHeader = memo(function EuropassHeader({
                   </span>
                   <div className={styles.identityTextGroup}>
                     <span className={styles.identityLabel}>Email address:</span>{" "}
-                    <a
-                      href={`mailto:${personal.email}`}
-                      className={styles.blueLink}
-                      aria-label={`Send email to ${personal.email}`}
-                    >
-                      {personal.email}
-                    </a>
+                    {isInteractive && onUpdatePersonal ? (
+                      <EditableText
+                        value={personal.email ?? ""}
+                        onChange={(v) => onUpdatePersonal({ email: v })}
+                        isInteractive={isInteractive}
+                        className={styles.blueLink}
+                        placeholder="Email address"
+                      />
+                    ) : (
+                      <a
+                        href={`mailto:${personal.email}`}
+                        className={styles.blueLink}
+                        aria-label={`Send email to ${personal.email}`}
+                      >
+                        {personal.email}
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
@@ -195,7 +262,17 @@ export const EuropassHeader = memo(function EuropassHeader({
                   </span>
                   <div className={styles.identityTextGroup}>
                     <span className={styles.identityLabel}>Home:</span>{" "}
-                    <span className={styles.identityValue}>{personal.address}</span>
+                    {isInteractive && onUpdatePersonal ? (
+                      <EditableText
+                        value={personal.address ?? ""}
+                        onChange={(v) => onUpdatePersonal({ address: v })}
+                        isInteractive={isInteractive}
+                        className={styles.identityValue}
+                        placeholder="Home address"
+                      />
+                    ) : (
+                      <span className={styles.identityValue}>{personal.address}</span>
+                    )}
                   </div>
                 </div>
               )}
