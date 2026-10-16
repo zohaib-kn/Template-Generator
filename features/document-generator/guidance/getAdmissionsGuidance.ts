@@ -93,17 +93,17 @@ export function getAdmissionsGuidance(
  */
 function getGenericSections(): SectionGuidance[] {
   return [
-    { sectionKey: "education", label: "Education & Training", priority: "highly-relevant" },
-    { sectionKey: "aboutMe", label: "Academic Profile", priority: "highly-relevant" },
+    { sectionKey: "education", label: "Education and Training", priority: "highly-relevant" },
+    { sectionKey: "aboutMe", label: "About Me", priority: "highly-relevant" },
     { sectionKey: "academicInterests", label: "Academic Interests", priority: "recommended" },
     { sectionKey: "academicProjects", label: "Academic Projects", priority: "recommended" },
     { sectionKey: "achievements", label: "Achievements & Awards", priority: "recommended" },
-    { sectionKey: "skills", label: "Academic & Transferable Skills", priority: "recommended" },
+    { sectionKey: "skills", label: "Skills", priority: "recommended" },
     { sectionKey: "leadershipActivities", label: "Leadership & Extracurricular", priority: "recommended" },
-    { sectionKey: "volunteering", label: "Volunteering", priority: "optional" },
+    { sectionKey: "volunteering", label: "Volunteering / Community Engagement", priority: "optional" },
     { sectionKey: "certifications", label: "Certifications", priority: "optional" },
     { sectionKey: "languages", label: "Language Skills", priority: "recommended" },
-    { sectionKey: "hobbies", label: "Hobbies & Personal Interests", priority: "optional" },
+    { sectionKey: "hobbies", label: "Hobbies and Interests", priority: "optional" },
     { sectionKey: "recommendations", label: "Recommendations", priority: "optional" },
   ];
 }
