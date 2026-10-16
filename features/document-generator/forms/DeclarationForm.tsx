@@ -12,7 +12,8 @@ export function DeclarationForm() {
       <Label htmlFor="declaration-text">Declaration statement</Label>
       <Textarea
         id="declaration-text"
-        rows={5}
+        rows={6}
+        className="min-h-[140px] resize-y"
         value={data.declaration ?? ""}
         onChange={(e) => setDeclaration(e.target.value)}
         placeholder="I hereby declare that all the information provided above is true and accurate to the best of my knowledge…"

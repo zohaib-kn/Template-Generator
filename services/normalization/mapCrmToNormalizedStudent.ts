@@ -24,6 +24,7 @@ import type {
   NormalizedWorkExperience,
   NormalizedAppliedProgram,
   NormalizedEnglishTest,
+  NormalizedAchievement,
 } from "@/types/normalizedStudent";
 import type { CourseCategory } from "@/features/document-generator/guidance/types";
 import { looksLikeSubjectsList } from "./mapNormalizedToResume";
@@ -140,7 +141,10 @@ function mapQualification(q: CrmAcademicQualification, idx: number): NormalizedQ
     boardOrUniversity: q.boardOrUniversity?.trim(),
     subjects,
     city: q.cityOfStudy?.trim(),
+    state: q.stateOfStudy?.trim(),
     country: resolveCountryAndNationality(q.countryOfStudy).country,
+    address: q.address?.trim() || q.institutionAddress?.trim() || q.schoolAddress?.trim(),
+    website: q.website?.trim() || q.websiteUrl?.trim() || q.url?.trim(),
     score: q.score?.trim(),
     gradingSystem: q.gradingSystem?.trim(),
     startDate: toDateOnly(q.startDate),
@@ -290,6 +294,206 @@ function mapAppliedProgram(p: CrmAppliedProgram, idx: number): NormalizedApplied
 }
 
 // ---------------------------------------------------------------------------
+// Academic Achievements Parser
+// ---------------------------------------------------------------------------
+
+export function parseSingleAchievementString(
+  raw: string,
+  index: number,
+  category?: string
+): NormalizedAchievement {
+  let cleaned = raw.replace(/^\s*(?:(?:\d+[\.\)])|[-*•])\s*/, "").trim();
+
+  // Extract date / year if enclosed in parentheses
+  let dateYear: string | undefined;
+  const dateMatch =
+    cleaned.match(
+      /\(((?:(?:academic\s+year\s+)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+)?(?:19|20)\d{2}(?:[–-]\d{2,4})?)\)/i
+    ) || cleaned.match(/\(((?:academic\s+year\s+)?(?:19|20)\d{2}(?:[–-]\d{2,4})?)\)/i);
+
+  if (dateMatch && dateMatch[1]) {
+    dateYear = dateMatch[1].replace(/^academic\s+year\s+/i, "").trim();
+    cleaned = cleaned.replace(dateMatch[0], "").replace(/\s{2,}/g, " ").trim();
+  }
+
+  if (!dateYear) {
+    const endYearMatch = cleaned.match(
+      /\(((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:19|20)\d{2})\)\.?$/i
+    );
+    if (endYearMatch && endYearMatch[1]) {
+      dateYear = endYearMatch[1].trim();
+      cleaned = cleaned.replace(endYearMatch[0], "").trim();
+    }
+  }
+
+  // Check for description split via semicolon or colon separator
+  let title = cleaned;
+  let description: string | undefined;
+
+  if (cleaned.includes(";")) {
+    const parts = cleaned.split(";");
+    title = parts[0].trim();
+    description = parts.slice(1).join(";").trim();
+  } else if (/:\s+/.test(cleaned) && !/^(?:Awards|Certifications|Note):\s+/i.test(cleaned)) {
+    const colonIdx = cleaned.indexOf(":");
+    const left = cleaned.slice(0, colonIdx).trim();
+    const right = cleaned.slice(colonIdx + 1).trim();
+    if (left.length >= 15) {
+      title = left;
+      description = right;
+    }
+  }
+
+  // Extract organisation from title if pattern " at <School/Org>" exists
+  let organisation: string | undefined;
+  const atMatch = title.match(
+    /\s+at\s+([A-Z][A-Za-z0-9\s.&'-]+(?:School|University|College|Institute|Collaboration|Olympiad|Internship|Organization|Foundation|Forum|League|Club|Championship|Carnival|Stadium|Tournament|GeniusHub|Prabhav)[A-Za-z0-9\s.&'-]*)/
+  );
+  if (atMatch && atMatch[1]) {
+    organisation = atMatch[1].replace(/[.,]+$/, "").trim();
+  }
+
+  // If title has commas, check if organisation is present as a segment
+  if (!organisation && title.includes(",")) {
+    const commaParts = title.split(",").map((p) => p.trim());
+    for (const part of commaParts) {
+      if (
+        /\b(School|University|College|Institute|Collaboration|Club|Stadium|GeniusHub|Project Prabhav|Byju's)\b/i.test(
+          part
+        )
+      ) {
+        organisation = part.replace(/[.,]+$/, "").trim();
+        break;
+      }
+    }
+  }
+
+  title = title.replace(/[.,;]+$/, "").trim();
+  if (description) {
+    description = description.replace(/[;]+$/, "").trim();
+  }
+
+  return {
+    id: `ach-${index + 1}`,
+    title: title || raw.trim(),
+    organisation,
+    dateYear,
+    description: description || undefined,
+    category,
+  };
+}
+
+export function parseMultilineAchievementsText(text: string): NormalizedAchievement[] {
+  const lines = text.split(/\r?\n/);
+  const rawItems: { text: string; category?: string }[] = [];
+  let currentCategory: string | undefined;
+  let currentItemText = "";
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (currentItemText) {
+        rawItems.push({ text: currentItemText, category: currentCategory });
+        currentItemText = "";
+      }
+      continue;
+    }
+
+    const isCategory =
+      trimmed.endsWith(":") &&
+      !/^\d+[\.\)]/.test(trimmed) &&
+      !/^Awards:/i.test(trimmed) &&
+      !/^Certifications:/i.test(trimmed) &&
+      !/^Role/i.test(trimmed);
+
+    if (isCategory) {
+      if (currentItemText) {
+        rawItems.push({ text: currentItemText, category: currentCategory });
+        currentItemText = "";
+      }
+      currentCategory = trimmed.replace(/:\s*$/, "").trim();
+      continue;
+    }
+
+    const isListItem = /^(?:\d+[\.\)]|[-*•])\s+/.test(trimmed);
+
+    if (isListItem) {
+      if (currentItemText) {
+        rawItems.push({ text: currentItemText, category: currentCategory });
+      }
+      currentItemText = trimmed;
+    } else {
+      if (currentItemText) {
+        currentItemText += " " + trimmed;
+      } else {
+        currentItemText = trimmed;
+      }
+    }
+  }
+
+  if (currentItemText) {
+    rawItems.push({ text: currentItemText, category: currentCategory });
+  }
+
+  return rawItems
+    .map((item, idx) => parseSingleAchievementString(item.text, idx, item.category))
+    .filter((a) => Boolean(a.title || a.description));
+}
+
+export function parseCrmAchievements(raw: unknown): NormalizedAchievement[] {
+  if (!raw) return [];
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item, index): NormalizedAchievement | null => {
+        if (!item) return null;
+        if (typeof item === "string") {
+          return parseSingleAchievementString(item, index);
+        }
+        if (typeof item === "object") {
+          const obj = item as Record<string, unknown>;
+          return {
+            id: typeof obj.id === "string" ? obj.id : `ach-${index + 1}`,
+            title:
+              typeof obj.title === "string"
+                ? obj.title.trim()
+                : typeof obj.name === "string"
+                ? obj.name.trim()
+                : undefined,
+            organisation:
+              typeof obj.organisation === "string"
+                ? obj.organisation.trim()
+                : typeof obj.institution === "string"
+                ? obj.institution.trim()
+                : undefined,
+            dateYear:
+              typeof obj.dateYear === "string"
+                ? obj.dateYear.trim()
+                : typeof obj.year === "string"
+                ? obj.year.trim()
+                : undefined,
+            description:
+              typeof obj.description === "string"
+                ? obj.description.trim()
+                : typeof obj.details === "string"
+                ? obj.details.trim()
+                : undefined,
+            category: typeof obj.category === "string" ? obj.category.trim() : undefined,
+          };
+        }
+        return null;
+      })
+      .filter((a): a is NormalizedAchievement => Boolean(a && (a.title || a.description)));
+  }
+
+  if (typeof raw !== "string") return [];
+  const text = raw.trim();
+  if (!text) return [];
+
+  return parseMultilineAchievementsText(text);
+}
+
+// ---------------------------------------------------------------------------
 // Main Adapter: CrmSnapshot → NormalizedStudentProfile
 // ---------------------------------------------------------------------------
 
@@ -361,6 +565,20 @@ export function mapCrmToNormalizedStudent(
         subjects: undefined,
       }
     : undefined;
+
+  // 6b. Academic Achievements
+  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, any>;
+  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, any>;
+  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, any>;
+
+  const rawAchievements =
+    anyMasterInfo.academicAchievements ||
+    anyRawAcademicDetails.academicAchievements ||
+    (s as any).academicAchievements ||
+    (s as any).achievements ||
+    (snapshot as any).academicAchievements;
+
+  const achievements = parseCrmAchievements(rawAchievements);
 
   // 7. Work experience
   const workExperience = (s.workExperience ?? []).map((w, i) => mapWorkEntry(w, i));
@@ -465,6 +683,7 @@ export function mapCrmToNormalizedStudent(
     academics: {
       qualifications,
       latest,
+      achievements: achievements.length > 0 ? achievements : undefined,
     },
     workExperience,
     tests: {

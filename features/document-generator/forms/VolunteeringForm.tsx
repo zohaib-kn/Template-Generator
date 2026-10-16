@@ -84,7 +84,8 @@ export function VolunteeringForm() {
             <Label htmlFor={`vol-desc-${entry.id}`}>Description</Label>
             <Textarea
               id={`vol-desc-${entry.id}`}
-              rows={3}
+              rows={5}
+              className="min-h-[120px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateVolunteering(entry.id, { description: e.target.value })

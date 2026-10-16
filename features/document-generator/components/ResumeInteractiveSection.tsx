@@ -5,11 +5,9 @@ import React, { useState } from "react";
 interface ResumeInteractiveSectionProps {
   sectionId: string;
   title: string;
-  isRepeatable?: boolean;
   isSelected?: boolean;
   hasError?: boolean;
   onEdit: () => void;
-  onAddEntry?: () => void;
   children: React.ReactNode;
 }
 
@@ -21,11 +19,9 @@ interface ResumeInteractiveSectionProps {
 export function ResumeInteractiveSection({
   sectionId,
   title,
-  isRepeatable = false,
   isSelected = false,
   hasError = false,
   onEdit,
-  onAddEntry,
   children,
 }: ResumeInteractiveSectionProps) {
   const [isHovered, setIsHovered] = useState(false);
@@ -65,20 +61,7 @@ export function ResumeInteractiveSection({
           </span>
         )}
 
-        {isRepeatable && onAddEntry && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddEntry();
-            }}
-            className="px-1.5 py-0.5 text-[11px] font-medium text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded transition-colors cursor-pointer flex items-center gap-0.5"
-            title={`Add entry to ${title}`}
-          >
-            <span className="font-bold">+</span>
-            <span>Add</span>
-          </button>
-        )}
+
 
         <button
           type="button"
@@ -97,20 +80,8 @@ export function ResumeInteractiveSection({
         </button>
       </div>
 
-      {/* ── Section Body (Clickable to open editor) ── */}
-      <div
-        className="cursor-pointer"
-        onClick={onEdit}
-        role="button"
-        tabIndex={0}
-        aria-label={`Edit ${title} section`}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onEdit();
-          }
-        }}
-      >
+      {/* ── Section Body ── */}
+      <div>
         {children}
       </div>
     </div>

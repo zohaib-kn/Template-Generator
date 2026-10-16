@@ -2,10 +2,13 @@ import { memo } from "react";
 import type { VolunteeringEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface VolunteeringSectionProps {
   entries?: VolunteeringEntry[];
   title?: string;
+  isInteractive?: boolean;
+  onUpdate?: (id: string, patch: Partial<VolunteeringEntry>) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -30,11 +33,13 @@ function formatDateRange(start?: string, end?: string): string {
 export const VolunteeringSection = memo(function VolunteeringSection({
   entries,
   title,
+  isInteractive = false,
+  onUpdate,
 }: VolunteeringSectionProps) {
   if (!entries || entries.length === 0) return null;
 
   const visible = entries.filter(
-    (e) => e.organization || e.role || e.description
+    (e) => isInteractive || e.organization || e.role || e.description
   );
   if (visible.length === 0) return null;
 
@@ -49,14 +54,35 @@ export const VolunteeringSection = memo(function VolunteeringSection({
         const dateRange = formatDateRange(vol.startDate, vol.endDate);
         return (
           <div key={vol.id} className={styles.educationEntry}>
-            {vol.organization && (
-              <h3 className={styles.qualificationTitle}>{vol.organization}</h3>
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={vol.organization ?? ""}
+                onChange={(v) => onUpdate(vol.id, { organization: v })}
+                isInteractive={isInteractive}
+                className={styles.qualificationTitle}
+                placeholder="Organization"
+                as="h3"
+              />
+            ) : (
+              vol.organization && (
+                <h3 className={styles.qualificationTitle}>{vol.organization}</h3>
+              )
             )}
 
-            {(vol.role || dateRange) && (
+            {(isInteractive || vol.role || dateRange) && (
               <div className={styles.institutionRow}>
-                {vol.role && (
-                  <span className={styles.institutionName}>{vol.role}</span>
+                {isInteractive && onUpdate ? (
+                  <EditableText
+                    value={vol.role ?? ""}
+                    onChange={(v) => onUpdate(vol.id, { role: v })}
+                    isInteractive={isInteractive}
+                    className={styles.institutionName}
+                    placeholder="Role / Title"
+                  />
+                ) : (
+                  vol.role && (
+                    <span className={styles.institutionName}>{vol.role}</span>
+                  )
                 )}
                 {dateRange && (
                   <span className={styles.datesBadge}>[ {dateRange} ]</span>
@@ -64,8 +90,19 @@ export const VolunteeringSection = memo(function VolunteeringSection({
               </div>
             )}
 
-            {vol.description && (
-              <div className={styles.educationDetails}>{vol.description}</div>
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={vol.description ?? ""}
+                onChange={(v) => onUpdate(vol.id, { description: v })}
+                isInteractive={isInteractive}
+                multiline
+                className={styles.educationDetails}
+                placeholder="Volunteering responsibilities and community impact..."
+              />
+            ) : (
+              vol.description && (
+                <div className={styles.educationDetails}>{vol.description}</div>
+              )
             )}
           </div>
         );

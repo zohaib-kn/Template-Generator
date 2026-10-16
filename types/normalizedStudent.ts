@@ -32,7 +32,10 @@ export interface NormalizedQualification {
   institution?: string;       // school or university name
   boardOrUniversity?: string; // board or awarding body (NOTE: metadata only, not an academic domain classifier)
   city?: string;
+  state?: string;
   country?: string;
+  address?: string;
+  website?: string;
   score?: string;             // e.g. "88.6%" or "6"
   gradingSystem?: string;     // e.g. "7" or "10" or "percentage"
   startDate?: string;         // YYYY-MM-DD
@@ -40,6 +43,19 @@ export interface NormalizedQualification {
   completionYear?: string;    // YYYY
   primaryLanguage?: string;
   backlogs?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Academic achievement entry
+// ---------------------------------------------------------------------------
+
+export interface NormalizedAchievement {
+  id: string;
+  title?: string;
+  organisation?: string;
+  dateYear?: string;
+  description?: string;
+  category?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +156,7 @@ export interface NormalizedStudentProfile {
       score?: string;
       subjects?: string;
     };
+    achievements?: NormalizedAchievement[];
   };
 
   /** Professional / work history (Resume primary) */

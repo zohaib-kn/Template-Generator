@@ -81,7 +81,8 @@ export function RecommendationsForm() {
             <Label htmlFor={`rec-text-${entry.id}`}>Recommendation</Label>
             <Textarea
               id={`rec-text-${entry.id}`}
-              rows={4}
+              rows={8}
+              className="min-h-[180px] resize-y"
               value={entry.text ?? ""}
               onChange={(e) =>
                 updateRecommendation(entry.id, { text: e.target.value })

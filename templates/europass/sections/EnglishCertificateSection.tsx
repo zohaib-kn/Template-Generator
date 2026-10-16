@@ -2,10 +2,13 @@ import { memo } from "react";
 import type { EnglishCertificate } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface EnglishCertificateSectionProps {
   cert?: EnglishCertificate;
   title?: string;
+  isInteractive?: boolean;
+  onUpdate?: (patch: Partial<EnglishCertificate>) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -28,6 +31,8 @@ function cleanValue(val: string | undefined, prefixPattern: RegExp): string {
 export const EnglishCertificateSection = memo(function EnglishCertificateSection({
   cert,
   title,
+  isInteractive = false,
+  onUpdate,
 }: EnglishCertificateSectionProps) {
   if (
     !cert ||
@@ -47,86 +52,160 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
   const examUpper = (cert.examName || "IELTS").toUpperCase();
   const isIelts = examUpper.includes("IELTS");
   
-  // If title was omitted or passed as generic "ENGLISH LANGUAGE CERTIFICATE", use "IELTS" (or exam name)
   const defaultTitles = ["ENGLISH LANGUAGE CERTIFICATE", "ENGLISH PROFICIENCY TEST", "IELTS"];
   const isDefaultTitle = !title || defaultTitles.includes(title.trim().toUpperCase());
   const sectionHeading = !isDefaultTitle ? title : (isIelts ? "IELTS" : examUpper);
   const formattedDate = formatDateDMY(cert.dateTaken);
 
-  // Derive descriptive subtitle
   const subtitle = isIelts
     ? "International English Language Testing System"
     : cert.examName && cert.examName !== sectionHeading
     ? cert.examName
     : null;
 
-  // Custom additional bullets from issuingBody
+  const formTitle = isIelts ? "Test Report Form" : null;
+
   const extraBullets = (cert.issuingBody ?? "")
     .split("\n")
     .map((b) => b.trim())
-    .filter(Boolean);
+    .filter((b) => Boolean(b) && !b.toLowerCase().includes("test report form"));
 
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && <EuropassSectionTitle title={sectionHeading} />}
 
-      {/* Date of Exam Badge (Matching Europass standard [ DD/MM/YYYY ]) */}
-      {formattedDate && (
-        <div className={styles.datesBadge} style={{ marginBottom: "1.5mm" }}>
-          [ {formattedDate} ]
+      {subtitle && (
+        <div className={styles.certificateSubtitle}>
+          {subtitle}
         </div>
       )}
 
-      {/* Test Full Title / Subtitle */}
-      {subtitle && (
-        <h3 className={styles.qualificationTitle} style={{ marginBottom: "1.8mm" }}>
-          {subtitle}
-        </h3>
+      {formTitle && (
+        <div className={styles.certificateFormName}>
+          {formTitle}
+        </div>
       )}
 
-      {/* Perfect Vertical Column of Scores and Test Details */}
       <div className={styles.bulletList}>
-        {cert.score && (
+        {(isInteractive || cert.listening) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Overall Band Score - {cleanValue(cert.score, /^(?:Overall\s*(?:Band)?\s*(?:Score)?|Band)\s*[-:]?\s*/i)}
+              Listening -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.listening, /^Listening\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ listening: v })}
+                  isInteractive={isInteractive}
+                  placeholder="8.5"
+                />
+              ) : (
+                cleanValue(cert.listening, /^Listening\s*[-:]?\s*/i)
+              )}
             </span>
           </div>
         )}
 
-        {cert.listening && (
+        {(isInteractive || cert.reading) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Listening - {cleanValue(cert.listening, /^Listening\s*[-:]?\s*/i)}
+              Reading -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.reading, /^Reading\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ reading: v })}
+                  isInteractive={isInteractive}
+                  placeholder="6.5"
+                />
+              ) : (
+                cleanValue(cert.reading, /^Reading\s*[-:]?\s*/i)
+              )}
             </span>
           </div>
         )}
 
-        {cert.reading && (
+        {(isInteractive || cert.writing) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Reading - {cleanValue(cert.reading, /^Reading\s*[-:]?\s*/i)}
+              Writing -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.writing, /^Writing\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ writing: v })}
+                  isInteractive={isInteractive}
+                  placeholder="7.5"
+                />
+              ) : (
+                cleanValue(cert.writing, /^Writing\s*[-:]?\s*/i)
+              )}
             </span>
           </div>
         )}
 
-        {cert.writing && (
+        {(isInteractive || cert.speaking) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Writing - {cleanValue(cert.writing, /^Writing\s*[-:]?\s*/i)}
+              Speaking -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.speaking, /^Speaking\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ speaking: v })}
+                  isInteractive={isInteractive}
+                  placeholder="7.0"
+                />
+              ) : (
+                cleanValue(cert.speaking, /^Speaking\s*[-:]?\s*/i)
+              )}
             </span>
           </div>
         )}
 
-        {cert.speaking && (
+        {(isInteractive || cert.score) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Speaking - {cleanValue(cert.speaking, /^Speaking\s*[-:]?\s*/i)}
+              Overall Band Score -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.score, /^(?:Overall\s*(?:Band)?\s*(?:Score)?|Band)\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ score: v })}
+                  isInteractive={isInteractive}
+                  placeholder="7.5"
+                />
+              ) : (
+                cleanValue(cert.score, /^(?:Overall\s*(?:Band)?\s*(?:Score)?|Band)\s*[-:]?\s*/i)
+              )}
+            </span>
+          </div>
+        )}
+
+        {formattedDate && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Issue Date - {formattedDate}
+            </span>
+          </div>
+        )}
+
+        {(isInteractive || cert.trfNumber) && (
+          <div className={styles.bulletItem}>
+            <span className={styles.bulletDot} aria-hidden="true">•</span>
+            <span className={styles.bulletText}>
+              Test Report Form Number -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={cleanValue(cert.trfNumber, /^(?:Test\s*Report\s*(?:Form)?\s*(?:Number)?|TRF\s*(?:No\.?|Number)?)\s*[-:]?\s*/i)}
+                  onChange={(v) => onUpdate({ trfNumber: v })}
+                  isInteractive={isInteractive}
+                  placeholder="TRF Number"
+                />
+              ) : (
+                cleanValue(cert.trfNumber, /^(?:Test\s*Report\s*(?:Form)?\s*(?:Number)?|TRF\s*(?:No\.?|Number)?)\s*[-:]?\s*/i)
+              )}
             </span>
           </div>
         )}
@@ -136,15 +215,6 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
               CEFR Level - {cleanValue(cert.cefrLevel, /^CEFR\s*(?:Level)?\s*[-:]?\s*/i)}
-            </span>
-          </div>
-        )}
-
-        {cert.trfNumber && (
-          <div className={styles.bulletItem}>
-            <span className={styles.bulletDot} aria-hidden="true">•</span>
-            <span className={styles.bulletText}>
-              Test Report Form Number - {cleanValue(cert.trfNumber, /^(?:Test\s*Report\s*(?:Form)?\s*(?:Number)?|TRF\s*(?:No\.?|Number)?)\s*[-:]?\s*/i)}
             </span>
           </div>
         )}

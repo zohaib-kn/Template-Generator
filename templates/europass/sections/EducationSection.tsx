@@ -2,10 +2,14 @@ import { memo } from "react";
 import type { EducationEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
+import { getOrderedEducationParts } from "@/features/document-generator/utils/educationSequence";
+import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 
 interface EducationSectionProps {
   entries?: EducationEntry[];
   title?: string;
+  isInteractive?: boolean;
+  onUpdate?: (id: string, patch: Partial<EducationEntry>) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -19,40 +23,29 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
-function renderDescriptionWithLinks(desc: string) {
-  // Splits by pipe "|" so we can color pipe separators with #94a3b8
-  const parts = desc.split("|");
-  return parts.map((part, pIdx) => {
-    const trimmed = part.trim();
-    // Check if contains a URL
-    const urlMatch = trimmed.match(/(https?:\/\/[^\s]+)/);
-    return (
-      <span key={pIdx}>
-        {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
-        {urlMatch ? (
-          <>
-            {trimmed.slice(0, urlMatch.index)}
-            <a
-              href={urlMatch[0]}
-              target="_blank"
-              rel="noreferrer"
-              className={styles.blueLink}
-            >
-              {urlMatch[0]}
-            </a>
-            {trimmed.slice((urlMatch.index ?? 0) + urlMatch[0].length)}
-          </>
-        ) : (
-          trimmed
-        )}
-      </span>
-    );
-  });
+function renderEducationDetails(entry: EducationEntry) {
+  const parts = getOrderedEducationParts(entry);
+  if (parts.length === 0) return null;
+  return (
+    <div className={styles.educationDetails}>
+      {parts.map((part, pIdx) => {
+        const trimmed = part.trim();
+        return (
+          <span key={pIdx}>
+            {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
+            {trimmed}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export const EducationSection = memo(function EducationSection({
   entries,
   title,
+  isInteractive = false,
+  onUpdate,
 }: EducationSectionProps) {
   if (!entries || entries.length === 0) return null;
 
@@ -70,15 +63,37 @@ export const EducationSection = memo(function EducationSection({
 
         return (
           <div key={entry.id} className={styles.educationEntry}>
-            {entry.qualification && (
-              <h3 className={styles.qualificationTitle}>{entry.qualification}</h3>
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={entry.qualification ?? ""}
+                onChange={(v) => onUpdate(entry.id, { qualification: v })}
+                isInteractive={isInteractive}
+                className={styles.qualificationTitle}
+                placeholder="Qualification / Degree"
+                as="h3"
+              />
+            ) : (
+              entry.qualification && (
+                <h3 className={styles.qualificationTitle}>{entry.qualification}</h3>
+              )
             )}
+
             {(entry.institution || hasDate) && (
               <div className={styles.institutionRow}>
-                {entry.institution && (
-                  <span className={styles.institutionName}>
-                    {entry.institution}{" "}
-                  </span>
+                {isInteractive && onUpdate ? (
+                  <EditableText
+                    value={entry.institution ?? ""}
+                    onChange={(v) => onUpdate(entry.id, { institution: v })}
+                    isInteractive={isInteractive}
+                    className={styles.institutionName}
+                    placeholder="Institution"
+                  />
+                ) : (
+                  entry.institution && (
+                    <span className={styles.institutionName}>
+                      {entry.institution}{" "}
+                    </span>
+                  )
                 )}
                 {hasDate && (
                   <span className={styles.datesBadge}>
@@ -87,10 +102,18 @@ export const EducationSection = memo(function EducationSection({
                 )}
               </div>
             )}
-            {entry.description && (
-              <div className={styles.educationDetails}>
-                {renderDescriptionWithLinks(entry.description)}
-              </div>
+
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={entry.description ?? ""}
+                onChange={(v) => onUpdate(entry.id, { description: v })}
+                isInteractive={isInteractive}
+                multiline
+                className={styles.educationDetails}
+                placeholder="Address | Website | Final grade | Subjects..."
+              />
+            ) : (
+              renderEducationDetails(entry)
             )}
           </div>
         );

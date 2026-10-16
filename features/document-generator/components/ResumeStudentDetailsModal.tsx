@@ -51,6 +51,15 @@ export function ResumeStudentDetailsModal({
   const docs = snapshot.documents ?? s.documents ?? [];
   const programs = snapshot.appliedPrograms ?? [];
 
+  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, any>;
+  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, any>;
+  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, any>;
+  const rawAchievements =
+    (anyMasterInfo.academicAchievements as string) ||
+    (anyRawAcademicDetails.academicAchievements as string) ||
+    ((s as any).academicAchievements as string) ||
+    "";
+
   const fullName = [pd.firstName, pd.middleName, pd.lastName].filter(Boolean).join(" ") || "Student Profile";
   const initials =
     fullName
@@ -156,6 +165,16 @@ export function ResumeStudentDetailsModal({
                 </div>
               )}
             </div>
+
+            {/* Academic Achievements */}
+            {rawAchievements && (
+              <div>
+                <SectionHeading title="Academic Achievements (from Master Info)" />
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs text-slate-700 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
+                  {rawAchievements}
+                </div>
+              </div>
+            )}
 
             {/* Work Experience */}
             <div>

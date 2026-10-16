@@ -103,7 +103,8 @@ export function CertificationsForm() {
             </Label>
             <Textarea
               id={`cert-desc-${entry.id}`}
-              rows={2}
+              rows={4}
+              className="min-h-[100px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateCertification(entry.id, { description: e.target.value })

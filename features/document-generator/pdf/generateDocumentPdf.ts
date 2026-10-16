@@ -450,6 +450,13 @@ export async function generateDocumentPdf(
                 letter-spacing: 0.02px !important;
                 word-spacing: normal !important;
               }
+              a {
+                color: #0c56a5 !important;
+                text-decoration: underline !important;
+                text-decoration-color: #0c56a5 !important;
+                text-underline-offset: 2.2px !important;
+                text-decoration-thickness: 0.55pt !important;
+              }
             `;
             clonedDoc.head.appendChild(style);
           },

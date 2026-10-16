@@ -75,6 +75,12 @@ export interface CrmAcademicQualification {
   subjects?: string;
   /** Alternative key used by other CRM versions for the same subjects list */
   subjectsCombination?: string;
+  website?: string;
+  websiteUrl?: string;
+  url?: string;
+  address?: string;
+  institutionAddress?: string;
+  schoolAddress?: string;
 }
 
 export interface CrmWorkExperience {
@@ -210,6 +216,10 @@ export interface CrmStudent {
   loan?: { overview?: Record<string, unknown> };
   /** Payment plan */
   paymentPlan?: Record<string, unknown>;
+  /** Course details */
+  courseDetails?: Record<string, unknown>;
+  /** Family profile */
+  familyProfile?: Record<string, unknown>;
   /** Master info for SOP */
   masterInfo?: Record<string, unknown>;
 }

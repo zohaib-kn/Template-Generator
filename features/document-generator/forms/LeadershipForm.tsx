@@ -87,7 +87,8 @@ export function LeadershipForm() {
             <Label htmlFor={`lead-desc-${entry.id}`}>Description</Label>
             <Textarea
               id={`lead-desc-${entry.id}`}
-              rows={2}
+              rows={5}
+              className="min-h-[120px] resize-y"
               value={entry.description ?? ""}
               onChange={(e) =>
                 updateLeadershipActivity(entry.id, {

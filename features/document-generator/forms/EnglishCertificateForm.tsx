@@ -114,58 +114,6 @@ export function EnglishCertificateForm() {
           />
         </div>
       </div>
-
-      {/* Live CV Bullet Column Preview */}
-      {(cert.score || cert.listening || cert.reading || cert.writing || cert.speaking || cert.trfNumber) && (
-        <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3.5 text-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-800 tracking-wide uppercase text-[11px]">
-              Vertical Column Preview (CV Format)
-            </span>
-            <span className="text-[10px] bg-sky-100 text-sky-800 font-medium px-2 py-0.5 rounded-full border border-sky-300">
-              Avantika Europass Standard
-            </span>
-          </div>
-          <div className="space-y-1 font-mono text-[12px] text-slate-700 bg-white/80 p-2.5 rounded-lg border border-sky-100 shadow-xs">
-            {cert.score && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Overall Band Score - {cert.score.replace(/^(?:Overall\s*(?:Band)?\s*(?:Score)?|Band)\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-            {cert.listening && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Listening - {cert.listening.replace(/^Listening\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-            {cert.reading && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Reading - {cert.reading.replace(/^Reading\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-            {cert.writing && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Writing - {cert.writing.replace(/^Writing\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-            {cert.speaking && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Speaking - {cert.speaking.replace(/^Speaking\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-            {cert.trfNumber && (
-              <div className="flex items-start gap-2">
-                <span className="text-sky-600 font-bold">•</span>
-                <span>Test Report Form Number - {cert.trfNumber.replace(/^(?:Test\s*Report\s*(?:Form)?\s*(?:Number)?|TRF\s*(?:No\.?|Number)?)\s*[-:]?\s*/i, "")}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
