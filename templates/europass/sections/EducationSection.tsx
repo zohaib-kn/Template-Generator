@@ -4,6 +4,7 @@ import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { getOrderedEducationParts } from "@/features/document-generator/utils/educationSequence";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
 
 interface EducationSectionProps {
   entries?: EducationEntry[];
@@ -23,17 +24,76 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
-function renderEducationDetails(entry: EducationEntry) {
+function renderEducationDetails(
+  entry: EducationEntry,
+  isInteractive = false,
+  onUpdate?: (id: string, patch: Partial<EducationEntry>) => void
+) {
   const parts = getOrderedEducationParts(entry);
   if (parts.length === 0) return null;
+
   return (
     <div className={styles.educationDetails}>
       {parts.map((part, pIdx) => {
         const trimmed = part.trim();
+        const websiteMatch = trimmed.match(/^Website:\s*(.+)$/i);
+
+        if (websiteMatch) {
+          const rawUrl = websiteMatch[1].trim();
+          const href = normalizePdfUrl(rawUrl);
+
+          return (
+            <span key={pIdx}>
+              {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
+              <span>Website: </span>
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={rawUrl}
+                  href={href}
+                  onChange={(newUrl) => {
+                    const newParts = [...parts];
+                    newParts[pIdx] = `Website: ${newUrl.trim()}`;
+                    onUpdate(entry.id, {
+                      description: newParts.join(" | "),
+                      website: newUrl.trim(),
+                    });
+                  }}
+                  isInteractive={isInteractive}
+                  className={styles.blueLink}
+                  placeholder="https://..."
+                />
+              ) : (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.blueLink}
+                  data-pdf-link={href}
+                >
+                  {rawUrl}
+                </a>
+              )}
+            </span>
+          );
+        }
+
         return (
           <span key={pIdx}>
             {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
-            {trimmed}
+            {isInteractive && onUpdate ? (
+              <EditableText
+                value={trimmed}
+                onChange={(newPart) => {
+                  const newParts = [...parts];
+                  newParts[pIdx] = newPart;
+                  onUpdate(entry.id, { description: newParts.join(" | ") });
+                }}
+                isInteractive={isInteractive}
+                placeholder="Detail..."
+              />
+            ) : (
+              trimmed
+            )}
           </span>
         );
       })}
@@ -103,18 +163,7 @@ export const EducationSection = memo(function EducationSection({
               </div>
             )}
 
-            {isInteractive && onUpdate ? (
-              <EditableText
-                value={entry.description ?? ""}
-                onChange={(v) => onUpdate(entry.id, { description: v })}
-                isInteractive={isInteractive}
-                multiline
-                className={styles.educationDetails}
-                placeholder="Address | Website | Final grade | Subjects..."
-              />
-            ) : (
-              renderEducationDetails(entry)
-            )}
+            {renderEducationDetails(entry, isInteractive, onUpdate)}
           </div>
         );
       })}

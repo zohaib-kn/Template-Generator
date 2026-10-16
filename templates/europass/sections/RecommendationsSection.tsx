@@ -26,7 +26,11 @@ function renderContactLine(line: string) {
         {emailMatch ? (
           <>
             <strong>Email:</strong>{" "}
-            <a href={`mailto:${emailMatch[1]}`} className={styles.blueLink}>
+            <a
+              href={`mailto:${emailMatch[1]}`}
+              data-pdf-link={`mailto:${emailMatch[1]}`}
+              className={styles.blueLink}
+            >
               {emailMatch[1]}
             </a>
           </>
@@ -35,6 +39,7 @@ function renderContactLine(line: string) {
             <strong>Link:</strong>{" "}
             <a
               href={linkMatch[1]}
+              data-pdf-link={linkMatch[1]}
               target="_blank"
               rel="noreferrer"
               className={styles.blueLink}
