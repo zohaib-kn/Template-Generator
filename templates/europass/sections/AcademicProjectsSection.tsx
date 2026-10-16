@@ -3,6 +3,7 @@ import type { AcademicProject } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
 
 interface AcademicProjectsSectionProps {
   entries?: AcademicProject[];
@@ -103,18 +104,21 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
               {isInteractive && onUpdate ? (
                 <EditableText
                   value={project.link ?? ""}
+                  href={project.link ? normalizePdfUrl(project.link) : undefined}
                   onChange={(v) => onUpdate(project.id, { link: v })}
                   isInteractive={isInteractive}
                   className={styles.blueLink}
                   placeholder="https://github.com/..."
+                  as="a"
                 />
               ) : (
                 project.link && (
                   <a
-                    href={project.link}
+                    href={normalizePdfUrl(project.link)}
                     target="_blank"
                     rel="noreferrer"
                     className={styles.blueLink}
+                    data-pdf-link={normalizePdfUrl(project.link)}
                   >
                     {project.link}
                   </a>

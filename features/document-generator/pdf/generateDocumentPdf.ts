@@ -17,6 +17,7 @@
 
 import type { DocumentData } from "@/types";
 import { encodeEmbeddedData, type EmbeddedPdfPayload } from "@/services/pdf/pdfMetadata";
+import { normalizePdfUrl } from "../utils/linkUtils";
 
 /** A4 dimensions in millimetres. */
 const A4_W_MM = 210;
@@ -498,20 +499,36 @@ export async function generateDocumentPdf(
     pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "SLOW");
 
     // 5c. Attach real, clickable PDF hyperlinks on top of the image
-    const aTags = Array.from(pageEl.querySelectorAll<HTMLAnchorElement>("a[href]"));
+    const linkElements = Array.from(
+      pageEl.querySelectorAll<HTMLElement>("a[href], [data-pdf-link]")
+    );
     const pageRect = pageEl.getBoundingClientRect();
     if (pageRect.width > 0 && pageRect.height > 0) {
-      aTags.forEach((a) => {
-        const href = a.getAttribute("href");
-        if (!href || href === "#" || href.startsWith("javascript:")) return;
-        const rect = a.getBoundingClientRect();
-        const relX = (rect.left - pageRect.left) * (A4_W_MM / pageRect.width);
-        const relY = (rect.top - pageRect.top) * (A4_H_MM / pageRect.height);
-        const relW = rect.width * (A4_W_MM / pageRect.width);
-        const relH = rect.height * (A4_H_MM / pageRect.height);
-        if (relW > 0 && relH > 0) {
-          pdf.link(relX, relY, relW, relH, { url: href });
-        }
+      linkElements.forEach((el) => {
+        const rawHref =
+          el.getAttribute("data-pdf-link") || el.getAttribute("href");
+        if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:"))
+          return;
+
+        const normalizedUrl = normalizePdfUrl(rawHref);
+        if (!normalizedUrl) return;
+
+        // Use getClientRects to support inline links that wrap across multiple lines
+        const clientRects = Array.from(el.getClientRects());
+        const rectsToProcess =
+          clientRects.length > 0 ? clientRects : [el.getBoundingClientRect()];
+
+        rectsToProcess.forEach((rect) => {
+          if (rect.width > 0 && rect.height > 0) {
+            const relX = (rect.left - pageRect.left) * (A4_W_MM / pageRect.width);
+            const relY = (rect.top - pageRect.top) * (A4_H_MM / pageRect.height);
+            const relW = rect.width * (A4_W_MM / pageRect.width);
+            const relH = rect.height * (A4_H_MM / pageRect.height);
+            if (relW > 0 && relH > 0) {
+              pdf.link(relX, relY, relW, relH, { url: normalizedUrl });
+            }
+          }
+        });
       });
     }
   });

@@ -16,7 +16,11 @@ interface EditableTextProps {
   /** Placeholder shown in edit mode when the field is empty */
   placeholder?: string;
   /** HTML tag used for the read-mode wrapper (default: "span") */
-  as?: "span" | "h1" | "h2" | "h3" | "h4" | "p" | "div";
+  as?: "span" | "h1" | "h2" | "h3" | "h4" | "p" | "div" | "a";
+  /** Optional hyperlink URL (e.g. mailto:email or https://url) */
+  href?: string;
+  /** Link target (e.g. "_blank") */
+  target?: string;
 }
 
 /**
@@ -38,6 +42,8 @@ export function EditableText({
   className = "",
   placeholder = "",
   as: Tag = "span",
+  href,
+  target,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -63,6 +69,7 @@ export function EditableText({
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       if (!isInteractive) return;
+      e.preventDefault(); // Prevent browser navigation if Tag is an anchor
       e.stopPropagation(); // prevent ResumeInteractiveSection body click from opening drawer
       setIsEditing(true);
     },
@@ -104,6 +111,20 @@ export function EditableText({
 
   // ── Non-interactive / PDF mode ──────────────────────────────────────────
   if (!isInteractive) {
+    if (href || Tag === "a") {
+      const targetUrl = href || value;
+      return (
+        <a
+          href={targetUrl}
+          className={className}
+          target={target || (targetUrl.startsWith("mailto:") ? undefined : "_blank")}
+          rel="noreferrer"
+          data-pdf-link={targetUrl}
+        >
+          {value}
+        </a>
+      );
+    }
     return <Tag className={className}>{value}</Tag>;
   }
 
@@ -172,6 +193,41 @@ export function EditableText({
   }
 
   // ── Read mode (interactive but not currently editing) ───────────────────
+  if (href || Tag === "a") {
+    const targetUrl = href || value;
+    return (
+      <a
+        href={targetUrl}
+        className={className}
+        onClick={handleClick}
+        target={target || (targetUrl.startsWith("mailto:") ? undefined : "_blank")}
+        rel="noreferrer"
+        data-pdf-link={targetUrl}
+        style={{
+          cursor: "text",
+          borderBottom: "1px dashed transparent",
+          transition: "border-color 0.15s",
+        }}
+        onMouseEnter={(e: React.MouseEvent<HTMLElement>) => {
+          (e.currentTarget as HTMLElement).style.borderBottomColor = "rgba(9,100,145,0.35)";
+        }}
+        onMouseLeave={(e: React.MouseEvent<HTMLElement>) => {
+          (e.currentTarget as HTMLElement).style.borderBottomColor = "transparent";
+        }}
+        title="Click to edit link"
+      >
+        {value || (
+          <span
+            data-html2canvas-ignore="true"
+            style={{ opacity: 0.35, fontStyle: "italic", userSelect: "none" }}
+          >
+            {placeholder}
+          </span>
+        )}
+      </a>
+    );
+  }
+
   return (
     <Tag
       className={className}

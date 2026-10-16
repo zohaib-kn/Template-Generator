@@ -64,23 +64,31 @@ export const AchievementsSection = memo(function AchievementsSection({
                       className={styles.achievementTitle}
                       placeholder="Achievement / Award Title"
                     />
-                    <span className={styles.achievementOrg}>, </span>
-                    <EditableText
-                      value={achievement.organisation ?? ""}
-                      onChange={(v) => onUpdate(achievement.id, { organisation: v })}
-                      isInteractive={isInteractive}
-                      className={styles.achievementOrg}
-                      placeholder="Organisation"
-                    />
-                    <span className={styles.achievementDesc}>: </span>
-                    <EditableText
-                      value={achievement.description ?? ""}
-                      onChange={(v) => onUpdate(achievement.id, { description: v })}
-                      isInteractive={isInteractive}
-                      multiline
-                      className={styles.achievementDesc}
-                      placeholder="Description / Context"
-                    />
+                    {achievement.organisation && (
+                      <>
+                        <span className={styles.achievementOrg}>, </span>
+                        <EditableText
+                          value={achievement.organisation ?? ""}
+                          onChange={(v) => onUpdate(achievement.id, { organisation: v })}
+                          isInteractive={isInteractive}
+                          className={styles.achievementOrg}
+                          placeholder="Organisation"
+                        />
+                      </>
+                    )}
+                    {achievement.description && (
+                      <>
+                        <span className={styles.achievementDesc}>: </span>
+                        <EditableText
+                          value={achievement.description ?? ""}
+                          onChange={(v) => onUpdate(achievement.id, { description: v })}
+                          isInteractive={isInteractive}
+                          multiline
+                          className={styles.achievementDesc}
+                          placeholder="Description / Context"
+                        />
+                      </>
+                    )}
                   </>
                 ) : (
                   <>

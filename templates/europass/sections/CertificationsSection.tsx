@@ -3,6 +3,7 @@ import type { Certification } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
 
 interface CertificationsSectionProps {
   entries?: Certification[];
@@ -87,18 +88,21 @@ export const CertificationsSection = memo(function CertificationsSection({
               {isInteractive && onUpdate ? (
                 <EditableText
                   value={cert.credentialLink ?? ""}
+                  href={cert.credentialLink ? normalizePdfUrl(cert.credentialLink) : undefined}
                   onChange={(v) => onUpdate(cert.id, { credentialLink: v })}
                   isInteractive={isInteractive}
                   className={styles.blueLink}
                   placeholder="Credential URL"
+                  as="a"
                 />
               ) : (
                 cert.credentialLink && (
                   <a
-                    href={cert.credentialLink}
+                    href={normalizePdfUrl(cert.credentialLink)}
                     target="_blank"
                     rel="noreferrer"
                     className={styles.blueLink}
+                    data-pdf-link={normalizePdfUrl(cert.credentialLink)}
                   >
                     {cert.credentialLink}
                   </a>

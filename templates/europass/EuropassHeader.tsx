@@ -229,14 +229,17 @@ export const EuropassHeader = memo(function EuropassHeader({
                     {isInteractive && onUpdatePersonal ? (
                       <EditableText
                         value={personal.email ?? ""}
+                        href={personal.email ? `mailto:${personal.email}` : undefined}
                         onChange={(v) => onUpdatePersonal({ email: v })}
                         isInteractive={isInteractive}
                         className={styles.blueLink}
                         placeholder="Email address"
+                        as="a"
                       />
                     ) : (
                       <a
                         href={`mailto:${personal.email}`}
+                        data-pdf-link={`mailto:${personal.email}`}
                         className={styles.blueLink}
                         aria-label={`Send email to ${personal.email}`}
                       >

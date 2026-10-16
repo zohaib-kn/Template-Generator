@@ -46,14 +46,14 @@ export const HobbiesSection = memo(function HobbiesSection({
                   isInteractive={isInteractive}
                   placeholder="Hobby or interest"
                 />
-                {(isInteractive || hobby.description) && (
+                {Boolean(hobby.description && hobby.description.trim().length > 0) && (
                   <span className={styles.educationDetails}>
                     {" — "}
                     <EditableText
                       value={hobby.description ?? ""}
                       onChange={(v) => onUpdate(hobby.id, { description: v })}
                       isInteractive={isInteractive}
-                      placeholder="Optional details..."
+                      placeholder="Details"
                     />
                   </span>
                 )}
