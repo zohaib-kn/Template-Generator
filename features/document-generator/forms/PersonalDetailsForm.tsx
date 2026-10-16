@@ -263,6 +263,17 @@ export function PersonalDetailsForm() {
             placeholder="123 Main Street, London, UK"
           />
         </div>
+
+        <div>
+          <Label htmlFor="pd-portfolio">Portfolio / Website</Label>
+          <Input
+            id="pd-portfolio"
+            type="url"
+            value={personal.portfolioUrl ?? ""}
+            onChange={(e) => setPersonal({ portfolioUrl: e.target.value })}
+            placeholder="e.g. https://myportfolio.com or github.com/username"
+          />
+        </div>
       </div>
     </>
   );

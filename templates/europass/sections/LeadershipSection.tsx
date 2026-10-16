@@ -63,8 +63,21 @@ export const LeadershipSection = memo(function LeadershipSection({
                   </span>
                 )
               )}
-              {item.duration && (
-                <span className={styles.datesBadge}>[ {item.duration} ]</span>
+              {(isInteractive || item.duration) && (
+                <span className={styles.datesBadge}>
+                  [{" "}
+                  {isInteractive && onUpdate ? (
+                    <EditableText
+                      value={item.duration ?? ""}
+                      onChange={(v) => onUpdate(item.id, { duration: v })}
+                      isInteractive={isInteractive}
+                      placeholder="Duration"
+                    />
+                  ) : (
+                    item.duration
+                  )}{" "}
+                  ]
+                </span>
               )}
             </div>
           )}

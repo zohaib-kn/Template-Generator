@@ -250,6 +250,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       placeOfBirth: p.placeOfBirth,
       address: p.address,
       photoUrl: p.photoUrl,
+      portfolioUrl: p.portfolioUrl,
     },
     education: education.length > 0 ? education : undefined,
     internships: internships.length > 0 ? internships : undefined,

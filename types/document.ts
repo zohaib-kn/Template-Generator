@@ -44,6 +44,8 @@ export interface PersonalDetails {
    * Asset upload is handled separately by the Assets domain.
    */
   photoUrl?: string;
+  /** Link to student's portfolio, website, or projects. */
+  portfolioUrl?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +216,8 @@ export interface DocumentData {
   hobbies?: HobbyEntry[];
   volunteering?: VolunteeringEntry[];
   declaration?: string;
+  /** Link to student's portfolio, website, or projects (also accessible via personal.portfolioUrl) */
+  portfolioUrl?: string;
   // University-admissions sections (all optional)
   academicInterests?: AcademicInterest[];
   academicProjects?: AcademicProject[];

@@ -62,8 +62,21 @@ export const CertificationsSection = memo(function CertificationsSection({
                   <span className={styles.institutionName}>{cert.provider}</span>
                 )
               )}
-              {cert.completionDate && (
-                <span className={styles.datesBadge}>[ {cert.completionDate} ]</span>
+              {(isInteractive || cert.completionDate) && (
+                <span className={styles.datesBadge}>
+                  [{" "}
+                  {isInteractive && onUpdate ? (
+                    <EditableText
+                      value={cert.completionDate ?? ""}
+                      onChange={(v) => onUpdate(cert.id, { completionDate: v })}
+                      isInteractive={isInteractive}
+                      placeholder="Date"
+                    />
+                  ) : (
+                    cert.completionDate
+                  )}{" "}
+                  ]
+                </span>
               )}
             </div>
           )}

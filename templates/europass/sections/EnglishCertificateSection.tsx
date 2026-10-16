@@ -182,11 +182,21 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
           </div>
         )}
 
-        {formattedDate && (
+        {(isInteractive || formattedDate) && (
           <div className={styles.bulletItem}>
             <span className={styles.bulletDot} aria-hidden="true">•</span>
             <span className={styles.bulletText}>
-              Issue Date - {formattedDate}
+              Issue Date -{" "}
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={formattedDate}
+                  onChange={(v) => onUpdate({ dateTaken: v })}
+                  isInteractive={isInteractive}
+                  placeholder="DD/MM/YYYY"
+                />
+              ) : (
+                formattedDate
+              )}
             </span>
           </div>
         )}

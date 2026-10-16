@@ -679,6 +679,13 @@ export function mapCrmToNormalizedStudent(
       passportExpiryDate: toDateOnly(passport.expiryDate) || undefined,
       placeOfBirth: placeOfBirth || undefined,
       photoUrl,
+      portfolioUrl:
+        (s as any).portfolioUrl?.trim() ||
+        (s as any).portfolio?.trim() ||
+        (s as any).website?.trim() ||
+        (pd as any).portfolioUrl?.trim() ||
+        (pd as any).website?.trim() ||
+        undefined,
     },
     academics: {
       qualifications,

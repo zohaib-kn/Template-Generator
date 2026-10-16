@@ -4,6 +4,7 @@ import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { getOrderedEducationParts } from "@/features/document-generator/utils/educationSequence";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
 import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
 
 interface EducationSectionProps {
@@ -138,7 +139,7 @@ export const EducationSection = memo(function EducationSection({
               )
             )}
 
-            {(entry.institution || hasDate) && (
+            {(isInteractive || entry.institution || hasDate) && (
               <div className={styles.institutionRow}>
                 {isInteractive && onUpdate ? (
                   <EditableText
@@ -155,10 +156,14 @@ export const EducationSection = memo(function EducationSection({
                     </span>
                   )
                 )}
-                {hasDate && (
-                  <span className={styles.datesBadge}>
-                    [ {start}{end ? ` – ${end}` : ""} ]
-                  </span>
+                {(hasDate || isInteractive) && (
+                  <EditableDateRange
+                    startDate={entry.startDate}
+                    endDate={entry.endDate}
+                    onUpdate={(patch) => onUpdate?.(entry.id, patch)}
+                    isInteractive={isInteractive}
+                    className={styles.datesBadge}
+                  />
                 )}
               </div>
             )}

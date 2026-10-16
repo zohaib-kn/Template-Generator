@@ -67,6 +67,8 @@ export function ResumeSectionsDrawer({
         return (data.recommendations ?? []).length > 0;
       case "declaration":
         return Boolean(data.declaration && data.declaration.trim().length > 0);
+      case "portfolio":
+        return Boolean(data.personal?.portfolioUrl?.trim() || data.portfolioUrl?.trim());
       default:
         return false;
     }

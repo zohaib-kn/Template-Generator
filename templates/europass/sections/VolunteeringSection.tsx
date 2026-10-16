@@ -3,6 +3,7 @@ import type { VolunteeringEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
 
 interface VolunteeringSectionProps {
   entries?: VolunteeringEntry[];
@@ -84,8 +85,14 @@ export const VolunteeringSection = memo(function VolunteeringSection({
                     <span className={styles.institutionName}>{vol.role}</span>
                   )
                 )}
-                {dateRange && (
-                  <span className={styles.datesBadge}>[ {dateRange} ]</span>
+                {(dateRange || isInteractive) && (
+                  <EditableDateRange
+                    startDate={vol.startDate}
+                    endDate={vol.endDate}
+                    onUpdate={(patch) => onUpdate?.(vol.id, patch)}
+                    isInteractive={isInteractive}
+                    className={styles.datesBadge}
+                  />
                 )}
               </div>
             )}

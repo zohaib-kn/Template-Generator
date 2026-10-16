@@ -313,6 +313,13 @@ function GeneratorLayout() {
       case "englishCertificate":
         loadStudent({ ...data, englishCertificate: undefined });
         break;
+      case "portfolio":
+        loadStudent({
+          ...data,
+          portfolioUrl: undefined,
+          personal: { ...data.personal, portfolioUrl: undefined },
+        });
+        break;
       default:
         loadStudent({ ...data, [secId]: [] });
         break;
@@ -538,6 +545,9 @@ function GeneratorLayout() {
     const isDeclarationFilled = Boolean(
       data.declaration && data.declaration.trim().length > 0
     );
+    const isPortfolioFilled = Boolean(
+      data.personal?.portfolioUrl?.trim() || data.portfolioUrl?.trim()
+    );
 
     let filled = 0;
     if (isPersonalFilled) filled++;
@@ -556,6 +566,7 @@ function GeneratorLayout() {
     if ((data.hobbies ?? []).length > 0) filled++;
     if ((data.recommendations ?? []).length > 0) filled++;
     if (isDeclarationFilled) filled++;
+    if (isPortfolioFilled) filled++;
 
     return {
       filledCount: filled,
