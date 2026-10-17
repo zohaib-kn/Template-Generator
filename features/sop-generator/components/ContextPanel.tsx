@@ -5,6 +5,8 @@ import type {
   StudentDocumentContext,
   ValidationIssue,
   SopDocumentType,
+  TemplateSection,
+  ReviewStatus,
 } from "../types/sop-generator";
 import type {
   AcademicAlignmentResult,
@@ -14,8 +16,9 @@ import { AlignmentStatusBadge } from "@/features/academic-alignment/components/A
 import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
 import { ApplicationTargetForm } from "@/features/document-generator/forms/ApplicationTargetForm";
+import { SectionEditor } from "./SectionEditor";
 
-export type PanelTab = "student" | "destination" | "validation" | "alignment";
+export type PanelTab = "section" | "student" | "destination" | "validation" | "alignment";
 
 interface ContextPanelProps {
   ctx: StudentDocumentContext;
@@ -45,6 +48,20 @@ interface ContextPanelProps {
   selectedProgramId?: string;
   onProgramChange?: (programId: string) => void;
   onOpenJustifyModal?: () => void;
+
+  // ── Section Inspector & Actions ───────────────────────────────────────────
+  selectedSection?: TemplateSection | null;
+  sectionContent?: string;
+  sectionStatus?: ReviewStatus;
+  onSectionContentChange?: (newContent: string) => void;
+  onResetSection?: () => void;
+  onApproveSection?: () => void;
+  onUndoApproveSection?: () => void;
+  onRegenerateSection?: (sectionId: string, mode?: "generate" | "rewrite-natural") => Promise<void>;
+  isRegeneratingSection?: boolean;
+  isGenerationBlocked?: boolean;
+  generationBlockedReason?: string;
+  allSections?: TemplateSection[];
 }
 
 interface TargetSectionInfo {
@@ -143,9 +160,21 @@ export function ContextPanel({
   selectedProgramId,
   onProgramChange,
   onOpenJustifyModal,
+  selectedSection,
+  sectionContent,
+  sectionStatus,
+  onSectionContentChange,
+  onResetSection,
+  onApproveSection,
+  onUndoApproveSection,
+  onRegenerateSection,
+  isRegeneratingSection,
+  isGenerationBlocked,
+  generationBlockedReason,
+  allSections,
 }: ContextPanelProps) {
   const isUniversitySop = activeDocumentType === "UNIVERSITY_SOP";
-  const [internalTab, setInternalTab] = useState<PanelTab>(activeTabProp || "student");
+  const [internalTab, setInternalTab] = useState<PanelTab>(activeTabProp || (selectedSection ? "section" : "student"));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
   const [isEditingTarget, setIsEditingTarget] = useState(false);
@@ -209,6 +238,15 @@ export function ContextPanel({
   );
 
   const tabs: { id: PanelTab; label: string; count?: number; countColor?: string }[] = [
+    ...(selectedSection
+      ? [
+          {
+            id: "section" as const,
+            label: "Section",
+            count: undefined,
+          },
+        ]
+      : []),
     { id: "student", label: "Student" },
     { id: "destination", label: "Destination" },
     {
@@ -277,13 +315,13 @@ export function ContextPanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200/80 px-2 bg-white">
+      <div className="flex border-b border-slate-200/80 px-1 bg-white">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             id={`context-tab-${tab.id}`}
             onClick={() => handleTabChange(tab.id)}
-            className={`flex-1 py-2.5 text-xs transition-colors relative flex items-center justify-center gap-1.5
+            className={`flex-1 py-2 text-[11px] transition-colors relative flex items-center justify-center gap-1 px-1
               ${
                 activeTab === tab.id
                   ? "text-slate-900 font-semibold border-b-2 border-slate-900"
@@ -306,6 +344,35 @@ export function ContextPanel({
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" role="tabpanel">
+        {/* ── Section Tab ── */}
+        {activeTab === "section" && selectedSection && (
+          <SectionEditor
+            section={selectedSection}
+            ctx={ctx}
+            content={sectionContent || ""}
+            status={sectionStatus || "NOT_REVIEWED"}
+            onContentChange={onSectionContentChange || (() => {})}
+            onReset={onResetSection || (() => {})}
+            onApprove={onApproveSection || (() => {})}
+            onUndoApprove={onUndoApproveSection}
+            onRegenerate={onRegenerateSection}
+            isRegenerating={isRegeneratingSection}
+            isGenerationBlocked={isGenerationBlocked}
+            generationBlockedReason={generationBlockedReason}
+            allSections={allSections}
+            onSelectSection={onSelectSection}
+          />
+        )}
+
+        {activeTab === "section" && !selectedSection && (
+          <div className="p-8 text-center text-slate-400 text-xs space-y-1">
+            <p className="font-semibold text-slate-700">No Section Selected</p>
+            <p className="text-[11px] text-slate-400">
+              Click on any section text in the document to edit, rewrite, or approve it.
+            </p>
+          </div>
+        )}
+
         {/* ── Student Tab ── */}
         {activeTab === "student" && (
           <div className="space-y-4">
@@ -315,21 +382,25 @@ export function ContextPanel({
                 Applicant
               </span>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-slate-900 text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
-                  {ctx.student.fullName
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-900 via-slate-800 to-slate-700 text-white text-xs font-semibold flex items-center justify-center flex-shrink-0 ring-1 ring-white shadow-2xs">
+                  {((ctx.student.fullName || "")
+                    .replace(/\s*-\s*$/, "")
+                    .trim()
                     .split(" ")
                     .map((n) => n[0])
                     .slice(0, 2)
                     .join("")
-                    .toUpperCase() || "ST"}
+                    .toUpperCase()) || "ST"}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-900 truncate">
-                    {ctx.student.fullName || "Student"}
+                    {(ctx.student.fullName || "Student").replace(/\s*-\s*$/, "").trim()}
                   </p>
-                  <p className="text-[11px] text-slate-500">
-                    {ctx.student.city}, {ctx.student.country}
-                  </p>
+                  {[ctx.student.city, ctx.student.country].filter(Boolean).length > 0 && (
+                    <p className="text-[11px] text-slate-500">
+                      {[ctx.student.city, ctx.student.country].filter(Boolean).join(", ")}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -612,13 +683,21 @@ export function ContextPanel({
                       <button
                         key={issue.id}
                         type="button"
-                        onClick={() => onSelectSection?.(target.sectionId)}
+                        onClick={() => {
+                          if (issue.field?.startsWith("destination.")) {
+                            handleTabChange("destination");
+                          } else if (issue.field?.startsWith("student.") || issue.field?.startsWith("academics.")) {
+                            handleTabChange("student");
+                          } else {
+                            onSelectSection?.(target.sectionId);
+                          }
+                        }}
                         className={`w-full text-left p-3 rounded-xl border transition-all duration-150 group cursor-pointer shadow-2xs hover:shadow-xs block ${
                           isError
                             ? "bg-rose-50/70 hover:bg-rose-50 border-rose-200 hover:border-rose-300 text-rose-900"
                             : "bg-amber-50/70 hover:bg-amber-50 border-amber-200 hover:border-amber-300 text-amber-900"
                         }`}
-                        title={`Click to jump to section: ${target.sectionTitle}`}
+                        title={`Click to configure: ${target.sectionTitle}`}
                       >
                         <div className="flex items-start gap-2.5">
                           <span
@@ -635,6 +714,10 @@ export function ContextPanel({
                                 Field: {issue.field}
                               </p>
                             )}
+                            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                              <span>Uses natural fallback in letter.</span>
+                              <span className="text-[#096491] underline font-medium">Configure →</span>
+                            </p>
                           </div>
                         </div>
                       </button>
