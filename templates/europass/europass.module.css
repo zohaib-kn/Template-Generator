@@ -599,14 +599,14 @@
   gap: 2mm;
   font-size: 9.97pt;
   line-height: 1.45;
-  color: #333333;
+  color: #565656;
 }
 
 .achievementBulletDot {
   display: inline-block;
   width: 2.2mm;
   flex-shrink: 0;
-  color: #333333;
+  color: #565656;
   font-size: 8.5pt;
   line-height: 1.45;
   text-align: center;
@@ -615,25 +615,26 @@
 .achievementBulletText {
   flex: 1;
   min-width: 0;
+  color: #565656;
 }
 
 .achievementYear {
-  font-weight: 600;
-  color: #333333;
+  font-weight: 400;
+  color: #565656;
 }
 
 .achievementTitle {
-  font-weight: 700;
-  color: #0c56a5;
+  font-weight: 400;
+  color: #565656;
 }
 
 .achievementOrg {
-  font-style: italic;
-  color: #555555;
+  font-style: normal;
+  color: #565656;
 }
 
 .achievementDesc {
-  color: #333333;
+  color: #565656;
 }
 
 /* Legacy fallback for descriptionBulletList */

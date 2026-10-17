@@ -63,7 +63,11 @@ export const CertificationsSection = memo(function CertificationsSection({
                 )
               )}
               {(isInteractive || cert.completionDate) && (
-                <span className={styles.datesBadge}>
+                <span
+                  className={styles.datesBadge}
+                  data-html2canvas-ignore={!cert.completionDate?.trim() ? "true" : undefined}
+                  data-pdf-ignore={!cert.completionDate?.trim() ? "true" : undefined}
+                >
                   [{" "}
                   {isInteractive && onUpdate ? (
                     <EditableText
