@@ -12,9 +12,9 @@ import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { SectionSidebar } from "./SectionSidebar";
-import { SectionEditor } from "./SectionEditor";
 import { ContextPanel, type PanelTab } from "./ContextPanel";
 import { DocumentPreview } from "./DocumentPreview";
+import { SopDocumentLetter } from "./SopDocumentLetter";
 import { StudentDetailsModal } from "./StudentDetailsModal";
 import type { SopStudentLoadedPayload } from "./SopStudentLoader";
 import { getApplication, getStudentDocumentContext } from "../lib/applicationService";
@@ -307,12 +307,20 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
+  const [canvasEditingSectionId, setCanvasEditingSectionId] = useState<string | null>(null);
+  const [showStoryStructure, setShowStoryStructure] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
   const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isContextCollapsed, setIsContextCollapsed] = useState(false);
-  const [contextPanelTab, setContextPanelTab] = useState<PanelTab>("student");
+  const [contextPanelTab, setContextPanelTab] = useState<PanelTab>("section");
+
+  const handleSelectSectionFromCanvas = useCallback((secId: string) => {
+    setSelectedSectionId(secId);
+    setContextPanelTab("section");
+    setIsContextCollapsed(false);
+  }, []);
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [savedNoticeText, setSavedNoticeText] = useState<string | null>(
     initialDraft ? `Document ${initialDraft.id} loaded` : null
@@ -1158,9 +1166,45 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     setDocApproved(true);
   }
 
-  async function handleDownloadPdf() {
+  const criticalMissingFields = useMemo(() => {
+    const list: { label: string; field: string; fallbackText: string }[] = [];
+    if (!ctx.destination?.university?.trim()) {
+      list.push({
+        label: "Destination University",
+        field: "destination.university",
+        fallbackText: `designated university in ${ctx.destination?.country || "Italy"}`,
+      });
+    }
+    if (!ctx.destination?.course?.trim()) {
+      list.push({
+        label: "Intended Course",
+        field: "destination.course",
+        fallbackText: "chosen academic programme",
+      });
+    }
+    if (!ctx.destination?.intakeYear) {
+      list.push({
+        label: "Intake Year",
+        field: "destination.intakeYear",
+        fallbackText: "academic session",
+      });
+    }
+    if (activeDocumentType === "VISA_COVER_LETTER" && !ctx.destination?.consulate?.trim()) {
+      list.push({
+        label: "Embassy / Consulate",
+        field: "destination.consulate",
+        fallbackText: `Embassy of ${ctx.destination?.country || "Italy"} / Consulate General`,
+      });
+    }
+    return list;
+  }, [ctx.destination, activeDocumentType]);
+
+  const [showFallbackNoticeModal, setShowFallbackNoticeModal] = useState(false);
+
+  async function executeDownloadPdf() {
     const target =
       document.getElementById("sop-preview-letter-page") ||
+      document.getElementById("sop-workspace-letter-page") ||
       document.getElementById("sop-printable-letter");
     if (!target) return;
 
@@ -1206,6 +1250,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
+  async function handleDownloadPdf(force = false) {
+    if (!force && criticalMissingFields.length > 0) {
+      setShowFallbackNoticeModal(true);
+      return;
+    }
+    await executeDownloadPdf();
+  }
+
   // Selected section (falls back to first section if current selection doesn't exist in active template)
   const effectiveSelectedId = useMemo(() => {
     if (selectedSectionId && sections.some((s) => s.id === selectedSectionId)) {
@@ -1238,6 +1290,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         activeDocumentType={activeDocumentType}
         onDocumentTypeChange={(type) => {
           setActiveDocumentType(type);
+          setCanvasEditingSectionId(null);
         }}
         templateName={template.name}
         studentName={displayStudentName}
@@ -1274,9 +1327,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         onClearStudent={handleClearStudent}
         onOpenStudentSelect={() => setIsStudentSelectOpen(true)}
         onOpenImport={() => setImportModalOpen(true)}
+        isContextOpen={!isContextCollapsed}
+        onToggleContext={() => setIsContextCollapsed((prev) => !prev)}
+        isStoryStructureOpen={showStoryStructure}
+        onToggleStoryStructure={() => setShowStoryStructure((prev) => !prev)}
       />
-
-
 
       {/* Academic Mismatch / Stale / Unknown Banner */}
       {alignmentResult &&
@@ -1333,46 +1388,31 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         </div>
       )}
 
-      {/* Document Approved Banner */}
-      {docApproved && (
-        <div
-          role="status"
-          className="flex-shrink-0 px-6 py-2.5 bg-emerald-800 text-white text-xs font-medium flex items-center justify-between gap-4 flex-wrap"
+
+
+      {/* Main Document-First Editorial Workspace */}
+      <div className="flex flex-1 overflow-hidden relative bg-[#E2E6EE]">
+        {/* Left: Story Structure Navigation (Collapsible / Legacy Reversible) */}
+        {showStoryStructure && (
+          <SectionSidebar
+            sections={sections}
+            selectedId={effectiveSelectedId}
+            statuses={sectionStatuses}
+            onSelectSection={setSelectedSectionId}
+            onToggleStatus={handleToggleSectionStatus}
+            groups={template.sidebarGroups}
+            onClose={() => setShowStoryStructure(false)}
+          />
+        )}
+
+        {/* Center: Document-First Canvas Workspace */}
+        <main
+          className="flex-1 overflow-y-auto overflow-x-hidden bg-[#E2E6EE] flex flex-col items-center py-6 px-4"
+          aria-label="SOP Document Workspace"
         >
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">✓ Document Approved.</span>
-            <span className="opacity-90 text-[11px]">
-              All required sections have been reviewed and verified for submission.
-            </span>
-          </div>
-          <button
-            id="sop-approved-banner-download-btn"
-            onClick={handleDownloadPdf}
-            disabled={isGeneratingPdf}
-            className="bg-white text-emerald-900 hover:bg-emerald-50 px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-xs"
-          >
-            {isGeneratingPdf ? "Generating PDF…" : "📥 Download Official PDF"}
-          </button>
-        </div>
-      )}
-
-      {/* Main 3-Column Editorial Workspace */}
-      <div className="flex flex-1 overflow-hidden bg-[#F8F9FA]">
-        {/* Left: Story Structure Navigation */}
-        <SectionSidebar
-          sections={sections}
-          selectedId={effectiveSelectedId}
-          statuses={sectionStatuses}
-          onSelectSection={setSelectedSectionId}
-          onToggleStatus={handleToggleSectionStatus}
-          groups={template.sidebarGroups}
-        />
-
-        {/* Center: Document Canvas or Empty State */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-[#F8F9FA] min-w-0">
           {showEmptyState ? (
-            <div className="flex-1 flex items-center justify-center p-8 bg-[#F8F9FA]">
-              <div className="max-w-md w-full text-center p-8 md:p-10 bg-white rounded-2xl border border-slate-200/90 shadow-xs space-y-5">
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="max-w-md w-full text-center p-8 md:p-10 bg-white rounded-2xl border border-slate-200/90 shadow-2xs space-y-5">
                 <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto text-slate-700">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -1395,7 +1435,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                   <button
                     type="button"
                     onClick={() => setIsStudentSelectOpen(true)}
-                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-xs transition-colors cursor-pointer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-2xs transition-colors cursor-pointer"
                   >
                     <span>👥</span>
                     <span>Select Student from CRM</span>
@@ -1418,36 +1458,60 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                       loadSampleStudent("aafia-ameen");
                       setUseSampleData(true);
                     }}
-                    className="text-xs text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors"
+                    className="text-xs text-slate-500 hover:text-slate-900 underline underline-offset-2 transition-colors cursor-pointer"
                   >
                     Or explore template with sample applicant (Aafia Ameen) →
                   </button>
                 </div>
               </div>
             </div>
-          ) : selectedSection ? (
-            <SectionEditor
-              section={selectedSection}
-              ctx={ctx}
-              content={sectionContents[selectedSection.id] ?? selectedSection.content}
-              status={sectionStatuses[selectedSection.id] ?? "NOT_REVIEWED"}
-              onContentChange={(c) => handleContentChange(selectedSection.id, c)}
-              onReset={() => handleReset(selectedSection.id)}
-              onApprove={() => handleApproveSection(selectedSection.id)}
-              onUndoApprove={() => handleUndoApprove(selectedSection.id)}
-              onRegenerate={handleRegenerateSection}
-              isRegenerating={regeneratingSectionId === selectedSection.id}
-              canvasMasthead={template.canvasMasthead}
-              totalSections={sections.length}
-              isGenerationBlocked={
-                isSensitiveSection(selectedSection.id, activeDocumentType) &&
-                !alignmentResult.generationAllowed
-              }
-              generationBlockedReason={alignmentResult.blockingReason}
-            />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-center px-8">
-              <p className="text-xs text-slate-400">Select a section from the left to begin review.</p>
+            <div className="w-full max-w-[794px] flex flex-col items-center">
+              {/* Document Meta Header (Europass / Embassy Standard) */}
+              <div
+                data-html2canvas-ignore="true"
+                data-no-print="true"
+                className="w-full px-1 mb-2.5 flex items-center justify-between text-xs text-slate-500 select-none flex-shrink-0"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-700 bg-white/70 px-2 py-0.5 rounded border border-slate-200/60 shadow-2xs">
+                    {template.name}
+                  </span>
+                  {destinationSummary && (
+                    <span className="text-[11px] text-slate-500 hidden sm:inline">
+                      · {destinationSummary}
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  {isUniversitySop
+                    ? "University SOP · Formatted Academic Standard"
+                    : "Official Embassy Letter · Single-Page A4"}
+                </span>
+              </div>
+
+              {/* Centered A4 Full Document Paper Canvas */}
+              <div className="w-full flex justify-center pb-16">
+                <SopDocumentLetter
+                  sections={sections}
+                  sectionContents={sectionContents}
+                  ctx={ctx}
+                  template={template}
+                  id="sop-workspace-letter-page"
+                  activeSectionId={effectiveSelectedId}
+                  onSelectSection={handleSelectSectionFromCanvas}
+                  isInteractive={true}
+                  editingSectionId={canvasEditingSectionId}
+                  onStartEdit={(secId) => {
+                    setCanvasEditingSectionId(secId);
+                    handleSelectSectionFromCanvas(secId);
+                  }}
+                  onFinishEdit={() => setCanvasEditingSectionId(null)}
+                  onContentChange={(secId, newText) => handleContentChange(secId, newText)}
+                  onApproveSection={handleApproveSection}
+                  statuses={sectionStatuses}
+                />
+              </div>
             </div>
           )}
         </main>
@@ -1459,7 +1523,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           isCollapsed={isContextCollapsed}
           onToggleCollapse={() => setIsContextCollapsed((v) => !v)}
           onOpenStudentDetails={() => setStudentDetailsOpen(true)}
-          onSelectSection={setSelectedSectionId}
+          onSelectSection={handleSelectSectionFromCanvas}
           onRefreshValidation={handleRefreshValidation}
           showLogistics={template.showLogisticsInContext !== false}
           activeDocumentType={activeDocumentType}
@@ -1481,6 +1545,23 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           selectedProgramId={selectedProgramId}
           onProgramChange={handleProgramChange}
           onOpenJustifyModal={() => setIsJustifyModalOpen(true)}
+          // ── Section Inspector & Actions Props ──
+          selectedSection={selectedSection}
+          sectionContent={selectedSection ? (sectionContents[selectedSection.id] ?? selectedSection.content) : ""}
+          sectionStatus={selectedSection ? (sectionStatuses[selectedSection.id] ?? "NOT_REVIEWED") : "NOT_REVIEWED"}
+          onSectionContentChange={(c) => selectedSection && handleContentChange(selectedSection.id, c)}
+          onResetSection={() => selectedSection && handleReset(selectedSection.id)}
+          onApproveSection={() => selectedSection && handleApproveSection(selectedSection.id)}
+          onUndoApproveSection={() => selectedSection && handleUndoApprove(selectedSection.id)}
+          onRegenerateSection={handleRegenerateSection}
+          isRegeneratingSection={selectedSection ? regeneratingSectionId === selectedSection.id : false}
+          isGenerationBlocked={
+            selectedSection
+              ? isSensitiveSection(selectedSection.id, activeDocumentType) && !alignmentResult.generationAllowed
+              : false
+          }
+          generationBlockedReason={alignmentResult.blockingReason}
+          allSections={sections}
         />
       </div>
 
@@ -1533,6 +1614,80 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                 className="h-8 px-3.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-xs"
               >
                 Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fallback Notice Checklist Modal */}
+      {showFallbackNoticeModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sop-fallback-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
+        >
+          <div className="bg-white rounded-2xl shadow-xl p-5 max-w-md w-full border border-slate-200 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                ⚠️
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900" id="sop-fallback-dialog-title">
+                  Fallback Phrasing In Use
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {criticalMissingFields.length} field{criticalMissingFields.length > 1 ? "s are" : " is"} currently using default phrasing:
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {criticalMissingFields.map((f) => (
+                <div key={f.field} className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 text-xs flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800">{f.label}</p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      Letter says: <span className="italic text-slate-700 font-medium">"{f.fallbackText}"</span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFallbackNoticeModal(false);
+                      setContextPanelTab("destination");
+                      setIsContextCollapsed(false);
+                    }}
+                    className="text-[11px] font-semibold text-[#096491] hover:underline flex-shrink-0 cursor-pointer"
+                  >
+                    Add →
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFallbackNoticeModal(false);
+                  setContextPanelTab("destination");
+                  setIsContextCollapsed(false);
+                }}
+                className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium cursor-pointer shadow-2xs"
+              >
+                Configure in Panel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFallbackNoticeModal(false);
+                  handleDownloadPdf(true);
+                }}
+                className="h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer shadow-2xs"
+              >
+                Download PDF Anyway
               </button>
             </div>
           </div>

@@ -10,6 +10,7 @@ interface SectionSidebarProps {
   onSelectSection: (id: string) => void;
   onToggleStatus?: (sectionId: string) => void;
   groups?: SectionGroup[];
+  onClose?: () => void;
 }
 
 const SECTION_GROUPS: SectionGroup[] = [
@@ -42,6 +43,7 @@ export function SectionSidebar({
   onSelectSection,
   onToggleStatus,
   groups,
+  onClose,
 }: SectionSidebarProps) {
   const effectiveGroups = useMemo(() => {
     return groups && groups.length > 0 ? groups : SECTION_GROUPS;
@@ -52,23 +54,7 @@ export function SectionSidebar({
     return new Map(sections.map((s) => [s.id, s]));
   }, [sections]);
 
-  // Track approved count per group
-  const groupStats = useMemo(() => {
-    const stats: Record<string, { total: number; approved: number }> = {};
-    for (const group of effectiveGroups) {
-      let total = 0;
-      let approved = 0;
-      for (const id of group.sectionIds) {
-        const sec = sectionsById.get(id);
-        if (sec) {
-          total++;
-          if (statuses[id] === "APPROVED") approved++;
-        }
-      }
-      stats[group.id] = { total, approved };
-    }
-    return stats;
-  }, [sectionsById, statuses, effectiveGroups]);
+
 
   return (
     <aside
@@ -76,13 +62,29 @@ export function SectionSidebar({
       aria-label="Document story sections navigation"
     >
       {/* Sidebar Top Meta */}
-      <div className="px-4 py-3 border-b border-slate-200/80 flex items-center justify-between">
+      <div className="px-4 py-2.5 border-b border-slate-200/80 flex items-center justify-between">
         <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
           Story Structure
         </span>
-        <span className="text-[11px] text-slate-400 font-medium">
-          {sections.length} sections
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-slate-400 font-medium">
+            {sections.length} sections
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-700 p-1 rounded-md hover:bg-slate-200/60 transition-colors cursor-pointer"
+              title="Close Story Structure"
+              aria-label="Close Story Structure"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Nav Groups */}
@@ -93,7 +95,6 @@ export function SectionSidebar({
             .filter((s): s is TemplateSection => Boolean(s));
 
           if (groupSecs.length === 0) return null;
-          const stat = groupStats[group.id];
 
           return (
             <div key={group.id} className="space-y-0.5">
@@ -102,21 +103,16 @@ export function SectionSidebar({
                 <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
                   {group.title}
                 </span>
-                {stat && (
-                  <span className="text-[10px] text-slate-400 font-medium">
-                    {stat.approved}/{stat.total}
-                  </span>
-                )}
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {groupSecs.length}
+                </span>
               </div>
 
               {/* Group Items */}
               <ul className="space-y-0.5" role="listbox">
                 {groupSecs.map((section) => {
-                  const status = statuses[section.id] ?? "NOT_REVIEWED";
                   const isSelected = section.id === selectedId;
                   const orderNum = String(section.order).padStart(2, "0");
-                  const isApproved = status === "APPROVED";
-                  const isNeedsReview = status === "NEEDS_REVIEW";
 
                   return (
                     <li key={section.id} role="option" aria-selected={isSelected}>
@@ -161,41 +157,6 @@ export function SectionSidebar({
                             </span>
                           )}
                         </div>
-
-                        {/* Interactive Status Toggle Circle */}
-                        <button
-                          type="button"
-                          id={`section-status-toggle-${section.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleStatus?.(section.id);
-                          }}
-                          className="flex-shrink-0 p-0.5 rounded-full hover:scale-110 active:scale-95 transition-all cursor-pointer focus:outline-none"
-                          title={
-                            isApproved
-                              ? "Click to unapprove section"
-                              : "Click to approve section"
-                          }
-                          aria-label={
-                            isApproved
-                              ? `Mark ${section.title} as unapproved`
-                              : `Mark ${section.title} as approved`
-                          }
-                        >
-                          {isApproved ? (
-                            <span className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-300 flex items-center justify-center text-[10px] font-bold shadow-2xs hover:bg-emerald-100 hover:text-emerald-700">
-                              ✓
-                            </span>
-                          ) : isNeedsReview ? (
-                            <span className="w-4 h-4 rounded-full bg-amber-50 text-amber-600 border border-amber-300 flex items-center justify-center text-[10px] font-bold shadow-2xs hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300">
-                              !
-                            </span>
-                          ) : (
-                            <span className="w-4 h-4 rounded-full border border-slate-300 text-slate-300 flex items-center justify-center text-[9px] hover:border-emerald-400 hover:text-emerald-500 hover:bg-emerald-50">
-                              ○
-                            </span>
-                          )}
-                        </button>
                       </div>
                     </li>
                   );

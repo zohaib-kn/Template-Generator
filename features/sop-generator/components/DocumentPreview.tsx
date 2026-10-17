@@ -5,6 +5,8 @@ import type { TemplateSection, StudentDocumentContext, SopTemplate } from "../ty
 import { interpolate } from "../lib/interpolateTemplate";
 import { calculateDocumentWordCount } from "../lib/wordCount";
 
+import { SopDocumentLetter } from "./SopDocumentLetter";
+
 interface DocumentPreviewProps {
   sections: TemplateSection[];
   sectionContents: Record<string, string>;
@@ -13,24 +15,6 @@ interface DocumentPreviewProps {
   onDownloadPdf?: () => void;
   isGeneratingPdf?: boolean;
   template?: SopTemplate;
-}
-
-/**
- * Parses markdown bold (**text**) into <strong> elements with safe inline styling.
- * Avoids any Tailwind v4 color classes so html2canvas never crashes on lab/oklch.
- */
-function renderFormatted(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} style={{ fontWeight: 700, color: "#111827" }}>
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return part;
-  });
 }
 
 /**
@@ -51,10 +35,8 @@ export function DocumentPreview({
   isGeneratingPdf = false,
   template,
 }: DocumentPreviewProps) {
-  const sorted = [...sections].sort((a, b) => a.order - b.order);
   const headerTitle = template?.documentHeaderTitle || "COVER LETTER";
   const isUniversitySop = template?.documentType === "UNIVERSITY_SOP";
-  const salutation = template?.salutation;
 
   const totalWordCount = useMemo(
     () => calculateDocumentWordCount(sections, sectionContents, ctx),
@@ -157,135 +139,13 @@ export function DocumentPreview({
           </div>
 
           {/* A4 Single Page Document */}
-          <div
+          <SopDocumentLetter
+            sections={sections}
+            sectionContents={sectionContents}
+            ctx={ctx}
+            template={template}
             id="sop-preview-letter-page"
-            style={{
-              width: "794px",
-              minHeight: "1123px",
-              padding: "36px 48px",
-              fontFamily: "'Times New Roman', Times, Georgia, serif",
-              fontSize: "13px",
-              lineHeight: "1.23",
-              color: "#111827",
-              backgroundColor: "#ffffff",
-              textAlign: "justify",
-              boxSizing: "border-box",
-              margin: "0 auto",
-            }}
-          >
-            {/* Centered Document Header */}
-            <div style={{ textAlign: "center", marginBottom: isUniversitySop ? "8px" : "12px" }}>
-              <span
-                style={{
-                  fontSize: isUniversitySop ? "15px" : "14px",
-                  fontWeight: "bold",
-                  textDecoration: "underline",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {headerTitle}
-              </span>
-            </div>
-
-            {/* Applicant metadata header for University SOP */}
-            {isUniversitySop && (
-              <div
-                style={{
-                  textAlign: "center",
-                  marginBottom: "14px",
-                  color: "#374151",
-                  fontSize: "12px",
-                  borderBottom: "1px solid #e5e7eb",
-                  paddingBottom: "8px",
-                }}
-              >
-                <strong>{ctx.student.fullName || "Student Name"}</strong> · {ctx.destination.course || "Target Program"} · {ctx.destination.university || "Target Institution"}
-              </div>
-            )}
-
-            {/* Salutation if configured on template (e.g., Dear Admissions Committee,) */}
-            {salutation && (
-              <div
-                style={{
-                  marginBottom: "10px",
-                  textAlign: "left",
-                  fontWeight: 700,
-                  fontSize: "13px",
-                }}
-              >
-                {salutation}
-              </div>
-            )}
-
-            {/* Sections in flowing letter format */}
-            {sorted.map((section) => {
-              const rawContent = sectionContents[section.id] ?? section.content;
-              const rendered = interpolate(rawContent, ctx);
-
-              if (section.id === "recipient") {
-                return (
-                  <div
-                    key={section.id}
-                    style={{
-                      marginBottom: "10px",
-                      whiteSpace: "pre-line",
-                      lineHeight: "1.22",
-                      textAlign: "left",
-                    }}
-                  >
-                    {renderFormatted(rendered)}
-                  </div>
-                );
-              }
-
-              if (section.id === "subject") {
-                return (
-                  <div
-                    key={section.id}
-                    style={{
-                      fontWeight: "bold",
-                      marginBottom: "10px",
-                      textAlign: "left",
-                      lineHeight: "1.22",
-                    }}
-                  >
-                    {renderFormatted(rendered)}
-                  </div>
-                );
-              }
-
-              if (section.id === "signature") {
-                return (
-                  <div
-                    key={section.id}
-                    style={{
-                      marginTop: "12px",
-                      whiteSpace: "pre-line",
-                      lineHeight: "1.22",
-                      textAlign: "left",
-                    }}
-                  >
-                    {renderFormatted(rendered)}
-                  </div>
-                );
-              }
-
-              // Standard narrative / factual paragraph
-              return (
-                <div
-                  key={section.id}
-                  style={{
-                    marginBottom: isUniversitySop ? "10px" : "5.5px",
-                    textIndent: "0",
-                  }}
-                >
-                  <p style={{ margin: 0, padding: 0, whiteSpace: "pre-line" }}>
-                    {renderFormatted(rendered)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
+          />
 
           <p className="text-center text-[11px] text-white/50 mt-2.5">
             {isUniversitySop

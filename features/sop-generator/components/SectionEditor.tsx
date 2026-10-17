@@ -6,7 +6,7 @@ import type {
   ReviewStatus,
   StudentDocumentContext,
 } from "../types/sop-generator";
-import { interpolate } from "../lib/interpolateTemplate";
+import { interpolate, isPlaceholderMissing } from "../lib/interpolateTemplate";
 import { calculateSectionWordCount } from "../lib/wordCount";
 import {
   classifySourceDomain,
@@ -15,9 +15,59 @@ import {
 import { getDomainCatalog } from "@/features/document-generator/guidance/academicCatalog";
 import {
   getSectionTalkingPoints,
-  type SopTalkingPoint,
 } from "../guidance/sopAcademicCatalog";
 import { HinglishRewriteControl } from "@/components/ui/HinglishRewriteControl";
+
+// ── Crisp Bespoke SVG Icons ──────────────────────────────────────────────────
+function ChevronLeftIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
+function PencilIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+    </svg>
+  );
+}
+
+function SparklesIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" />
+    </svg>
+  );
+}
+
+function DatabaseIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
 
 interface SourceDataDialogProps {
   section: TemplateSection;
@@ -63,7 +113,7 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
             <button
               id="source-dialog-close-btn"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -100,19 +150,21 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {Object.entries(facts).map(([key, template]) => {
+                    const path = template.replace(/[{}]/g, "").trim();
+                    const isMissing = isPlaceholderMissing(ctx, path);
                     const value = interpolate(template, ctx);
-                    const isMissing = value.includes("[MISSING:");
                     return (
                       <tr key={key}>
                         <td className="py-2.5 pr-4 text-slate-500 font-medium align-top">
                           {key}
                         </td>
-                        <td
-                          className={`py-2.5 align-top font-medium break-words ${
-                            isMissing ? "text-rose-600 font-semibold italic" : "text-slate-900"
-                          }`}
-                        >
-                          {value}
+                        <td className="py-2.5 align-top font-medium break-words text-slate-900">
+                          <span>{value}</span>
+                          {isMissing && (
+                            <span className="ml-2 inline-block text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.2 font-normal">
+                              Default Fallback
+                            </span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -126,7 +178,7 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
           <div className="px-6 py-3 border-t border-slate-100 flex justify-end bg-slate-50/50">
             <button
               onClick={onClose}
-              className="h-8 px-4 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
             >
               Done
             </button>
@@ -154,6 +206,8 @@ interface SectionEditorProps {
   totalSections?: number;
   isGenerationBlocked?: boolean;
   generationBlockedReason?: string;
+  allSections?: TemplateSection[];
+  onSelectSection?: (sectionId: string) => void;
 }
 
 /**
@@ -174,10 +228,11 @@ function renderFormatted(text: string) {
 }
 
 /**
- * Editorial Document Canvas & Section Editor.
+ * Document-First Section Inspector & Action Bar.
  *
- * Designed around reading and polishing a student's visa letter.
- * The letter prose is the primary visual surface.
+ * Sits elegantly above the centered A4 paper canvas.
+ * Allows counsellors to step through sections, inspect CRM source facts,
+ * trigger AI writing / rewrites, approve sections, and edit with focused prose controls.
  */
 export function SectionEditor({
   section,
@@ -190,34 +245,43 @@ export function SectionEditor({
   onUndoApprove,
   onRegenerate,
   isRegenerating = false,
-  canvasMasthead,
+  canvasMasthead: _canvasMasthead,
   totalSections,
   isGenerationBlocked = false,
   generationBlockedReason,
+  allSections,
+  onSelectSection,
 }: SectionEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState(content);
   const [showSourceData, setShowSourceData] = useState(false);
+  const [showGuidance, setShowGuidance] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Sync draftText when section changes
   useEffect(() => {
     setDraftText(content);
-    setIsEditing(false);
     setFeedback(null);
   }, [section.id, content]);
 
-  const resolved = useMemo(() => interpolate(content, ctx), [content, ctx]);
   const isModified = content !== section.content;
-  const isApproved = status === "APPROVED";
-  const isNeedsReview = status === "NEEDS_REVIEW";
 
   const sectionWordCount = useMemo(
-    () => calculateSectionWordCount(content, ctx),
-    [content, ctx]
+    () => calculateSectionWordCount(draftText, ctx),
+    [draftText, ctx]
   );
 
   const factsCount = section.sourceFacts ? Object.keys(section.sourceFacts).length : 0;
+
+  // Previous and next section calculation
+  const { prevSection, nextSection } = useMemo(() => {
+    if (!allSections || allSections.length === 0) return { prevSection: null, nextSection: null };
+    const sorted = [...allSections].sort((a, b) => a.order - b.order);
+    const currentIndex = sorted.findIndex((s) => s.id === section.id);
+    return {
+      prevSection: currentIndex > 0 ? sorted[currentIndex - 1] : null,
+      nextSection: currentIndex >= 0 && currentIndex < sorted.length - 1 ? sorted[currentIndex + 1] : null,
+    };
+  }, [allSections, section.id]);
 
   // ── Academic Domain Resolution & Branch-Aware Talking Points ─────────────
   const sourceField = useMemo(() => {
@@ -249,9 +313,6 @@ export function SectionEditor({
     targetDomain !== "UNKNOWN" &&
     sourceDomain !== targetDomain;
 
-  const sourceCatalog = useMemo(() => getDomainCatalog(sourceDomain), [sourceDomain]);
-  const targetCatalog = useMemo(() => getDomainCatalog(targetDomain), [targetDomain]);
-
   const talkingPoints = useMemo(() => {
     return getSectionTalkingPoints(
       section.id,
@@ -264,11 +325,10 @@ export function SectionEditor({
   }, [section.id, sourceDomain, targetDomain, isTransition, ctx.academics, ctx.destination]);
 
   function handleInsertTalkingPoint(textToInsert: string) {
-    setDraftText((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return textToInsert;
-      return `${trimmed}\n\n${textToInsert}`;
-    });
+    const trimmed = draftText.trim();
+    const nextVal = trimmed ? `${trimmed}\n\n${textToInsert}` : textToInsert;
+    setDraftText(nextVal);
+    onContentChange(nextVal);
   }
 
   async function handleRegenerateClick(mode: "generate" | "rewrite-natural" = "generate") {
@@ -301,373 +361,301 @@ export function SectionEditor({
     }
   }
 
-  function handleSaveEdit() {
-    onContentChange(draftText);
-    setIsEditing(false);
-  }
-
-  function handleCancelEdit() {
-    setDraftText(content);
-    setIsEditing(false);
-  }
-
   function handleResetClick() {
     onReset();
     setDraftText(section.content);
-    setIsEditing(false);
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#F8F9FA] overflow-y-auto">
-      {/* Contextual Toolbar for the selected section (Full-width from Story Structure to Context Panel) */}
-      <div className="flex-shrink-0 sticky top-0 z-10 px-6 py-3 border-b border-slate-200/90 bg-white/95 backdrop-blur-xs">
-        <div className="w-full flex items-center justify-between gap-4 flex-wrap">
-          {/* Left: Section Identity */}
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="text-[11px] font-mono text-slate-400 font-semibold">
-              {String(section.order).padStart(2, "0")}
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-slate-900 truncate">
-                  {section.title}
-                </h2>
-                {section.required && (
-                  <span className="text-rose-500 text-xs" title="Required section">
-                    *
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                <span>
-                  {section.regeneratable
-                    ? "Suggested draft"
-                    : section.source === "WEBHOOK"
-                    ? "Student data"
-                    : section.source === "DATABASE"
-                    ? "Verified destination"
-                    : "Template section"}
-                </span>
-                <span className="text-slate-300">·</span>
-                <span>{sectionWordCount} words</span>
-                <span className="text-slate-300">·</span>
-                <span
-                  className={
-                    isApproved
-                      ? "text-emerald-700 font-medium"
-                      : isNeedsReview
-                      ? "text-amber-700 font-medium"
-                      : "text-slate-500"
-                  }
-                >
-                  {isApproved ? "Approved" : isNeedsReview ? "Needs review" : "Not reviewed"}
-                </span>
-              </p>
+    <div className="w-full bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3.5 space-y-3.5 text-xs select-text">
+      {/* ── 1. Section Header & Stepper ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <span>Active Section</span>
+          <span className="font-mono">
+            {allSections ? `${section.order} of ${allSections.length}` : `#${section.order}`}
+          </span>
+        </div>
+
+        {/* Stepper + Dropdown */}
+        <div className="flex items-center bg-slate-50 border border-slate-200/90 rounded-lg p-1 shadow-2xs gap-1">
+          {onSelectSection && prevSection ? (
+            <button
+              type="button"
+              onClick={() => onSelectSection(prevSection.id)}
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer flex-shrink-0"
+              title={`Previous: ${prevSection.title}`}
+              aria-label="Previous section"
+            >
+              <ChevronLeftIcon className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <div className="w-7 h-7 flex items-center justify-center text-slate-300 flex-shrink-0">
+              <ChevronLeftIcon className="w-3.5 h-3.5" />
             </div>
+          )}
+
+          {allSections && onSelectSection ? (
+            <select
+              value={section.id}
+              onChange={(e) => onSelectSection(e.target.value)}
+              className="text-xs font-semibold text-slate-900 bg-transparent px-2 py-1 outline-none cursor-pointer flex-1 min-w-0 truncate"
+              aria-label="Select section"
+            >
+              {allSections
+                .slice()
+                .sort((a, b) => a.order - b.order)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {String(s.order).padStart(2, "0")}. {s.title}
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2 py-1 flex-1 min-w-0">
+              <span className="text-xs font-semibold text-slate-900 truncate">
+                {section.title}
+              </span>
+            </div>
+          )}
+
+          {onSelectSection && nextSection ? (
+            <button
+              type="button"
+              onClick={() => onSelectSection(nextSection.id)}
+              className="w-7 h-7 flex items-center justify-center rounded text-slate-500 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer flex-shrink-0"
+              title={`Next: ${nextSection.title}`}
+              aria-label="Next section"
+            >
+              <ChevronRightIcon className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <div className="w-7 h-7 flex items-center justify-center text-slate-300 flex-shrink-0">
+              <ChevronRightIcon className="w-3.5 h-3.5" />
+            </div>
+          )}
+        </div>
+
+        {/* Metadata Badges */}
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap pt-0.5">
+          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[10px]">
+            {section.regeneratable
+              ? "Suggested draft"
+              : section.source === "WEBHOOK"
+              ? "Student data"
+              : section.source === "DATABASE"
+              ? "Verified destination"
+              : "Template section"}
+          </span>
+
+          {/* Source facts badge */}
+          {factsCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSourceData(true)}
+              className="text-[11px] font-medium text-[#096491] hover:text-[#074f74] hover:underline cursor-pointer flex items-center gap-1 ml-auto"
+              title="View verified CRM facts powering this section"
+            >
+              <DatabaseIcon className="w-3 h-3 text-[#096491]" />
+              <span>{factsCount} fields</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Feedback banner notice if any */}
+      {feedback && (
+        <div
+          className={`px-3 py-2 rounded-lg text-xs flex items-center justify-between border shadow-2xs ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          <span className="leading-snug">{feedback.message}</span>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-slate-400 hover:text-slate-600 font-bold ml-2 text-xs cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Blocked generation alert */}
+      {isGenerationBlocked && section.regeneratable && (
+        <div className="px-3.5 py-2.5 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-900 space-y-1 shadow-2xs">
+          <div className="flex items-center gap-1.5 font-bold text-amber-800">
+            <span>⚠️</span>
+            <span>AI Generation Blocked</span>
           </div>
+          <p className="text-[11px] text-amber-900/90 leading-relaxed">
+            {generationBlockedReason ||
+              "This section is academically sensitive. Please confirm the intentional academic transition in the Alignment tab before generating AI content."}
+          </p>
+        </div>
+      )}
 
-          {/* Right: Contextual Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {isEditing ? (
+      {/* ── 2. Direct Content Editor (Open Immediately, Zero-Button Activation) ── */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <span>Section Content</span>
+          <span className="font-sans font-medium text-slate-500">{sectionWordCount} words</span>
+        </div>
+
+        <div className="relative rounded-xl border border-slate-300 focus-within:border-[#096491] focus-within:ring-1 focus-within:ring-[#096491] p-3 bg-white transition-all shadow-2xs">
+          <textarea
+            id={`section-editor-textarea-${section.id}`}
+            value={draftText}
+            onChange={(e) => {
+              const nextVal = e.target.value;
+              setDraftText(nextVal);
+              onContentChange(nextVal);
+            }}
+            rows={7}
+            className="w-full bg-transparent text-[12.5px] text-slate-900 font-sans leading-[1.6] resize-y outline-none block"
+            aria-label={`Edit content for ${section.title}`}
+            placeholder="Type section narrative here…"
+          />
+
+          {/* Bottom bar of textarea */}
+          <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-100 text-[11px] font-sans">
+            {isModified ? (
+              <button
+                type="button"
+                id={`reset-${section.id}`}
+                onClick={handleResetClick}
+                className="text-amber-600 hover:text-amber-700 text-[11px] font-medium flex items-center gap-1 hover:underline cursor-pointer"
+                title="Reset to template original"
+              >
+                <span>↺</span>
+                <span>Reset default</span>
+              </button>
+            ) : (
+              <span className="text-[10px] text-slate-400">Syncs live with canvas</span>
+            )}
+            <span className="text-[11px] font-medium text-slate-500">
+              {sectionWordCount} words
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Streamlined AI & Tone Action Bar ── */}
+      <div className="space-y-2 pt-2 border-t border-slate-100">
+        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <span>AI & Tone Actions</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {/* Regenerate */}
+          <button
+            type="button"
+            id={`regenerate-${section.id}`}
+            onClick={() => handleRegenerateClick("generate")}
+            disabled={!section.regeneratable || isRegenerating || isGenerationBlocked}
+            className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-all flex items-center justify-center gap-1.5 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title={
+              !section.regeneratable
+                ? "This section uses factual CRM template values"
+                : isGenerationBlocked
+                ? generationBlockedReason || "AI generation blocked due to academic mismatch"
+                : "Generate tailored narrative draft"
+            }
+          >
+            {isRegenerating ? (
               <>
-                <button
-                  type="button"
-                  onClick={handleCancelEdit}
-                  className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-
-                {isModified && (
-                  <button
-                    type="button"
-                    id={`reset-${section.id}`}
-                    onClick={handleResetClick}
-                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
-                  >
-                    Reset
-                  </button>
-                )}
-
-                {section.regeneratable && (
-                  <button
-                    type="button"
-                    id={`regenerate-${section.id}`}
-                    onClick={() => handleRegenerateClick("generate")}
-                    disabled={isRegenerating || isGenerationBlocked}
-                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
-                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : undefined}
-                  >
-                    {isRegenerating ? (
-                      <span className="animate-spin text-slate-500">⟳</span>
-                    ) : (
-                      <span>✨ Regenerate</span>
-                    )}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleSaveEdit}
-                  className="h-8 px-3.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium transition-colors shadow-xs"
-                >
-                  Done Editing
-                </button>
+                <span className="animate-spin text-slate-600">⟳</span>
+                <span>Writing…</span>
               </>
             ) : (
               <>
-                {/* Free edit button */}
-                <button
-                  type="button"
-                  id={`edit-${section.id}`}
-                  onClick={() => setIsEditing(true)}
-                  className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-xs"
-                >
-                  Edit
-                </button>
-
-                {/* Regenerate if AI narrative */}
-                {section.regeneratable && (
-                  <button
-                    type="button"
-                    id={`regenerate-${section.id}`}
-                    onClick={() => handleRegenerateClick("generate")}
-                    disabled={isRegenerating || isGenerationBlocked}
-                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : undefined}
-                  >
-                    {isRegenerating ? (
-                      <>
-                        <span className="animate-spin text-slate-500">⟳</span>
-                        <span>Writing…</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>✨</span>
-                        <span>Regenerate</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
-                {/* Rewrite in authentic student voice */}
-                {section.regeneratable && content.trim().length > 0 && (
-                  <button
-                    type="button"
-                    id={`rewrite-natural-${section.id}`}
-                    onClick={() => handleRegenerateClick("rewrite-natural")}
-                    disabled={isRegenerating || isGenerationBlocked}
-                    className="h-8 px-3 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
-                    title={isGenerationBlocked ? (generationBlockedReason || "AI generation blocked due to academic mismatch") : "Rewrite paragraph in natural, authentic student voice"}
-                  >
-                    <span>✍️</span>
-                    <span>Rewrite Natural</span>
-                  </button>
-                )}
-
-                {/* Reset button if modified */}
-                {isModified && (
-                  <button
-                    type="button"
-                    id={`reset-${section.id}`}
-                    onClick={handleResetClick}
-                    className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
-                    title="Reset to template original"
-                  >
-                    Reset
-                  </button>
-                )}
-
-                {/* Approve section CTA / Approved state with Undo */}
-                {isApproved ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-8 px-3 rounded-lg bg-emerald-50 border border-emerald-200/90 text-emerald-800 text-xs font-medium flex items-center gap-1">
-                      ✓ Approved
-                    </span>
-                    {onUndoApprove && (
-                      <button
-                        type="button"
-                        onClick={onUndoApprove}
-                        className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
-                        title="Undo approval"
-                      >
-                        Undo
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    id={`approve-${section.id}`}
-                    onClick={onApprove}
-                    disabled={isRegenerating}
-                    className="h-8 px-3.5 rounded-lg bg-[#096491] hover:bg-[#074f74] active:bg-[#063f5d] text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
-                  >
-                    Approve Section
-                  </button>
-                )}
+                <SparklesIcon className="w-3.5 h-3.5 text-slate-500" />
+                <span>Regenerate</span>
               </>
             )}
-          </div>
+          </button>
+
+          {/* Natural Voice Rewrite */}
+          <button
+            type="button"
+            id={`rewrite-natural-${section.id}`}
+            onClick={() => handleRegenerateClick("rewrite-natural")}
+            disabled={!section.regeneratable || isRegenerating || isGenerationBlocked || !draftText.trim()}
+            className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-all flex items-center justify-center gap-1.5 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title={
+              !section.regeneratable
+                ? "This section uses factual CRM template values"
+                : isGenerationBlocked
+                ? generationBlockedReason || "AI generation blocked due to academic mismatch"
+                : "Rewrite in natural, authentic student voice"
+            }
+          >
+            <SparklesIcon className="w-3.5 h-3.5 text-[#096491]" />
+            <span>Natural Voice</span>
+          </button>
         </div>
 
-        {/* Feedback notice if any */}
-        {feedback && (
-          <div className="w-full mt-2">
-            <div
-              className={`px-3 py-1.5 rounded-lg text-xs flex items-center justify-between ${
-                feedback.type === "success"
-                  ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                  : "bg-rose-50 border border-rose-200 text-rose-800"
-              }`}
-            >
-              <span>{feedback.message}</span>
-              <button
-                onClick={() => setFeedback(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold ml-2 text-xs"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Blocked generation notice */}
-        {isGenerationBlocked && section.regeneratable && (
-          <div className="w-full mt-2">
-            <div className="px-3.5 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2">
-              <span className="font-bold text-amber-700">⚠️ AI Generation Blocked:</span>
-              <span className="flex-1">
-                {generationBlockedReason ||
-                  "This section is academically sensitive. Please resolve the academic mismatch before generating AI content."}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Compact Natural English Converter */}
+        <HinglishRewriteControl
+          value={draftText}
+          onApply={(newText) => {
+            setDraftText(newText);
+            onContentChange(newText);
+          }}
+          fieldName={`sop_section_${section.id}`}
+          label="Convert to Natural English"
+        />
       </div>
 
-      {/* Main Document Workspace Canvas */}
-      <div className="flex-1 py-8 px-4 md:px-8">
-        <div className="max-w-[760px] mx-auto">
-          {/* Subtle paper sheet */}
-          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden transition-all">
-            {/* Paper Header / Document Masthead */}
-            <div className="px-8 pt-8 pb-4 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span className="uppercase tracking-wider font-semibold">
-                {canvasMasthead || "Visa Cover Letter · Embassy Submission"}
-              </span>
+      {/* ── 5. Collapsible Academic Guidance & Talking Points ── */}
+      {talkingPoints.length > 0 && (
+        <div className="pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => setShowGuidance((v) => !v)}
+            className="w-full flex items-center justify-between text-[11px] text-slate-500 hover:text-slate-800 py-1 font-medium transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5">
+              <span>💡</span>
               <span>
-                Section {section.order} of {totalSections || 16}
+                {isTransition
+                  ? `Transition Bridge Guidance (${talkingPoints.length})`
+                  : `Academic Focus Points (${talkingPoints.length})`}
               </span>
-            </div>
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {showGuidance ? "Hide ▲" : "Show ▼"}
+            </span>
+          </button>
 
-            {/* Document Content Area */}
-            <div className="p-8 md:p-12 font-serif text-[15px] md:text-[16px] text-slate-800 leading-[1.8] tracking-[0.01em]">
-              {isEditing ? (
-                <div className="space-y-3 font-sans">
-                  {/* Branch-Aware Talking Points & Transition Bridge Guidance */}
-                  {talkingPoints.length > 0 && (
-                    <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                          {isTransition ? (
-                            <>
-                              <span className="text-amber-600 font-bold">⚡︎ Transition Bridge Points:</span>
-                              <span className="text-slate-500 font-medium">
-                                {ctx.academics.latestQualification || "Degree"} → {ctx.destination.course || "Target"}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="text-emerald-700 font-bold">✓ Academic Focus Points:</span>
-                              <span className="text-slate-500 font-medium">{sourceCatalog.displayName}</span>
-                            </>
-                          )}
-                        </span>
-                        <span className="text-[10px] text-slate-400">Click to insert</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {talkingPoints.map((point) => (
-                          <button
-                            key={point.label}
-                            type="button"
-                            onClick={() => handleInsertTalkingPoint(point.textToInsert)}
-                            className={`inline-flex items-center text-xs rounded-md px-2.5 py-1 border transition-colors shadow-2xs cursor-pointer ${
-                              point.type === "bridge"
-                                ? "bg-amber-50 text-amber-950 border-amber-200/90 hover:bg-amber-100"
-                                : point.type === "transferable"
-                                ? "bg-indigo-50 text-indigo-950 border-indigo-200/90 hover:bg-indigo-100"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                            }`}
-                            title={point.textToInsert}
-                          >
-                            + {point.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="relative rounded-xl border border-slate-300 focus-within:border-slate-900 focus-within:ring-1 focus-within:ring-slate-900 p-3 bg-slate-50/50 transition-all">
-                    <textarea
-                      id={`section-editor-textarea-${section.id}`}
-                      value={draftText}
-                      onChange={(e) => setDraftText(e.target.value)}
-                      rows={12}
-                      className="w-full bg-transparent text-[14px] text-slate-900 font-sans leading-[1.7] resize-none outline-none"
-                      aria-label={`Edit content for ${section.title}`}
-                      placeholder="Type section narrative here…"
-                      autoFocus
-                    />
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 text-[11px] text-slate-400 font-sans">
-                      <span>{calculateSectionWordCount(draftText, ctx)} words</span>
-                      <span>Press &apos;Done Editing&apos; to commit</span>
-                    </div>
-                  </div>
-                  <HinglishRewriteControl
-                    value={draftText}
-                    onApply={(newText) => setDraftText(newText)}
-                    fieldName={`sop_section_${section.id}`}
-                  />
-                  {isModified && (
-                    <p className="text-[11px] text-amber-600 flex items-center gap-1 font-medium font-sans">
-                      <span>⚠</span>
-                      <span>Modified from template default.</span>
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className="space-y-4 whitespace-pre-wrap select-text"
-                  aria-label={`Letter content for ${section.title}`}
-                >
-                  {renderFormatted(resolved)}
-                </div>
-              )}
-            </div>
-
-            {/* Subtle contextual source info line below document prose */}
-            {factsCount > 0 && (
-              <div className="px-8 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-sans">
-                <span className="flex items-center gap-1.5 text-[11px]">
-                  <span className="text-slate-400">ⓘ</span>
-                  <span>Uses {factsCount} factual verified student fields</span>
-                </span>
-                <button
-                  type="button"
-                  id={`view-source-data-${section.id}`}
-                  onClick={() => setShowSourceData(true)}
-                  className="text-[11px] font-medium text-[#096491] hover:text-[#074f74] hover:underline"
-                >
-                  View source data →
-                </button>
+          {showGuidance && (
+            <div className="pt-2 space-y-1.5 animate-in fade-in-50 duration-150">
+              <div className="flex flex-wrap gap-1.5">
+                {talkingPoints.map((point) => (
+                  <button
+                    key={point.label}
+                    type="button"
+                    onClick={() => handleInsertTalkingPoint(point.textToInsert)}
+                    className={`inline-flex items-center text-[10px] rounded-md px-2 py-1 border transition-colors shadow-2xs cursor-pointer ${
+                      point.type === "bridge"
+                        ? "bg-amber-50 text-amber-950 border-amber-200 hover:bg-amber-100"
+                        : point.type === "transferable"
+                        ? "bg-indigo-50 text-indigo-950 border-indigo-200 hover:bg-indigo-100"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                    title={point.textToInsert}
+                  >
+                    + {point.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Source Data Modal / Popover */}
+      {/* Structured Source Data Dialog */}
       {showSourceData && (
         <SourceDataDialog
           section={section}
