@@ -337,8 +337,38 @@ export async function generateDocumentPdf(
           onclone: (clonedDoc, clonedElement) => {
             // 1. Explicitly remove any screen-only elements marked for exclusion
             clonedDoc
-              .querySelectorAll('[data-html2canvas-ignore="true"], [data-no-print="true"]')
+              .querySelectorAll(
+                '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"]'
+              )
               .forEach((el) => el.remove());
+
+            // 1b. Clean up any empty datesBadge brackets e.g. "[ ]", "[]", "[ - ]", "[ – ]"
+            clonedElement
+              .querySelectorAll<HTMLElement>('[class*="datesBadge"]')
+              .forEach((badge) => {
+                const text = badge.textContent?.trim() || "";
+                if (
+                  !text ||
+                  text === "[]" ||
+                  text === "[ ]" ||
+                  text === "[-]" ||
+                  text === "[ - ]" ||
+                  text === "[ – ]"
+                ) {
+                  badge.remove();
+                }
+              });
+
+            // 1c. Clean up any dangling pipe dividers (e.g. "Company |" when location is blank)
+            clonedElement
+              .querySelectorAll<HTMLElement>('[class*="pipeDivider"]')
+              .forEach((pipe) => {
+                const prev = pipe.previousElementSibling?.textContent?.trim();
+                const next = pipe.nextElementSibling?.textContent?.trim();
+                if (!prev || !next) {
+                  pipe.remove();
+                }
+              });
 
             // Precise optical vertical alignment for Europass contact icons in html2canvas
             // html2canvas FontMetrics places text baseline ~21px below range top, drawing

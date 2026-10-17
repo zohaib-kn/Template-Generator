@@ -31,7 +31,7 @@ import { HobbiesSection } from "./sections/HobbiesSection";
 import { DeclarationSection } from "./sections/DeclarationSection";
 import { ResumeInteractiveSection } from "@/features/document-generator/components/ResumeInteractiveSection";
 import { RESUME_SECTION_METADATA } from "@/features/document-generator/components/ResumeSectionSidebar";
-import { parseDescriptionToBullets } from "./utils/descriptionParser";
+import { parseDescriptionToBullets, stripLeadingMarkers } from "./utils/descriptionParser";
 import { useDocumentState } from "@/features/document-generator/hooks/useDocumentState";
 
 interface EuropassTemplateProps {
@@ -487,6 +487,7 @@ export function EuropassTemplate({
                 ...target,
                 description: allBullets
                   .slice(0, bCount)
+                  .map(stripLeadingMarkers)
                   .map((b) => `• ${b}`)
                   .join("\n"),
               };
@@ -497,6 +498,7 @@ export function EuropassTemplate({
                 hideHeader: true,
                 description: allBullets
                   .slice(bCount)
+                  .map(stripLeadingMarkers)
                   .map((b) => `• ${b}`)
                   .join("\n"),
               };

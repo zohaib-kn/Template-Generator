@@ -63,7 +63,11 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
                 )
               )}
               {(isInteractive || project.dateYear) && (
-                <span className={styles.datesBadge}>
+                <span
+                  className={styles.datesBadge}
+                  data-html2canvas-ignore={!project.dateYear?.trim() ? "true" : undefined}
+                  data-pdf-ignore={!project.dateYear?.trim() ? "true" : undefined}
+                >
                   [{" "}
                   {isInteractive && onUpdate ? (
                     <EditableText
