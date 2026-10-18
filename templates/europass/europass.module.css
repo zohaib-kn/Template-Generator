@@ -2,7 +2,7 @@
    Europass Template Stylesheet (A4 Physical Document Layout)
    Faithful reconstruction based on the authoritative Cairo-rendered Europass PDF
    ========================================================================== */
-
+  
 :root {
   --europass-navy: #0c56a5;
   --europass-accent-blue: #82acd9;
@@ -657,7 +657,9 @@
 
 .pipeDivider {
   color: #94a3b8;
-  margin: 0 1.5mm;
+  margin: 0 1.8mm;
+  display: inline-block;
+  user-select: none;
 }
 
 /* --- Recommendations ---------------------------------------------------- */

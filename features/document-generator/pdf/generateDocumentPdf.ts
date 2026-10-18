@@ -359,17 +359,6 @@ export async function generateDocumentPdf(
                 }
               });
 
-            // 1c. Clean up any dangling pipe dividers (e.g. "Company |" when location is blank)
-            clonedElement
-              .querySelectorAll<HTMLElement>('[class*="pipeDivider"]')
-              .forEach((pipe) => {
-                const prev = pipe.previousElementSibling?.textContent?.trim();
-                const next = pipe.nextElementSibling?.textContent?.trim();
-                if (!prev || !next) {
-                  pipe.remove();
-                }
-              });
-
             // Precise optical vertical alignment for Europass contact icons in html2canvas
             // html2canvas FontMetrics places text baseline ~21px below range top, drawing
             // text ~1.7mm lower than inline SVGs. position:relative shifts the SVG bounds

@@ -1,12 +1,12 @@
 /**
  * features/document-generator/__tests__/academicProfileSummary.test.ts
  *
- * Unit tests for the 5-point Academic Profile / About Me summary generator:
- * 1. Student Name
+ * Unit tests for the First-Person Academic Profile / About Me summary generator:
+ * 1. First-person voice ("My name is...")
  * 2. Origin City & Geographic Context
- * 3. Family Background & Values
- * 4. Target Degree Being Pursued (accurate level: Bachelor's vs Master's)
- * 5. Impactful Closing Line
+ * 3. NO parental names, employers, or private family details
+ * 4. Accurate target degree (Bachelor's vs Master's)
+ * 5. Simple, clear, student-authentic English
  */
 
 import { describe, it } from "node:test";
@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { buildAcademicProfileSummary } from "../utils/buildAcademicProfileSummary";
 
 describe("buildAcademicProfileSummary generator", () => {
-  it("TEST 1: Builds full profile for single-mother household student (Angad Deep)", () => {
+  it("TEST 1: Builds clean first-person profile for Class 12 student (Angad Deep) without parents' names", () => {
     const summary = buildAcademicProfileSummary({
       studentName: "Angad Deep",
       city: "Ghaziabad",
@@ -29,28 +29,29 @@ describe("buildAcademicProfileSummary generator", () => {
       targetCourse: "Computer Engineering",
       degreeLevel: "Bachelor's",
       targetDomainName: "Engineering",
+      destinationCountry: "Europe",
     });
 
-    // 1. Student name
-    assert.ok(summary.includes("Angad Deep"), "Must include student name");
+    // 1. First-person voice & name & origin
+    assert.ok(summary.startsWith("My name is Angad Deep, and I am from Ghaziabad, India."));
 
-    // 2. City & Country
-    assert.ok(summary.includes("Ghaziabad, India"), "Must include city and country");
+    // 2. Class 12 education foundation
+    assert.ok(summary.includes("completed my Class 12 education with a focus on Computer Science & IT"));
 
-    // 3. Family background
-    assert.ok(summary.includes("Daljeet Kaur"), "Must include mother's name");
-    assert.ok(summary.includes("Management Trainee at Genpact"), "Must include mother's occupation");
-    assert.ok(!summary.includes("N.a."), "Must not print 'N.a.' as father's name");
+    // 3. Strictly NO parents' names or occupations
+    assert.ok(!summary.includes("Daljeet Kaur"), "Must not include mother's name");
+    assert.ok(!summary.includes("Genpact"), "Must not include mother's employer");
+    assert.ok(!summary.includes("N.a."), "Must not print 'N.a.'");
+    assert.ok(!summary.toLowerCase().includes("mother"), "Must not mention mother");
+    assert.ok(!summary.toLowerCase().includes("father"), "Must not mention father");
 
-    // 4. Target degree (Bachelor's, not postgraduate)
-    assert.ok(summary.includes("Bachelor's degree in Computer Engineering"), "Must specify Bachelor's degree");
-    assert.ok(!summary.toLowerCase().includes("postgraduate"), "Must not call high school graduate postgraduate");
-
-    // 5. Closing line
-    assert.ok(summary.includes("Committed to academic excellence"), "Must include purposeful closing line");
+    // 4. Target degree: Bachelor's in Europe (NOT pursuing Master's!)
+    assert.ok(summary.includes("Bachelor’s degree in Computer Engineering in Europe"));
+    assert.ok(!summary.toLowerCase().includes("pursuing a master"), "Must not say pursuing a Master's degree");
+    assert.ok(!summary.toLowerCase().includes("postgraduate"), "Must not refer to postgraduate studies");
   });
 
-  it("TEST 2: Builds profile for student with both parents and postgraduate target", () => {
+  it("TEST 2: Builds profile for university graduate with Master's target without parental details", () => {
     const summary = buildAcademicProfileSummary({
       studentName: "Aarav Mehta",
       city: "Bhopal",
@@ -67,15 +68,17 @@ describe("buildAcademicProfileSummary generator", () => {
       targetDomainName: "Business",
     });
 
-    assert.ok(summary.includes("Aarav Mehta"));
-    assert.ok(summary.includes("Bhopal, India"));
-    assert.ok(summary.includes("Rajesh Mehta (Senior Accountant)"));
-    assert.ok(summary.includes("Sunita Mehta (Teacher)"));
-    assert.ok(summary.includes("Master's degree in MSc International Business"));
-    assert.ok(summary.includes("Committed to academic excellence"));
+    assert.ok(summary.startsWith("My name is Aarav Mehta, and I am from Bhopal, India."));
+    assert.ok(summary.includes("completed my Bachelor of Business Administration"));
+    assert.ok(summary.includes("Master’s degree in MSc International Business"));
+
+    // Strictly NO parents' names
+    assert.ok(!summary.includes("Rajesh Mehta"));
+    assert.ok(!summary.includes("Sunita Mehta"));
+    assert.ok(!summary.includes("Senior Accountant"));
   });
 
-  it("TEST 3: Gracefully handles missing parental information without 'undefined'", () => {
+  it("TEST 3: Gracefully handles missing location and options without 'undefined'", () => {
     const summary = buildAcademicProfileSummary({
       studentName: "Kavya Sharma",
       city: "Mumbai",
@@ -85,10 +88,8 @@ describe("buildAcademicProfileSummary generator", () => {
       degreeLevel: "Bachelor",
     });
 
-    assert.ok(summary.includes("Kavya Sharma"));
-    assert.ok(summary.includes("Mumbai, India"));
-    assert.ok(summary.includes("Coming from a supportive family background in Mumbai"));
+    assert.ok(summary.startsWith("My name is Kavya Sharma, and I am from Mumbai, India."));
     assert.ok(!summary.includes("undefined"));
-    assert.ok(summary.includes("Bachelor's degree in Design"));
+    assert.ok(summary.includes("Bachelor’s degree in Design"));
   });
 });
