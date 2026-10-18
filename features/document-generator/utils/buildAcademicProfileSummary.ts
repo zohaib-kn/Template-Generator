@@ -1,13 +1,16 @@
 /**
  * features/document-generator/utils/buildAcademicProfileSummary.ts
  *
- * Generates a comprehensive, personalized Academic Profile / About Me summary
- * incorporating:
- * 1. Student Name
- * 2. Origin City & Geographic Context
- * 3. Family Background & Values
- * 4. Academic Foundation & What Degree They Are Pursuing (with accurate level)
- * 5. Impactful Closing Statement
+ * Generates a clean, simple, and professional First-Person Academic Profile / About Me
+ * tailored for European university admissions.
+ *
+ * Key Principles:
+ * 1. First-person voice ("My name is...", "I have completed...")
+ * 2. Strictly student-centric: NEVER includes parents' names, jobs, or private family details
+ * 3. Accurate academic level:
+ *    - High school / Grade 12th graduates: aims to pursue a Bachelor's degree (never "pursuing Master's")
+ *    - University / Bachelor's graduates: aims to pursue a Master's degree
+ * 4. Simple, natural, and honest English — avoiding heavy AI buzzwords.
  */
 
 export interface BuildAcademicProfileOptions {
@@ -28,84 +31,74 @@ export interface BuildAcademicProfileOptions {
   destinationCountry?: string;
 }
 
-function isValidName(val?: string | null): boolean {
-  if (!val) return false;
-  const trimmed = val.trim();
-  return (
-    trimmed.length > 0 &&
-    !/^(?:n\.?a\.?|none|nil|not\s+applicable|-)$/i.test(trimmed)
-  );
-}
-
 export function buildAcademicProfileSummary(options: BuildAcademicProfileOptions): string {
   const {
     studentName = "The applicant",
     city,
     country,
-    parents,
-    primaryDegree = "High School Education",
+    primaryDegree = "Class 12",
     domainName,
     strengths = [],
     targetCourse,
     degreeLevel,
-    targetDomainName,
+    destinationCountry,
   } = options;
 
-  // 1. Name & City / Origin statement
-  const locationParts = [city, country].filter(Boolean);
-  const locationStr = locationParts.length > 0 ? `from ${locationParts.join(", ")}` : "";
-  const academicStream = domainName ? ` (${domainName})` : "";
-  const sentence1 = `${studentName} is a dedicated and ambitious student ${locationStr ? locationStr + ", " : ""}who has established a strong academic foundation in ${primaryDegree}${academicStream}.`.replace(/\s{2,}/g, " ");
+  // 1. Origin / Location
+  const locationParts = [city, country || "India"].filter(Boolean);
+  const locationStr = locationParts.length > 0 ? locationParts.join(", ") : "India";
 
-  // 2. Family Background statement
-  const motherName = isValidName(parents?.mother?.name) ? parents?.mother?.name?.trim() : undefined;
-  const motherOcc = parents?.mother?.occupation?.trim();
-  const fatherName = isValidName(parents?.father?.name) ? parents?.father?.name?.trim() : undefined;
-  const fatherOcc = parents?.father?.occupation?.trim();
-
-  let sentence2 = "";
-  if (motherName && fatherName) {
-    const mDetails = motherOcc ? `${motherName} (${motherOcc})` : motherName;
-    const fDetails = fatherOcc ? `${fatherName} (${fatherOcc})` : fatherName;
-    sentence2 = `Raised in a dedicated family environment by his parents, ${fDetails} and ${mDetails}, he has cultivated strong personal discipline, integrity, and a steadfast commitment to higher education.`;
-  } else if (motherName) {
-    const mDetails = motherOcc ? `${motherName} (${motherOcc})` : motherName;
-    sentence2 = `Raised in a supportive family by his mother, ${mDetails}, he has developed resilience, a grounded work ethic, and a deep-seated passion for learning and technology.`;
-  } else if (fatherName) {
-    const fDetails = fatherOcc ? `${fatherName} (${fatherOcc})` : fatherName;
-    sentence2 = `Raised in a supportive family by his father, ${fDetails}, he has developed a strong work ethic, intellectual discipline, and a deep-seated dedication to academic growth.`;
-  } else {
-    sentence2 = `Coming from a supportive family background${city ? ` in ${city}` : ""} that prioritizes academic excellence, he has fostered intellectual curiosity and a strong foundation of personal discipline.`;
-  }
-
-  // 3. Academic strengths & practical application
-  const keyStrengths = strengths.slice(0, 2);
-  let sentence3 = "";
-  if (keyStrengths.length > 0) {
-    sentence3 = `Bringing demonstrated strengths in ${keyStrengths.join(" and ")}, he has actively sought opportunities to apply theoretical learning to practical problem-solving.`;
-  }
-
-  // 4. What degree he is pursuing (accurate degree level)
+  // Determine if student is applying for Bachelor's or Master's
+  const normDegree = (primaryDegree || "").toLowerCase();
   const normLevel = (degreeLevel || "").toLowerCase();
-  let levelPhrase = "higher education studies";
-  if (/bachelor|undergraduate|\bug\b/i.test(normLevel)) {
-    levelPhrase = "a Bachelor's degree";
-  } else if (/master|postgraduate|\bpg\b/i.test(normLevel)) {
-    levelPhrase = "a Master's degree";
-  } else if (/phd|doctorate/i.test(normLevel)) {
-    levelPhrase = "doctoral research";
+
+  const isBachelorsTarget =
+    /bachelor|undergraduate|\bug\b/i.test(normLevel) ||
+    /12|10\+2|high\s*school|secondary/i.test(normDegree);
+
+  // Destination phrasing (e.g. "in Europe", "in Italy", "in Germany")
+  const destPart = destinationCountry ? ` in ${destinationCountry}` : " in Europe";
+
+  // Target course phrasing
+  const courseName = targetCourse?.trim() || (domainName ? domainName : "my chosen field");
+
+  if (isBachelorsTarget) {
+    // ── Bachelor's Applicant (High School / Class 12 Graduate) ───────────────
+    // Intro
+    const p1 = `My name is ${studentName}, and I am from ${locationStr}.`;
+
+    // Academic stream in Grade 12
+    const stream = domainName || primaryDegree || "Science and Mathematics";
+    const p2 = `I have completed my Class 12 education with a focus on ${stream}. Through my school studies, I developed a strong interest in programming, problem-solving, and logical thinking.`;
+
+    // Hands-on & personal qualities
+    let p3 = "I enjoy working on practical projects, learning new skills, and exploring how technology works.";
+    if (strengths.length > 0) {
+      const topStrengths = strengths.slice(0, 2).map((s) => s.toLowerCase()).join(" and ");
+      p3 = `I enjoy working on practical projects and developing my skills in ${topStrengths}. These experiences have helped me develop logical thinking and a habit of learning new things independently.`;
+    }
+    const p4 = "I consider myself a hardworking, curious, and responsible student who values education and personal growth.";
+
+    // Future aspiration (Bachelor's degree in Europe)
+    const p5 = `Looking ahead, I want to pursue a Bachelor’s degree in ${courseName}${destPart}. My goal is to build strong foundational knowledge at university and prepare myself for a successful professional career.`;
+
+    return `${p1} ${p2} ${p3} ${p4} ${p5}`.replace(/\s{2,}/g, " ").trim();
+  } else {
+    // ── Master's Applicant (Undergraduate Graduate / Final Year) ──────────────
+    const p1 = `My name is ${studentName}, and I am from ${locationStr}.`;
+
+    const qual = primaryDegree && !/high\s*school|12/i.test(primaryDegree) ? primaryDegree : "Bachelor's degree";
+    const p2 = `I have completed my ${qual}${domainName ? ` with a focus on ${domainName}` : ""}. During my undergraduate studies, I focused on building both strong theoretical understanding and practical problem-solving skills.`;
+
+    let p3 = "I actively engage in academic projects, coursework, and practical assignments to apply my knowledge to real challenges.";
+    if (strengths.length > 0) {
+      const topStrengths = strengths.slice(0, 2).map((s) => s.toLowerCase()).join(" and ");
+      p3 = `I have actively applied my skills in ${topStrengths} through academic projects and coursework. These experiences have strengthened my analytical thinking, research abilities, and discipline.`;
+    }
+    const p4 = "I consider myself a dedicated, focused, and adaptable learner committed to continuous academic and personal growth.";
+
+    const p5 = `Looking ahead, I aim to pursue a Master’s degree in ${courseName}${destPart}. My goal is to gain advanced specialized knowledge, expand my horizons, and build a rewarding career in this field.`;
+
+    return `${p1} ${p2} ${p3} ${p4} ${p5}`.replace(/\s{2,}/g, " ").trim();
   }
-
-  const courseStr = targetCourse ? ` in ${targetCourse}` : "";
-  const domainContext = targetDomainName ? ` (${targetDomainName})` : "";
-  const sentence4 = `He is actively pursuing ${levelPhrase}${courseStr}${domainContext}, aiming to deepen his analytical rigor and develop specialized expertise.`;
-
-  // 5. Inspiring Closing Line
-  const sentence5 = `Committed to academic excellence and purposeful innovation, he aspires to contribute meaningfully to collaborative research and create impactful solutions in the field.`;
-
-  const paragraph = [sentence1, sentence2, sentence3, sentence4, sentence5]
-    .filter(Boolean)
-    .join(" ");
-
-  return paragraph.replace(/\s{2,}/g, " ").trim();
 }

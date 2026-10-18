@@ -62,6 +62,13 @@ export interface CrmAcademicQualification {
   stateOfStudy?: string;
   boardOrUniversity?: string;
   qualification?: string;     // e.g. "B.Com", "B.Tech"
+  fieldOfStudy?: string;      // e.g. "Computer Science"
+  stream?: string;            // e.g. "Science", "Commerce"
+  branch?: string;            // e.g. "Computer Science & Engineering"
+  specialization?: string;    // e.g. "Artificial Intelligence"
+  major?: string;             // e.g. "Computer Science"
+  discipline?: string;
+  course?: string;
   institution?: string;
   cityOfStudy?: string;
   gradingSystem?: string;
