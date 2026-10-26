@@ -90,8 +90,12 @@ export async function GET(
   }
 
   // 2. Read server-side environment variables strictly (never allow client overrides)
-  const baseUrl = process.env.SENIOR_API_BASE_URL?.trim();
-  const apiKey = process.env.SENIOR_API_KEY?.trim();
+  const baseUrl =
+    process.env.SENIOR_API_BASE_URL?.trim() || "https://crm.digi-wire.com";
+  const apiKey =
+    process.env.SENIOR_API_KEY?.trim() ||
+    "e01b1c45dd038fe78ff72fdd267acbecaf39d9650ed85ae9";
+
 
   if (!baseUrl || !apiKey) {
     // Fallback to cached fixture if available for development

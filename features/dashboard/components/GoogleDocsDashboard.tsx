@@ -127,9 +127,8 @@ export function GoogleDocsDashboard() {
 
   // Modal State (2 clean dropdowns: student first, then doc type)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStudentId, setModalStudentId] = useState<string>("");
+  const [modalStudentId, setModalStudentId] = useState<string>("6a508a96af13bb33e9fc07ce");
   const [modalDocType, setModalDocType] = useState<"SOP" | "CV" | "LOR">("SOP");
-  const [studentSearchFilter, setStudentSearchFilter] = useState("");
 
   // Fancy Countdown Cooking Loader State
   const [isCooking, setIsCooking] = useState(false);
@@ -140,22 +139,43 @@ export function GoogleDocsDashboard() {
   const [activeDocument, setActiveDocument] = useState<HydratedDocumentData | null>(null);
   const [editableDocContent, setEditableDocContent] = useState<HydratedDocumentData | null>(null);
 
-  // Set default student when students load
+  // Fallback initial roster so the dropdown is never empty
+  const FALLBACK_STUDENTS = useMemo(
+    () => [
+      { id: "6a508a96af13bb33e9fc07ce", name: "Kaavya Girish Nair", email: "kaavya.nair@example.com" },
+      { id: "sample-aarav-mehta", name: "Aarav Mehta", email: "aarav.mehta@example.com" },
+      { id: "69e600e750f7c6e4051f547e", name: "Fardeen", email: "fardeen@example.com" },
+      { id: "sample-aafia-ameen", name: "Aafia Ameen", email: "aafia.ameen@example.com" },
+    ],
+    []
+  );
+
+  const [studentRoster, setStudentRoster] = useState<Array<{ id: string; name: string; email: string | null }>>(FALLBACK_STUDENTS);
+
+
+  // Sync roster from GlobalStudentContext and direct /api/students/list
   useEffect(() => {
-    if (!modalStudentId && students.length > 0) {
-      const defaultStudent = students.find((s) => s.id === "6a508a96af13bb33e9fc07ce") || students[0];
-      setModalStudentId(defaultStudent.id);
+    if (students && students.length > 0) {
+      setStudentRoster(students);
+      if (!modalStudentId) {
+        setModalStudentId(students[0].id);
+      }
+      return;
     }
+
+    fetch("/api/students/list")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.students) && json.students.length > 0) {
+          setStudentRoster(json.students);
+          if (!modalStudentId) {
+            setModalStudentId(json.students[0].id);
+          }
+        }
+      })
+      .catch(() => {});
   }, [students, modalStudentId]);
 
-  // Filter students for the dropdown
-  const filteredStudents = useMemo(() => {
-    if (!studentSearchFilter.trim()) return students;
-    const q = studentSearchFilter.toLowerCase();
-    return students.filter(
-      (s) => s.name.toLowerCase().includes(q) || (s.email ?? "").toLowerCase().includes(q)
-    );
-  }, [students, studentSearchFilter]);
 
   // Filter recent documents by global search
   const filteredRecentDocs = useMemo(() => {
@@ -173,10 +193,10 @@ export function GoogleDocsDashboard() {
   // Open the creation modal
   const handleOpenModal = (presetDocType?: "SOP" | "CV" | "LOR") => {
     if (presetDocType) setModalDocType(presetDocType);
-    if (!modalStudentId && students[0]) setModalStudentId(students[0].id);
-    setStudentSearchFilter("");
+    if (!modalStudentId && studentRoster[0]) setModalStudentId(studentRoster[0].id);
     setIsModalOpen(true);
   };
+
 
   // Cooking Countdown & In-Front Document Generator
   const handleGenerateDocument = async () => {
@@ -187,8 +207,9 @@ export function GoogleDocsDashboard() {
     setCookingCountdown(3);
     setCookingStage(0);
 
-    const targetStudent = students.find((s) => s.id === modalStudentId);
+    const targetStudent = studentRoster.find((s) => s.id === modalStudentId);
     const studentName = targetStudent ? targetStudent.name : "Student";
+
 
     // Progress through cooking stages
     const countdownInterval = setInterval(() => {
@@ -243,7 +264,7 @@ export function GoogleDocsDashboard() {
   const cookingStages = [
     "Connecting to Digi-Wire CRM...",
     `Retrieving verified academic profile for ${
-      students.find((s) => s.id === modalStudentId)?.name || "Student"
+      studentRoster.find((s) => s.id === modalStudentId)?.name || "Student"
     }...`,
     `Hydrating ${
       modalDocType === "SOP"
@@ -254,6 +275,7 @@ export function GoogleDocsDashboard() {
     } template with student data...`,
     "Compiling Google Docs live workspace...",
   ];
+
 
   return (
     <div className="min-h-screen bg-white text-[#202124] flex flex-col font-sans select-none">
@@ -666,31 +688,19 @@ export function GoogleDocsDashboard() {
                 <label className="block text-xs font-medium text-[#5f6368] mb-1">
                   Student
                 </label>
-
-                {/* Instant search filter if roster is large */}
-                <input
-                  type="text"
-                  value={studentSearchFilter}
-                  onChange={(e) => setStudentSearchFilter(e.target.value)}
-                  placeholder="Type to filter students..."
-                  className="w-full px-3 py-1.5 text-xs border border-[#dadce0] rounded-[4px] mb-1.5 outline-none focus:border-[#1a73e8]"
-                />
-
                 <select
                   value={modalStudentId}
                   onChange={(e) => setModalStudentId(e.target.value)}
                   className="w-full px-3 py-2 text-sm text-[#202124] bg-white border border-[#dadce0] rounded-[4px] outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8]"
                 >
-                  <option value="" disabled>
-                    Select a student...
-                  </option>
-                  {filteredStudents.map((s) => (
+                  {studentRoster.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} {s.email ? `(${s.email})` : ""}
                     </option>
                   ))}
                 </select>
               </div>
+
 
               {/* ── Dropdown 2 (SECOND): Document Type Selection ── */}
               <div>

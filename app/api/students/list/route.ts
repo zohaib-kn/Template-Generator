@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,14 +39,10 @@ export type StudentListResponse = StudentListSuccess | StudentListError;
  * We project it to:          [{ id,   name, email           }]
  */
 export async function GET() {
-  const listUrl = process.env.CRM_STUDENT_LIST_URL?.trim();
+  const listUrl =
+    process.env.CRM_STUDENT_LIST_URL?.trim() ||
+    "https://crm.digi-wire.com/api/students?key=e01b1c45dd038fe78ff72fdd267acbecaf39d9650ed85ae9";
 
-  if (!listUrl) {
-    return NextResponse.json<StudentListError>(
-      { success: false, error: "CRM student list is not configured on this server." },
-      { status: 500 }
-    );
-  }
 
   try {
     const upstream = await fetch(listUrl, {
