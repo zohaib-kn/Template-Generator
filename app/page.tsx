@@ -1,14 +1,14 @@
-import { DocumentGeneratorShell } from "@/features/document-generator/components/DocumentGeneratorShell";
+import { GoogleDocsDashboard } from "@/features/dashboard/components/GoogleDocsDashboard";
 
 /**
- * Document Generator page.
- * Route: /
+ * Home Page: /
+ * Google Docs-style Application Document Studio Dashboard.
  *
- * The actual layout and interactivity lives in DocumentGeneratorShell,
- * which is a Client Component. This page file can remain a Server Component
- * because Next.js App Router handles the client boundary automatically.
+ * Features:
+ * - Approved, immutable template skeletons gallery.
+ * - 2-Click document creation modal (Select Student -> Generate & Open Live Studio).
+ * - Recent student document history grid with direct workspace resumption.
  */
-export default function GeneratorPage() {
-  return <DocumentGeneratorShell />;
+export default function HomePage() {
+  return <GoogleDocsDashboard />;
 }
-

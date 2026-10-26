@@ -199,7 +199,7 @@ export function getSectionVoiceInstruction(
   domain: string,
   documentType: SopDocumentType = "VISA_COVER_LETTER"
 ): string {
-  const { student, academics, destination, career, sponsor } = ctx;
+  const { student, academics, destination, career: _career, sponsor } = ctx;
 
   switch (sectionId) {
     case "why-course":
@@ -384,6 +384,7 @@ export interface NaturalStudentPromptOptions {
   mode?: "generate" | "rewrite-natural";
   documentType?: SopDocumentType;
   alignmentContext?: SafeEvidencePacket | null;
+  customInstruction?: string;
 }
 
 /**
@@ -401,13 +402,14 @@ export function buildNaturalStudentPrompt(
     mode = "generate",
     documentType = "VISA_COVER_LETTER",
     alignmentContext,
+    customInstruction,
   } = options;
 
-  const student = context.student ?? ({} as any);
-  const academics = context.academics ?? ({} as any);
-  const destination = context.destination ?? ({} as any);
-  const career = (context as any).career ?? {};
-  const sponsor = context.sponsor ?? ({} as any);
+  const student = context.student ?? ({} as NonNullable<StudentDocumentContext["student"]>);
+  const academics = context.academics ?? ({} as NonNullable<StudentDocumentContext["academics"]>);
+  const destination = context.destination ?? ({} as NonNullable<StudentDocumentContext["destination"]>);
+  const career = ((context as unknown as Record<string, unknown>).career ?? {}) as Record<string, string | undefined>;
+  const sponsor = context.sponsor ?? ({} as NonNullable<StudentDocumentContext["sponsor"]>);
   const levelInfo = detectEducationLevel(context);
   const isUniversitySop = documentType === "UNIVERSITY_SOP";
 
@@ -519,6 +521,7 @@ ${levelInfo.guidance}
 
 ${sectionVoice}
 
+${customInstruction ? `\nOPERATOR REFINEMENT INSTRUCTION (HIGHEST PRIORITY FOR TONE & CONTENT):\n${customInstruction}\n` : ""}
 ${STUDENT_VOICE_GUIDELINES}
 
 ${HUMANIZATION_PASS_CHECKLIST}

@@ -89,13 +89,9 @@ export async function GET(
     );
   }
 
-  // 2. Read dynamic overrides or server-side environment variables
-  const { searchParams } = req.nextUrl;
-  const queryKey = searchParams.get("key")?.trim();
-  const queryBaseUrl = searchParams.get("baseUrl")?.trim();
-
-  const baseUrl = queryBaseUrl || process.env.SENIOR_API_BASE_URL?.trim();
-  const apiKey = queryKey || process.env.SENIOR_API_KEY?.trim();
+  // 2. Read server-side environment variables strictly (never allow client overrides)
+  const baseUrl = process.env.SENIOR_API_BASE_URL?.trim();
+  const apiKey = process.env.SENIOR_API_KEY?.trim();
 
   if (!baseUrl || !apiKey) {
     // Fallback to cached fixture if available for development

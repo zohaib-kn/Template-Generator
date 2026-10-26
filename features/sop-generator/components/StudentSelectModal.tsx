@@ -22,10 +22,15 @@ export function StudentSelectModal({
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const handleClose = () => {
+    setSearch("");
+    onClose();
+  };
+
   useEffect(() => {
     if (isOpen) {
-      setSearch("");
-      setTimeout(() => inputRef.current?.focus(), 80);
+      const timer = setTimeout(() => inputRef.current?.focus(), 80);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -42,12 +47,12 @@ export function StudentSelectModal({
 
   function handleSelect(id: string) {
     onSelectStudent(id);
-    onClose();
+    handleClose();
   }
 
   function handleClear() {
     onClearStudent?.();
-    onClose();
+    handleClose();
   }
 
   return (
@@ -55,7 +60,7 @@ export function StudentSelectModal({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 transition-opacity"
-        onClick={onClose}
+        onClick={handleClose}
         aria-hidden="true"
       />
 
@@ -210,7 +215,7 @@ export function StudentSelectModal({
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="h-8 px-4 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
             >
               Cancel

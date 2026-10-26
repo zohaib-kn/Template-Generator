@@ -1,39 +1,46 @@
 @import "tailwindcss";
 
-/* ─── Design tokens ────────────────────────────────────────────────────── */
-/*
- * Define raw values on :root so they can be referenced both by @theme
- * (for Tailwind utility generation) and directly in vanilla CSS.
- */
+/* ─── Modern Makeover Design Tokens ───────────────────────────────────────── */
 :root {
+  /* Brand & Core */
   --navy:         #1a2e4a;
   --navy-dark:    #0f1e30;
   --navy-light:   #243d5e;
   --gold:         #c8a84b;
+
+  /* Workspace & Paper Surfaces */
+  --workspace-bg: #f8f9fa; /* Google neutral desk surface */
+  --paper-bg:     #ffffff; /* Clean A4 sheet */
+  --sidebar-bg:   #fcfdfe;
   --editor-bg:    #f1f3f6;
-  --preview-bg:   #d8dce5;
+  --preview-bg:   #e2e6ea;
+
+  /* Status Badges */
+  --badge-verified-bg: #ecfdf5;
+  --badge-verified-text: #065f46;
+  --badge-verified-border: #a7f3d0;
+  --badge-alert-bg: #fffbeb;
+  --badge-alert-text: #92400e;
+  --badge-alert-border: #fde68a;
+
+  /* A4 Dimensions */
+  --a4-width-mm:  210mm;
+  --a4-height-mm: 297mm;
 }
 
-/*
- * @theme inline makes these available as Tailwind utility classes:
- *   bg-navy, text-navy, border-navy, ring-navy …
- *   bg-gold, text-gold …
- *   bg-editor-bg, bg-preview-bg …
- *   font-sans → Inter
- */
 @theme inline {
   --color-navy:        var(--navy);
   --color-navy-dark:   var(--navy-dark);
   --color-navy-light:  var(--navy-light);
   --color-gold:        var(--gold);
-  --color-editor-bg:   var(--editor-bg);
-  --color-preview-bg:  var(--preview-bg);
+  --color-workspace:   var(--workspace-bg);
+  --color-paper:       var(--paper-bg);
+  --color-sidebar:     var(--sidebar-bg);
 
   --font-sans: var(--font-inter);
 }
 
-/* ─── Base ─────────────────────────────────────────────────────────────── */
-
+/* ─── Base Styles ─────────────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -48,9 +55,9 @@ body {
 }
 
 body {
-  font-family: var(--font-sans), 'Inter', 'Segoe UI', Arial, sans-serif;
-  color: #1a1a1a;
-  background: var(--editor-bg);
+  font-family: 'Inter', var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1f2937;
+  background: var(--workspace-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -60,3 +67,69 @@ a {
   text-decoration: none;
 }
 
+/* ─── A4 Physical Sheet Elevation ─────────────────────────────────────────── */
+.a4-paper-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+  margin: 0 auto;
+  background: #ffffff;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* ─── Floating Canva Docs Toolbar ─────────────────────────────────────────── */
+.canva-floating-bar {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 9999px;
+}
+
+/* ─── Template Gallery Card Hover ─────────────────────────────────────────── */
+.template-gallery-card {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.template-gallery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.12);
+  border-color: #2563eb;
+}
+
+/* ─── AI Magic Gradient ───────────────────────────────────────────────────── */
+.ai-magic-gradient {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+}
+
+.ai-magic-btn {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  color: #ffffff;
+  transition: opacity 0.15s ease;
+}
+
+.ai-magic-btn:hover {
+  opacity: 0.92;
+}
+
+/* ─── Print Stylesheet ────────────────────────────────────────────────────── */
+@media print {
+  body {
+    background: #ffffff !important;
+  }
+  .a4-paper-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

@@ -10,6 +10,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import crypto from "crypto";
 
 export function authenticateWebhookRequest(req: Request | NextRequest): boolean {
   const configuredKey = process.env.DOCUMENT_WEBHOOK_API_KEY?.trim();
@@ -23,5 +24,12 @@ export function authenticateWebhookRequest(req: Request | NextRequest): boolean 
     return false;
   }
 
-  return headerKey === configuredKey;
+  const configuredBuf = Buffer.from(configuredKey);
+  const headerBuf = Buffer.from(headerKey);
+
+  if (configuredBuf.length !== headerBuf.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(configuredBuf, headerBuf);
 }

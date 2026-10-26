@@ -38,6 +38,8 @@ import { isSensitiveSection } from "@/services/academicAlignment/academicAlignme
 import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
 import { TransitionJustificationModal } from "./TransitionJustificationModal";
 import type { NormalizedQualification } from "@/types/normalizedStudent";
+import { CanvaFloatingToolbar } from "@/components/common/CanvaFloatingToolbar";
+import { AdmissionsAiAssistant } from "@/components/common/AdmissionsAiAssistant";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -309,6 +311,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(firstSectionId);
   const [canvasEditingSectionId, setCanvasEditingSectionId] = useState<string | null>(null);
   const [showStoryStructure, setShowStoryStructure] = useState(false);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
+  const [isFloatingAiLoading, setIsFloatingAiLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [studentDetailsOpen, setStudentDetailsOpen] = useState(false);
   const [isStudentSelectOpen, setIsStudentSelectOpen] = useState(false);
@@ -962,6 +966,79 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
+  async function handleRunTargetedAi(instruction: string, _actionKey?: string) {
+    const targetSectionId =
+      effectiveSelectedId ||
+      sections.find((s) => s.regeneratable)?.id ||
+      sections[0]?.id;
+    if (!targetSectionId) return;
+
+    const targetSection = sections.find((s) => s.id === targetSectionId);
+    if (!targetSection) return;
+
+    const isSensitive = isSensitiveSection(targetSectionId, activeDocumentType);
+    if (isSensitive && !alignmentResult.generationAllowed) {
+      const msg =
+        alignmentResult.blockingReason ||
+        "AI narrative generation for this section is blocked due to unresolved academic mismatch. Counsellor confirmation required.";
+      setAiBannerNotice({ type: "error", message: msg });
+      return;
+    }
+
+    setIsFloatingAiLoading(true);
+    setRegeneratingSectionId(targetSectionId);
+
+    try {
+      const res = await fetch("/api/sop/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: effectiveStudentId || undefined,
+          programId: effectiveProgramId || undefined,
+          sectionId: targetSectionId,
+          sectionTitle: targetSection.title,
+          context: ctx,
+          currentContent: sectionContents[targetSectionId] ?? targetSection.content,
+          mode: "generate",
+          documentType: activeDocumentType,
+          instruction,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.text) {
+        setSectionContentsByType((prev) => ({
+          ...prev,
+          [activeDocumentType]: {
+            ...prev[activeDocumentType],
+            [targetSectionId]: data.text,
+          },
+        }));
+        setSectionStatusesByType((prev) => ({
+          ...prev,
+          [activeDocumentType]: {
+            ...prev[activeDocumentType],
+            [targetSectionId]: "NEEDS_REVIEW",
+          },
+        }));
+        setDocApproved(false);
+        setSavedNoticeText(`✓ Refined ${targetSection.title}`);
+        setTimeout(() => setSavedNoticeText(null), 3500);
+      } else {
+        throw new Error(data?.error?.message || "Failed to generate AI response.");
+      }
+    } catch (err: unknown) {
+      console.error("[Targeted AI Error]:", err);
+      setAiBannerNotice({
+        type: "error",
+        message: err instanceof Error ? err.message : "AI refinement failed.",
+      });
+    } finally {
+      setIsFloatingAiLoading(false);
+      setRegeneratingSectionId(null);
+    }
+  }
+
   async function handleGenerateAllAi() {
     const aiSections = sections.filter((s) => s.regeneratable);
     if (aiSections.length === 0 || isGeneratingAllAi) return;
@@ -1258,6 +1335,79 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     await executeDownloadPdf();
   }
 
+  async function handleDownloadDocx() {
+    const sectionsPayload = sections.map((s) => ({
+      title: s.title,
+      content: sectionContents[s.id] ?? s.content,
+    }));
+
+    try {
+      const res = await fetch("/api/export/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: template.name,
+          studentName: displayStudentName,
+          documentType: activeDocumentType,
+          sections: sectionsPayload,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate DOCX");
+      const blob = await res.blob();
+      const safeName = displayStudentName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `${safeName}_${activeDocumentType}.docx`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "DOCX export failed";
+      setAiBannerNotice({ type: "error", message: msg });
+    }
+  }
+
+  async function handleDownloadVectorPdf() {
+    const sectionsPayload = sections.map((s) => ({
+      title: s.title,
+      content: sectionContents[s.id] ?? s.content,
+    }));
+
+    try {
+      const res = await fetch("/api/export/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: template.name,
+          studentName: displayStudentName,
+          documentType: activeDocumentType,
+          sections: sectionsPayload,
+          maxPages: activeDocumentType === "VISA_COVER_LETTER" ? 1 : 2,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to generate Vector PDF");
+      const blob = await res.blob();
+      const safeName = displayStudentName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const filename = `${safeName}_${activeDocumentType}_Vector.pdf`;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Vector PDF export failed";
+      setAiBannerNotice({ type: "error", message: msg });
+    }
+  }
+
   // Selected section (falls back to first section if current selection doesn't exist in active template)
   const effectiveSelectedId = useMemo(() => {
     if (selectedSectionId && sections.some((s) => s.id === selectedSectionId)) {
@@ -1317,6 +1467,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         onGenerateAllAi={handleGenerateAllAi}
         isGeneratingAllAi={isGeneratingAllAi}
         onDownloadPdf={handleDownloadPdf}
+        onDownloadDocx={handleDownloadDocx}
+        onDownloadVectorPdf={handleDownloadVectorPdf}
         isGeneratingPdf={isGeneratingPdf}
         totalWordCount={totalWordCount}
         isStudentLoaded={isStudentLoaded}
@@ -1331,6 +1483,8 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         onToggleContext={() => setIsContextCollapsed((prev) => !prev)}
         isStoryStructureOpen={showStoryStructure}
         onToggleStoryStructure={() => setShowStoryStructure((prev) => !prev)}
+        isAiAssistantOpen={showAiAssistant}
+        onToggleAiAssistant={() => setShowAiAssistant((prev) => !prev)}
       />
 
       {/* Academic Mismatch / Stale / Unknown Banner */}
@@ -1403,6 +1557,28 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
             groups={template.sidebarGroups}
             onClose={() => setShowStoryStructure(false)}
           />
+        )}
+
+        {/* Left: Admissions AI Assistant Drawer */}
+        {showAiAssistant && (
+          <div className="relative z-20 flex-shrink-0 flex h-full shadow-lg">
+            <AdmissionsAiAssistant
+              isAiLoading={isFloatingAiLoading || regeneratingSectionId !== null}
+              onRunAction={(actionKey, customInstruction) => {
+                let prompt = customInstruction || "";
+                if (actionKey === "HINGLISH_ELEVATE") {
+                  prompt = "Fix Hinglish and colloquial phrasing into articulate, authentic academic English.";
+                } else if (actionKey === "ALIGN_SYLLABUS") {
+                  prompt = "Align this section closely with target syllabus modules and academic prerequisites.";
+                } else if (actionKey === "STUDY_GAP") {
+                  prompt = "Justify the study gap or academic pivot positively and convincingly.";
+                } else if (actionKey === "TRIM_BUDGET") {
+                  prompt = "Condense and trim this paragraph to fit tightly into a 1-page budget without losing concrete evidence.";
+                }
+                handleRunTargetedAi(prompt, actionKey);
+              }}
+            />
+          </div>
         )}
 
         {/* Center: Document-First Canvas Workspace */}
@@ -1489,6 +1665,28 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                     : "Official Embassy Letter · Single-Page A4"}
                 </span>
               </div>
+
+              {/* Floating Canva-Style Contextual AI Toolbar */}
+              <CanvaFloatingToolbar
+                currentWordCount={totalWordCount}
+                maxWords={isUniversitySop ? 1000 : 650}
+                currentPage={1}
+                maxPages={isUniversitySop ? 2 : 1}
+                onAskAi={(prompt) => handleRunTargetedAi(prompt)}
+                isAiLoading={isFloatingAiLoading || regeneratingSectionId !== null}
+                onBold={() => {
+                  const secId = effectiveSelectedId;
+                  if (!secId) return;
+                  const current = sectionContents[secId] ?? "";
+                  handleContentChange(secId, `**${current.replace(/^\*\*|\*\*$/g, "")}**`);
+                }}
+                onItalic={() => {
+                  const secId = effectiveSelectedId;
+                  if (!secId) return;
+                  const current = sectionContents[secId] ?? "";
+                  handleContentChange(secId, `*${current.replace(/^\*|\*$/g, "")}*`);
+                }}
+              />
 
               {/* Centered A4 Full Document Paper Canvas */}
               <div className="w-full flex justify-center pb-16">
