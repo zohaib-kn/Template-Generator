@@ -16,7 +16,17 @@ export function GoogleDocsDashboard() {
   const [isLaunchModalOpen, setIsLaunchModalOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateRecord>(SEED_TEMPLATES[0]);
   const [modalStudentId, setModalStudentId] = useState<string>(selectedStudentId || "");
+  const [modalStudentSearch, setModalStudentSearch] = useState<string>("");
+  const [selectedDocCategory, setSelectedDocCategory] = useState<"SOP_VISA" | "RESUME" | "LOR">("SOP_VISA");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const filteredModalStudents = useMemo(() => {
+    if (!modalStudentSearch.trim()) return students;
+    const q = modalStudentSearch.toLowerCase();
+    return students.filter(
+      (s) => s.name.toLowerCase().includes(q) || (s.email ?? "").toLowerCase().includes(q)
+    );
+  }, [students, modalStudentSearch]);
 
   // Mock / cached recent student document history for the dashboard grid
   const recentDocuments = useMemo(() => {
@@ -69,8 +79,17 @@ export function GoogleDocsDashboard() {
     return matchesFilter && matchesSearch;
   });
 
-  const handleOpenLaunchModal = (tpl: TemplateRecord) => {
-    setSelectedTemplate(tpl);
+  const handleOpenLaunchModal = (tpl?: TemplateRecord) => {
+    const targetTpl = tpl || SEED_TEMPLATES[0];
+    setSelectedTemplate(targetTpl);
+    if (targetTpl.documentType === "RESUME") {
+      setSelectedDocCategory("RESUME");
+    } else if (targetTpl.documentType === "LOR") {
+      setSelectedDocCategory("LOR");
+    } else {
+      setSelectedDocCategory("SOP_VISA");
+    }
+    setModalStudentSearch("");
     setModalStudentId(selectedStudentId || (students[0]?.id ?? "6a508a96af13bb33e9fc07ce"));
     setIsLaunchModalOpen(true);
   };
@@ -85,13 +104,13 @@ export function GoogleDocsDashboard() {
       setIsGenerating(false);
       setIsLaunchModalOpen(false);
       if (selectedTemplate.documentType === "RESUME") {
-        router.push(`/?student=${modalStudentId}&template=${selectedTemplate.id}`);
+        router.push(`/resume-builder?student=${modalStudentId}&template=${selectedTemplate.id}`);
       } else if (selectedTemplate.documentType === "LOR") {
         router.push(`/lor-generator?student=${modalStudentId}&template=${selectedTemplate.id}`);
       } else {
         router.push(`/sop-generator?student=${modalStudentId}&template=${selectedTemplate.id}`);
       }
-    }, 400);
+    }, 350);
   };
 
   return (
@@ -220,15 +239,7 @@ export function GoogleDocsDashboard() {
 
             {/* Template 3: Europass Resume */}
             <div
-              onClick={() => {
-                const tpl: TemplateRecord = {
-                  ...SEED_TEMPLATES[0],
-                  id: "europass-academic-cv",
-                  name: "Europass Academic CV",
-                  documentType: "RESUME",
-                };
-                handleOpenLaunchModal(tpl);
-              }}
+              onClick={() => handleOpenLaunchModal(SEED_TEMPLATES[2])}
               className="template-gallery-card bg-white border border-slate-200 rounded-xl p-3 flex flex-col cursor-pointer min-h-[170px]"
             >
               <div className="w-full h-24 bg-gradient-to-b from-slate-50 to-slate-100 rounded-md border border-slate-200/60 p-2.5 flex flex-col justify-between mb-2">
@@ -250,15 +261,7 @@ export function GoogleDocsDashboard() {
 
             {/* Template 4: Academic LOR */}
             <div
-              onClick={() => {
-                const tpl: TemplateRecord = {
-                  ...SEED_TEMPLATES[0],
-                  id: "academic-recommendation-hod",
-                  name: "Academic Recommendation (LOR)",
-                  documentType: "LOR",
-                };
-                handleOpenLaunchModal(tpl);
-              }}
+              onClick={() => handleOpenLaunchModal(SEED_TEMPLATES[3])}
               className="template-gallery-card bg-white border border-slate-200 rounded-xl p-3 flex flex-col cursor-pointer min-h-[170px]"
             >
               <div className="w-full h-24 bg-gradient-to-b from-slate-50 to-slate-100 rounded-md border border-slate-200/60 p-2.5 flex flex-col justify-between mb-2">
@@ -355,71 +358,225 @@ export function GoogleDocsDashboard() {
         </section>
       </main>
 
-      {/* ── 2-Click Launch Modal ─────────────────────────────────────────── */}
+      {/* ── 2-Click Launch Modal with Document Choice & Searchable Student Roster ── */}
       {isLaunchModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 p-6 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-slate-900">
-                Generate Application Document
-              </h3>
-              <button
-                onClick={() => setIsLaunchModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                ✕
-              </button>
-            </div>
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Create New Document
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pick document type & student profile for instant deterministic hydration.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLaunchModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition"
+                >
+                  ✕
+                </button>
+              </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  1. Target Template Skeleton (Approved & Locked)
-                </label>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-semibold text-slate-900">
-                      {selectedTemplate.name}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {selectedTemplate.targetCountry || "Global"} · {selectedTemplate.printLayout?.maxPages || 1} Page Budget
-                    </div>
+              <div className="space-y-4">
+                {/* ── STEP 1: Select Document Type (2 Core Categories) ── */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    1. Choose Document Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2.5 mb-2.5">
+                    {/* Option 1: Statement of Purpose / Visa Cover Letter */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDocCategory("SOP_VISA");
+                        setSelectedTemplate(SEED_TEMPLATES[0]);
+                      }}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        selectedDocCategory === "SOP_VISA"
+                          ? "border-blue-600 bg-blue-50/70 ring-2 ring-blue-100"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xl">📄</span>
+                        {selectedDocCategory === "SOP_VISA" && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <div className="text-xs font-bold text-slate-900">SOP & Visa Letter</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">Admissions SOP or Embassy Letter</div>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Academic Resume / CV */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDocCategory("RESUME");
+                        setSelectedTemplate(SEED_TEMPLATES[2]);
+                      }}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        selectedDocCategory === "RESUME"
+                          ? "border-purple-600 bg-purple-50/70 ring-2 ring-purple-100"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xl">💼</span>
+                        {selectedDocCategory === "RESUME" && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-purple-600" />
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <div className="text-xs font-bold text-slate-900">Academic CV / Resume</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">Europass 2-Column Academic CV</div>
+                      </div>
+                    </button>
                   </div>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded">
-                    LOCKED
-                  </span>
+
+                  {/* Sub-template radio pill switcher */}
+                  {selectedDocCategory === "SOP_VISA" && (
+                    <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplate(SEED_TEMPLATES[0])}
+                        className={`flex-1 py-1.5 px-2.5 rounded-lg text-left text-xs transition border ${
+                          selectedTemplate.id === SEED_TEMPLATES[0].id
+                            ? "bg-white border-blue-500 shadow-xs font-semibold text-blue-900"
+                            : "border-transparent text-slate-600 hover:bg-white/60"
+                        }`}
+                      >
+                        <span className="font-semibold">🇮🇹 Italy Visa Letter</span>
+                        <span className="text-[10px] text-slate-400 block">1-Page Embassy A4</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplate(SEED_TEMPLATES[1])}
+                        className={`flex-1 py-1.5 px-2.5 rounded-lg text-left text-xs transition border ${
+                          selectedTemplate.id === SEED_TEMPLATES[1].id
+                            ? "bg-white border-blue-500 shadow-xs font-semibold text-blue-900"
+                            : "border-transparent text-slate-600 hover:bg-white/60"
+                        }`}
+                      >
+                        <span className="font-semibold">🎓 University SOP</span>
+                        <span className="text-[10px] text-slate-400 block">Academic Admissions</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── STEP 2: Searchable Student Dropdown ── */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      2. Select Student Profile (Searchable CRM)
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      {students.length} students loaded
+                    </span>
+                  </div>
+
+                  {/* Live Search Input */}
+                  <div className="relative mb-2">
+                    <input
+                      type="text"
+                      value={modalStudentSearch}
+                      onChange={(e) => setModalStudentSearch(e.target.value)}
+                      placeholder="🔍 Type student name or email to filter..."
+                      className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 focus:bg-white transition"
+                    />
+                    {modalStudentSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setModalStudentSearch("")}
+                        className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Scrollable Student Roster */}
+                  <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white shadow-2xs">
+                    {filteredModalStudents.map((s) => {
+                      const isSelected = modalStudentId === s.id;
+                      const initials = s.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase() || "ST";
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setModalStudentId(s.id)}
+                          className={`w-full text-left px-3 py-2 flex items-center justify-between transition cursor-pointer ${
+                            isSelected ? "bg-blue-50/80 text-blue-900" : "hover:bg-slate-50 text-slate-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-6 h-6 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{s.name}</div>
+                              {s.email && <div className="text-[10px] text-slate-400 truncate">{s.email}</div>}
+                            </div>
+                          </div>
+                          {isSelected ? (
+                            <span className="text-blue-600 font-bold text-xs shrink-0">✓ Selected</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 shrink-0">Select</span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    {filteredModalStudents.length === 0 && (
+                      <div className="p-4 text-center text-xs text-slate-400">
+                        No students match &quot;{modalStudentSearch}&quot;.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick-Pick Benchmark Personas */}
+                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-400 font-medium">Quick benchmarks:</span>
+                    <button
+                      type="button"
+                      onClick={() => setModalStudentId("6a508a96af13bb33e9fc07ce")}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                        modalStudentId === "6a508a96af13bb33e9fc07ce"
+                          ? "bg-blue-600 text-white border-blue-600 font-semibold"
+                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      Aarav Mehta (Italy)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalStudentId("69e600e750f7c6e4051f547e")}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
+                        modalStudentId === "69e600e750f7c6e4051f547e"
+                          ? "bg-blue-600 text-white border-blue-600 font-semibold"
+                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      Kaavya (France)
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  2. Select Student Profile
-                </label>
-                <select
-                  value={modalStudentId}
-                  onChange={(e) => setModalStudentId(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="">-- Choose a Student --</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} {s.email ? `(${s.email})` : ""}
-                    </option>
-                  ))}
-                  {students.length === 0 && (
-                    <>
-                      <option value="6a508a96af13bb33e9fc07ce">Aarav Mehta (Italy · Master&apos;s)</option>
-                      <option value="69e600e750f7c6e4051f547e">Kaavya (France · Master&apos;s)</option>
-                    </>
-                  )}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Active target: {applicationTarget.destinationCountry || "Italy"} · {applicationTarget.intendedCourse || "Master's"}
-                </p>
-              </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            {/* Modal Footer Controls */}
+            <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setIsLaunchModalOpen(false)}
@@ -440,7 +597,7 @@ export function GoogleDocsDashboard() {
                   </>
                 ) : (
                   <>
-                    <span>✨ Generate & Open Live Studio</span>
+                    <span>✨ Launch {selectedTemplate.name.split(" ")[0]} Studio</span>
                   </>
                 )}
               </button>
