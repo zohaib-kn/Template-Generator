@@ -11,11 +11,40 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const imageUrl = searchParams.get("url")?.trim();
 
-  // 1. Validate URL parameter
+  // 1. Validate URL parameter and enforce SSRF protections
   if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
     return NextResponse.json(
       { error: "Invalid or missing image URL parameter. Must be an http/https URL." },
       { status: 400 }
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(imageUrl);
+  } catch {
+    return NextResponse.json({ error: "Malformed URL format." }, { status: 400 });
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block private IPs, loopbacks, and cloud metadata services
+  const isPrivate =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "169.254.169.254" ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".local") ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^169\.254\./.test(hostname);
+
+  if (isPrivate) {
+    return NextResponse.json(
+      { error: "Access to private or internal network addresses is forbidden." },
+      { status: 403 }
     );
   }
 

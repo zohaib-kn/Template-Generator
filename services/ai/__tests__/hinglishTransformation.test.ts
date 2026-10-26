@@ -164,8 +164,7 @@ describe("Hinglish → Natural English Transformation Tests", () => {
   // -------------------------------------------------------------------------
   test("TEST 7: User canceling leaves original text untouched", () => {
     const originalText = "Maine B.Com complete kiya.";
-    let formState = originalText;
-    const suggestedText = "I completed my Bachelor of Commerce.";
+    const formState = originalText;
 
     // Simulating UX state machine
     let isReviewing = true;

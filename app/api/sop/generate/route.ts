@@ -62,6 +62,7 @@ export interface GenerateSectionRequest {
   currentContent?: string;
   mode?: "generate" | "rewrite-natural";
   documentType?: SopDocumentType;
+  instruction?: string;
 }
 
 // Fast Flash models cascade
@@ -159,6 +160,7 @@ export async function POST(req: NextRequest) {
     currentContent,
     mode = "generate",
     documentType = "VISA_COVER_LETTER",
+    instruction,
   } = body;
 
   if (!sectionId || !context) {
@@ -424,6 +426,7 @@ export async function POST(req: NextRequest) {
     mode,
     documentType,
     alignmentContext: safeEvidencePacket,
+    customInstruction: instruction,
   });
 
   lastGeneratedPrompt = prompt;

@@ -88,13 +88,6 @@ function SparklesIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   );
 }
 
-function CheckIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
 
 function DownloadIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
   return (
@@ -138,6 +131,8 @@ interface WorkspaceHeaderProps {
   onGenerateAllAi?: () => void;
   isGeneratingAllAi?: boolean;
   onDownloadPdf?: () => void;
+  onDownloadDocx?: () => void;
+  onDownloadVectorPdf?: () => void;
   isGeneratingPdf?: boolean;
   totalWordCount?: number;
   // Document Type Switching
@@ -159,6 +154,8 @@ interface WorkspaceHeaderProps {
   onToggleContext?: () => void;
   isStoryStructureOpen?: boolean;
   onToggleStoryStructure?: () => void;
+  isAiAssistantOpen?: boolean;
+  onToggleAiAssistant?: () => void;
 }
 
 const DOC_STATUS_LABELS: Record<string, { label: string; colors: string }> = {
@@ -188,6 +185,8 @@ export function WorkspaceHeader({
   onGenerateAllAi,
   isGeneratingAllAi = false,
   onDownloadPdf,
+  onDownloadDocx,
+  onDownloadVectorPdf,
   isGeneratingPdf = false,
   totalWordCount,
   activeDocumentType = "VISA_COVER_LETTER",
@@ -206,6 +205,8 @@ export function WorkspaceHeader({
   onToggleContext,
   isStoryStructureOpen = false,
   onToggleStoryStructure,
+  isAiAssistantOpen = false,
+  onToggleAiAssistant,
 }: WorkspaceHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -437,6 +438,24 @@ export function WorkspaceHeader({
             </button>
           )}
 
+          {/* Admissions AI Panel Toggle */}
+          {onToggleAiAssistant && (
+            <button
+              type="button"
+              id="sop-toggle-ai-assistant-btn"
+              onClick={onToggleAiAssistant}
+              className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                isAiAssistantOpen
+                  ? "bg-purple-50 border-purple-300 text-purple-900 font-semibold"
+                  : "bg-white border-slate-200/90 text-slate-600 hover:bg-slate-50"
+              }`}
+              title={isAiAssistantOpen ? "Hide Admissions AI" : "Open Admissions AI"}
+            >
+              <SparklesIcon className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">Admissions AI</span>
+            </button>
+          )}
+
           {/* Preview CTA */}
           <button
             type="button"
@@ -573,6 +592,44 @@ export function WorkspaceHeader({
                         {draftCount}
                       </span>
                     )}
+                  </button>
+                )}
+
+                {/* Export Word Document (.docx) */}
+                {onDownloadDocx && (
+                  <button
+                    type="button"
+                    id="sop-header-export-docx-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDownloadDocx();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-blue-700 cursor-pointer font-medium"
+                    role="menuitem"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="font-bold text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">DOCX</span>
+                      <span>Export Word Document</span>
+                    </span>
+                  </button>
+                )}
+
+                {/* Export Vector PDF */}
+                {onDownloadVectorPdf && (
+                  <button
+                    type="button"
+                    id="sop-header-export-vector-pdf-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDownloadVectorPdf();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center justify-between text-red-700 cursor-pointer font-medium"
+                    role="menuitem"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="font-bold text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded">PDF</span>
+                      <span>Export Vector PDF (A4)</span>
+                    </span>
                   </button>
                 )}
 
