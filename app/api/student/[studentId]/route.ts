@@ -3,6 +3,8 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_Kaavya.json";
 import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fardee.json";
 
+import { getSampleMirzaFarhanZaidSnapshot, getSampleAaravMehtaSnapshot, getSampleAafiaAmeenSnapshot } from "@/lib/sampleStudents";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -52,6 +54,15 @@ function getCachedSnapshot(studentId: string): CrmSnapshot | null {
   if (normalized === "69e600e750f7c6e4051f547e") {
     return fardeeSnapshot as unknown as CrmSnapshot;
   }
+  if (normalized === "sample-mirza-farhan-zaid" || normalized.includes("mirza")) {
+    return getSampleMirzaFarhanZaidSnapshot();
+  }
+  if (normalized === "sample-aarav-mehta" || normalized.includes("aarav")) {
+    return getSampleAaravMehtaSnapshot();
+  }
+  if (normalized === "sample-aafia-ameen" || normalized.includes("aafia")) {
+    return getSampleAafiaAmeenSnapshot();
+  }
   return null;
 }
 
@@ -75,7 +86,20 @@ export async function GET(
   const { studentId } = await context.params;
   const trimmedId = studentId?.trim();
 
-  // 1. Validate studentId format (MongoDB 24-char hex ObjectId)
+  // 1. Check development cached / sample snapshots first
+  if (trimmedId) {
+    const cached = getCachedSnapshot(trimmedId);
+    if (cached) {
+      return NextResponse.json<StudentSuccessResponse>({
+        success: true,
+        source: "cached-snapshot",
+        studentId: trimmedId,
+        data: cached,
+      });
+    }
+  }
+
+  // 2. Validate studentId format (MongoDB 24-char hex ObjectId)
   if (!trimmedId || !MONGO_OBJECT_ID_REGEX.test(trimmedId)) {
     return NextResponse.json<StudentErrorResponse>(
       {

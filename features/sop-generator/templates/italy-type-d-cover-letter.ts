@@ -2,16 +2,16 @@
  * Italy – Long-Term Type D Student Visa Cover Letter
  * Template ID: italy-type-d-student-visa-cover-letter
  *
- * Professional Single-Page Embassy Format.
+ * Professional Master Consular Letter Format.
  *
  * All 16 structured sections are preserved so sidebar navigation,
  * review statuses, and validation checks remain completely functional.
  *
- * Text is written in natural, authentic human student voice:
- * - Zero AI clichés (no Galileo/Copernicus namedropping, no brochure marketing fluff)
+ * Exact master text from SOP-Copilet:
+ * - Flowing formal prose matching embassy guidelines
+ * - Padua 800 years of academic excellence, Galileo Galilei, Nicolaus Copernicus, William Harvey
+ * - Credila Financial Services loan breakdown disbursed into HSBC Bank account
  * - All placeholder paths accurately mapped (tests.ielts.*, insurance.fromDate/toDate, travel.origin/destination)
- * - Zero word duplications
- * - Concise, high-density format fitting strictly on a single A4 page.
  */
 
 import type { SopTemplate } from "../types/sop-generator";
@@ -64,7 +64,8 @@ The Respected Visa Officer,
 {{destination.consulateAddress}}.`,
       sourceFacts: {
         Consulate: "{{destination.consulate}}",
-        Address: "{{destination.consulateAddress}}",
+        City: "{{destination.consulateCity}}",
+        Country: "{{destination.country}}",
       },
     },
 
@@ -94,12 +95,12 @@ The Respected Visa Officer,
       order: 3,
       editable: true,
       regeneratable: true,
-      content: `My name is **{{student.fullName}}**, an Indian citizen from {{student.city}}, India. I am writing to respectfully submit my application for an Italian Long-Stay Type D Student Visa to pursue full-time studies in the **{{destination.course}}** programme at the **{{destination.university}}**, commencing in **{{destination.intakeMonth}} {{destination.intakeYear}}**. I hold a valid Indian passport bearing number **{{student.passportNumber}}**, and reside at {{student.address}}.`,
+      content: `My name is **{{student.fullName}}**, and I am from **{{student.city}}, {{student.country}}**.`,
       sourceFacts: {
         "Full Name": "{{student.fullName}}",
         Nationality: "{{student.nationality}}",
-        "Passport Number": "{{student.passportNumber}}",
-        Address: "{{student.address}}",
+        City: "{{student.city}}",
+        Country: "{{student.country}}",
       },
     },
 
@@ -112,7 +113,7 @@ The Respected Visa Officer,
       order: 4,
       editable: false,
       regeneratable: false,
-      content: `I completed my {{academics.latestQualification}} from **{{academics.institution}}**, under the {{academics.board}} in **{{academics.completionYear}}**, studying {{academics.subjects}} with an aggregate score of **{{academics.percentage}}**. To satisfy the English language proficiency requirements for this degree, I appeared for the IELTS Academic examination and secured an overall band of **{{tests.ielts.overall}}** (Listening: {{tests.ielts.listening}}, Reading: {{tests.ielts.reading}}, Writing: {{tests.ielts.writing}}, Speaking: {{tests.ielts.speaking}}).`,
+      content: `I completed my {{academics.latestQualification}} from **{{academics.institution}}**, under the **{{academics.board}}** in **{{academics.completionYear}}**, with **{{academics.subjects}}**. I remain grateful to my school and teachers for their guidance and support in shaping my academic journey. I also demonstrated my English language proficiency by securing an **overall {{tests.ielts.type}} band score of {{tests.ielts.overall}}**.{{tests.additionalTestsText}} I come from a family of {{family.count}}. My father is an **{{family.fatherOccupation}}**, and my mother is employed with **{{family.motherOccupation}}**. I also have {{family.siblingText}}, and my family has always encouraged me to pursue quality education and achieve my academic goals.`,
       sourceFacts: {
         Qualification: "{{academics.latestQualification}}",
         Institution: "{{academics.institution}}",
@@ -133,7 +134,7 @@ The Respected Visa Officer,
       order: 5,
       editable: true,
       regeneratable: true,
-      content: `Having developed a strong academic foundation in my prior studies, I selected **{{destination.course}}** because its curriculum offers comprehensive training tailored to contemporary professional standards. The balance between theoretical principles and practical application directly aligns with my career aspirations in this discipline.`,
+      content: `I have always enjoyed subjects that challenge me to think logically, especially {{academics.favoriteSubjects}}. As I explored different branches of engineering, I found **{{destination.course}}** the most interesting because it combines {{destination.courseDisciplines}} instead of focusing on just one field. Technology is evolving every day, and I know it will continue to change by the time I complete my degree. I want to build a strong understanding of these areas so that I am prepared to adapt, learn new technologies, and contribute confidently to the future of engineering.`,
       sourceFacts: {
         Course: "{{destination.course}}",
         Degree: "{{destination.degreeLevel}}",
@@ -150,7 +151,7 @@ The Respected Visa Officer,
       order: 6,
       editable: true,
       regeneratable: true,
-      content: `I chose **{{destination.university}}** because of its established academic reputation, distinguished faculty, and comprehensive English-taught curriculum. The institution's emphasis on high-quality coursework, research exposure, and modern academic resources makes it an ideal environment for my studies.`,
+      content: `I chose the **{{destination.university}}** because, for over **{{destination.universityHistory}}**, it has been a centre of academic excellence, where distinguished scholars such as **{{destination.distinguishedScholars}}** studied and taught, leaving a lasting impact on science and human knowledge. Their legacy inspires me to pursue my education in an institution that has nurtured generations of great thinkers. I also admire the university's continued commitment to high-quality teaching, research, innovation, and international collaboration, which I believe will provide me with an enriching learning environment and prepare me for a successful career in {{destination.course}}.`,
       sourceFacts: {
         University: "{{destination.university}}",
         City: "{{destination.city}}",
@@ -166,7 +167,7 @@ The Respected Visa Officer,
       order: 7,
       editable: true,
       regeneratable: true,
-      content: `Italy was my primary choice due to its world-renowned academic tradition, globally recognized degree framework, and accessible tuition structure for international students. The university's location in **{{destination.city}}** offers a safe, vibrant, and well-organized academic environment where I can concentrate fully on my studies.`,
+      content: `I chose **{{destination.country}}** because it is home to the **{{destination.university}}**, the institution that best matched my academic interests and career aspirations. {{destination.country}} is internationally recognized for the quality of its higher education, with its universities and engineering programmes earning strong global recognition for their academic standards and research. Another factor that influenced my decision was the country's climate, which is relatively similar to that of India. I believe this will help me adapt more comfortably to a new environment, allowing me to focus on my studies and make the most of my academic experience.`,
       sourceFacts: {
         Country: "{{destination.country}}",
         City: "{{destination.city}}",
@@ -182,7 +183,7 @@ The Respected Visa Officer,
       order: 8,
       editable: true,
       regeneratable: true,
-      content: `After completing my studies in **{{destination.course}}**, I intend to pursue advanced specialized studies or postgraduate research to further deepen my domain expertise.`,
+      content: `After completing my Bachelor's degree in {{destination.course}}, I intend to further advance my academic knowledge by pursuing a Master's degree in **{{destination.masterSpecialization}}**, depending on the specialization that best aligns with my interests and career goals.`,
       sourceFacts: {
         Duration: "{{destination.duration}}",
         Course: "{{destination.course}}",
@@ -198,7 +199,7 @@ The Respected Visa Officer,
       order: 9,
       editable: true,
       regeneratable: true,
-      content: `My objective is to build a successful professional career in my home country, applying the international methodologies and rigorous training acquired during my degree in **{{destination.course}}** to contribute meaningfully to the sector.`,
+      content: `**In the short term,** upon completing my higher education, I intend to return to India and begin my professional career in the country's rapidly growing technology sector. I hope to secure an entry-level engineering role where I can apply the technical knowledge and international exposure gained through my education in Italy while continuing to learn from experienced professionals and develop my practical skills. **In the long term,** I aspire to grow into positions of greater responsibility and contribute to the development of innovative technology solutions that address real-world challenges and support India's technological advancement.`,
       sourceFacts: {
         Course: "{{destination.course}}",
       },
@@ -213,7 +214,7 @@ The Respected Visa Officer,
       order: 10,
       editable: true,
       regeneratable: true,
-      content: `My personal and family ties are firmly rooted in my home country, where my family resides. My sponsor, **{{sponsor.name}}** (**{{sponsor.relationship}}**), has consistently supported my academic journey. Returning to my home country after graduation to advance my career and stay close to my family is a clear and committed priority.`,
+      content: `{{student.returnFamilyReason}}, returning to India is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`,
       sourceFacts: {
         Sponsor: "{{sponsor.name}}",
         Relationship: "{{sponsor.relationship}}",
@@ -230,7 +231,7 @@ The Respected Visa Officer,
       order: 11,
       editable: false,
       regeneratable: false,
-      content: `My education and living expenses in Italy are fully sponsored by my father, **{{sponsor.name}}** ({{sponsor.occupation}}, Annual Income: **{{sponsor.annualIncome}}**). He has secured an education loan of **{{finance.educationLoanAmount}}** from **{{finance.loanProvider}}**, supplemented by **{{finance.availableBalance}}** in personal savings, providing total available funds of **{{finance.totalFundsAvailable}}**. Complete documentation, including sanction letters, bank statements, and tax returns, is enclosed.`,
+      content: `My higher education and living expenses in Italy will be fully sponsored by my {{sponsor.relationship}}, {{sponsor.name}}. To finance my studies, he has obtained an education loan of **{{finance.educationLoanAmount}}** from {{finance.loanProvider}}, of which **{{finance.disbursedAmount}}** has been disbursed into his {{finance.bankAccount}} after the applicable insurance deductions. As of **{{finance.statementDate}}**, the account reflects an available balance of **{{finance.availableBalance}}** (approximately **{{finance.availableBalanceEur}}**, based on the exchange rate of **{{finance.exchangeRate}}**). My {{sponsor.relationship}} has undertaken full financial responsibility for my tuition fees, accommodation, living expenses, travel, medical insurance, and all other costs associated with my education and stay in Italy. He also has a CA-certified net worth of **{{finance.netWorth}}** and is a regular income tax assessee. In support of my application, I have enclosed the education loan sanction letter, bank statement, CA-certified net worth certificate, notarized sponsorship affidavit, and his Income Tax Returns for Assessment Years **{{finance.itrYears}}** as evidence of his financial capacity and commitment to sponsoring my education.`,
       sourceFacts: {
         "Sponsor Name": "{{sponsor.name}}",
         Occupation: "{{sponsor.occupation}}",
@@ -251,7 +252,7 @@ The Respected Visa Officer,
       order: 12,
       editable: false,
       regeneratable: false,
-      content: `I have confirmed accommodation at **{{accommodation.name}}**, {{accommodation.address}}, from **{{accommodation.fromDate}} to {{accommodation.toDate}}** (Booking Ref: **{{accommodation.bookingReference}}**), with booking confirmation attached.`,
+      content: `I have made all the necessary arrangements for my stay in Italy. I have secured temporary accommodation at **{{accommodation.nameAndAddress}}**, from **{{accommodation.fromDate}} to {{accommodation.toDate}}**, which will provide me with sufficient time to settle in and arrange my long-term accommodation after my arrival.`,
       sourceFacts: {
         "Accommodation Name": "{{accommodation.name}}",
         Address: "{{accommodation.address}}",
@@ -270,7 +271,7 @@ The Respected Visa Officer,
       order: 13,
       editable: false,
       regeneratable: false,
-      content: `I have obtained a comprehensive student health and travel insurance policy from **{{insurance.provider}}** (Policy No: **{{insurance.policyNumber}}**, Coverage: **{{insurance.coverageAmount}}**), valid from **{{insurance.fromDate}} to {{insurance.toDate}}**, meeting all Schengen visa requirements.`,
+      content: `I have also obtained a **{{insurance.policyType}} (Certificate No. {{insurance.policyNumber}})**, valid from **{{insurance.fromDate}} to {{insurance.toDate}}**, in compliance with the visa requirements.`,
       sourceFacts: {
         Provider: "{{insurance.provider}}",
         "Policy Number": "{{insurance.policyNumber}}",
@@ -289,7 +290,7 @@ The Respected Visa Officer,
       order: 14,
       editable: false,
       regeneratable: false,
-      content: `My flight arrangements are confirmed on **{{travel.airline}}** (Flight: **{{travel.flightNumber}}**) from {{travel.origin}} to **{{travel.destination}}** on **{{travel.travelDate}}** (PNR: **{{travel.pnr}}**), scheduled to arrive in time for my university enrollment.`,
+      content: `Additionally, I have confirmed my travel arrangements by booking an **{{travel.airline}}** flight from **{{travel.origin}}** to **{{travel.destination}}** via **{{travel.transit}}** for **{{travel.travelDate}}** under **PNR: {{travel.pnr}}**, ensuring my timely arrival in Italy before the commencement of my studies.`,
       sourceFacts: {
         Airline: "{{travel.airline}}",
         Flight: "{{travel.flightNumber}}",
@@ -309,7 +310,7 @@ The Respected Visa Officer,
       order: 15,
       editable: true,
       regeneratable: false,
-      content: `Thank you for your time and consideration of my visa application. I respectfully request your favourable review, and I remain available should you require any further documentation or information.`,
+      content: `Thank you for taking the time to review my application. I am truly eager to begin this new academic chapter at the **{{destination.university}}** and to make the most of the opportunities it offers. I respectfully request your kind and favourable consideration of my application for a Long-Term Type D Student Visa. Should you require any further information or supporting documentation, I would be pleased to provide it. Thank you once again for your time, consideration, and valued attention to my application.`,
       sourceFacts: {},
     },
 
@@ -322,10 +323,7 @@ The Respected Visa Officer,
       order: 16,
       editable: false,
       regeneratable: false,
-      content: `Sincerely,
-**{{student.fullName}}**
-Passport No: **{{student.passportNumber}}**
-Email: {{student.email}} | Phone: {{student.phone}}`,
+      content: `Sincerely,\n{{student.fullName}}\nEmail: **{{student.email}}**\nPhone: **{{student.phone}}**`,
       sourceFacts: {
         "Student Name": "{{student.fullName}}",
         Passport: "{{student.passportNumber}}",

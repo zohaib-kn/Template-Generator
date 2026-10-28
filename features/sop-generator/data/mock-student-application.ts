@@ -33,10 +33,10 @@ export const mockStudentApplication = {
   // ── Academic background ──────────────────────────────────────────────────
   academics: {
     latestQualification: "Class XII (Higher Secondary Certificate)",
-    institution: "Carmel Convent Higher Secondary School, Bhopal",
-    board: "Central Board of Secondary Education (CBSE)",
+    institution: "Carmel Convent Sr. Sec. School, Bhopal",
+    board: "CBSE curriculum",
     completionYear: "2026",
-    subjects: "Physics, Chemistry, Mathematics",
+    subjects: "Physics, Chemistry, and Mathematics",
     percentage: "88.6%",
     previousDegree: "",
   },
@@ -57,7 +57,7 @@ export const mockStudentApplication = {
   destination: {
     country: "Italy",
     city: "Padova",
-    university: "University of Padua (Università degli Studi di Padova)",
+    university: "Università degli Studi di Padova",
     course: "Bachelor's Degree in Information Engineering",
     degreeLevel: "Bachelor's (Laurea Triennale)",
     duration: "3 years",
@@ -65,7 +65,7 @@ export const mockStudentApplication = {
     intakeYear: "2026",
     consulate: "Consulate General of Italy",
     consulateCity: "Mumbai",
-    consulateAddress: "75 Peddar Road, Mumbai – 400 026, India",
+    consulateAddress: "Mumbai, India",
   },
 
   // ── Career goals ─────────────────────────────────────────────────────────
@@ -80,21 +80,25 @@ export const mockStudentApplication = {
 
   // ── Sponsor ──────────────────────────────────────────────────────────────
   sponsor: {
-    name: "Mohammed Ameen",
+    name: "Mr. Amin Jamali",
     relationship: "Father",
-    occupation: "Civil Engineer, Government of Madhya Pradesh",
-    annualIncome: "INR 14,00,000",
-    incomeSource: "Salary — State Government Employment",
+    occupation: "Insurance Surveyor",
+    annualIncome: "INR 18,00,000",
+    incomeSource: "Professional Practice",
   },
 
   // ── Financial information ────────────────────────────────────────────────
   finance: {
-    educationLoanAmount: "INR 20,00,000",
-    loanProvider: "State Bank of India",
-    bankName: "State Bank of India",
-    accountHolderName: "Mohammed Ameen",
-    availableBalance: "INR 8,50,000",
-    totalFundsAvailable: "INR 28,50,000",
+    educationLoanAmount: "INR 39,00,000 (Indian Rupees Thirty-Nine Lakh Only)",
+    loanProvider: "Credila Financial Services Limited",
+    bankName: "HSBC Bank",
+    accountHolderName: "Mr. Amin Jamali",
+    disbursedAmount: "INR 38,11,848",
+    bankAccount: "HSBC Bank Savings Account No. 053-059036-006",
+    statementDate: "23 July 2026",
+    availableBalance: "INR 38,11,848.00",
+    availableBalanceEur: "EUR 34,719.44",
+    totalFundsAvailable: "INR 38,11,848.00",
     currency: "INR",
   },
 

@@ -223,4 +223,21 @@ export interface NormalizedStudentProfile {
       address?: string;
     };
   };
+
+  /** Skills, languages, hobbies & certifications (Resume primary) */
+  skills?: string[];
+  certifications?: Array<{ name: string; provider?: string; date?: string; url?: string }>;
+  languages?: Array<{
+    language: string;
+    level?: string;
+    listening?: string;
+    reading?: string;
+    writing?: string;
+    spokenProduction?: string;
+    spokenInteraction?: string;
+    isMotherTongue?: boolean;
+  }>;
+  motherTongue?: string;
+  hobbies?: string[];
+  declaration?: string;
 }

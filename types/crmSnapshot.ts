@@ -62,6 +62,7 @@ export interface CrmAcademicQualification {
   stateOfStudy?: string;
   boardOrUniversity?: string;
   qualification?: string;     // e.g. "B.Com", "B.Tech"
+  fieldOfStudy?: string;
   institution?: string;
   cityOfStudy?: string;
   gradingSystem?: string;

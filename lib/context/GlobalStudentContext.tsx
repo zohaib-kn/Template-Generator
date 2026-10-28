@@ -29,7 +29,11 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
 import { mapCrmToNormalizedStudent } from "@/services/normalization/mapCrmToNormalizedStudent";
 import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
-import { getSampleAaravMehtaSnapshot, getSampleAafiaAmeenSnapshot } from "@/lib/sampleStudents";
+import {
+  getSampleAaravMehtaSnapshot,
+  getSampleAafiaAmeenSnapshot,
+  getSampleMirzaFarhanZaidSnapshot,
+} from "@/lib/sampleStudents";
 
 // ---------------------------------------------------------------------------
 // Constants & Storage Helpers
@@ -81,7 +85,7 @@ interface GlobalStudentContextValue {
 
   // Actions
   selectStudent: (id: string) => void;
-  loadSampleStudent: (key: "aarav-mehta" | "aafia-ameen") => void;
+  loadSampleStudent: (key: "aarav-mehta" | "aafia-ameen" | "mirza-farhan-zaid") => void;
   clearStudent: () => void;
 }
 
@@ -129,12 +133,21 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
     setApplicationTarget((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // ── Load Sample Student (Aarav Mehta or Aafia Ameen) ─────────────────────
-  const loadSampleStudent = useCallback((key: "aarav-mehta" | "aafia-ameen") => {
-    const isAarav = key === "aarav-mehta";
-    const studentId = isAarav ? "sample-aarav-mehta" : "sample-aafia-ameen";
-    const studentName = isAarav ? "Aarav Mehta" : "Aafia Ameen";
-    const snapshot = isAarav ? getSampleAaravMehtaSnapshot() : getSampleAafiaAmeenSnapshot();
+  // ── Load Sample Student ──────────────────────────────────────────────────
+  const loadSampleStudent = useCallback((key: "aarav-mehta" | "aafia-ameen" | "mirza-farhan-zaid") => {
+    let studentId = "sample-aarav-mehta";
+    let studentName = "Aarav Mehta";
+    let snapshot = getSampleAaravMehtaSnapshot();
+
+    if (key === "mirza-farhan-zaid") {
+      studentId = "sample-mirza-farhan-zaid";
+      studentName = "Mirza Farhan Zaid";
+      snapshot = getSampleMirzaFarhanZaidSnapshot();
+    } else if (key === "aafia-ameen") {
+      studentId = "sample-aafia-ameen";
+      studentName = "Aafia Ameen";
+      snapshot = getSampleAafiaAmeenSnapshot();
+    }
 
     // Update URL query param for consistency
     if (typeof window !== "undefined") {
@@ -216,6 +229,10 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const selectStudent = useCallback(async (id: string) => {
     if (!id) return;
 
+    if (id === "sample-mirza-farhan-zaid") {
+      loadSampleStudent("mirza-farhan-zaid");
+      return;
+    }
     if (id === "sample-aarav-mehta") {
       loadSampleStudent("aarav-mehta");
       return;

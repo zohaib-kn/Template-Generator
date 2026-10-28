@@ -11,3 +11,4 @@ export { mapNormalizedToResume } from "./mapNormalizedToResume";
 export type { ResumeProjectionResult } from "./mapNormalizedToResume";
 
 export { mapNormalizedToSop } from "./mapNormalizedToSop";
+export { synthesizeEuropassAboutMe } from "./synthesizeEuropassAboutMe";

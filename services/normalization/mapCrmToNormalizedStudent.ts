@@ -248,7 +248,16 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
     toScoreString(targetTest.testReportFormNumber) ||
     toScoreString(anyT.trf) ||
     toScoreString(anyT.trfNo) ||
-    toScoreString(anyT.testReportFormNo);
+    toScoreString(anyT.trfNumber) ||
+    toScoreString(anyT.testReportFormNo) ||
+    toScoreString(anyT.testReportFormNumber) ||
+    toScoreString(anyT.test_report_form_number) ||
+    toScoreString(anyT.trf_number) ||
+    toScoreString(anyT.candidateNumber) ||
+    toScoreString(anyT.candidateNo) ||
+    toScoreString(anyT.testReportForm) ||
+    toScoreString((targetTest.subscores as Record<string, any>)?.trfNumber) ||
+    toScoreString(anyT.subScores?.trfNumber);
 
   const overallScore =
     toScoreString(targetTest.overallScore) ||
@@ -268,7 +277,14 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
   return {
     type: (targetTest as { type?: string }).type || (targetTest as { testName?: string }).testName || (targetTest as { name?: string }).name || "IELTS",
     overallScore,
-    testDate: toDateOnly(targetTest.testDate || anyT.dateTaken || anyT.dateOfExam || anyT.examDate),
+    testDate: toDateOnly(
+      targetTest.testDate ||
+      anyT.dateTaken ||
+      anyT.dateOfExam ||
+      anyT.examDate ||
+      anyT.issueDate ||
+      anyT.dateOfIssue
+    ),
     subscores,
     trfNumber,
     waiver: targetTest.waiver,
@@ -703,6 +719,6 @@ export function mapCrmToNormalizedStudent(
     },
     family,
     finance,
-    visaLogistics: undefined, // Unpopulated; populated via manual overrides or SOP workspace in later phases
+    visaLogistics: (snapshot as any).visaLogistics || (snapshot.student as any)?.visaLogistics || undefined,
   };
 }

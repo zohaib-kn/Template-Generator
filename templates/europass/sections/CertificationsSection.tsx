@@ -30,101 +30,64 @@ export const CertificationsSection = memo(function CertificationsSection({
       {showTitle && (
         <EuropassSectionTitle title={title || "CERTIFICATIONS"} />
       )}
-      {visible.map((cert) => (
-        <div key={cert.id} className={styles.educationEntry}>
-          {isInteractive && onUpdate ? (
-            <EditableText
-              value={cert.name ?? ""}
-              onChange={(v) => onUpdate(cert.id, { name: v })}
-              isInteractive={isInteractive}
-              className={styles.qualificationTitle}
-              placeholder="Certification Name"
-              as="h3"
-            />
-          ) : (
-            cert.name && (
-              <h3 className={styles.qualificationTitle}>{cert.name}</h3>
-            )
-          )}
-
-          {(isInteractive || cert.provider || cert.completionDate) && (
-            <div className={styles.institutionRow}>
+      <div className={styles.certList}>
+        {visible.map((cert) => (
+          <div key={cert.id} className={styles.certItem}>
+            <div className={styles.certTitleRow}>
+              <span className={styles.hobbiesBulletDot}>•</span>
               {isInteractive && onUpdate ? (
                 <EditableText
-                  value={cert.provider ?? ""}
-                  onChange={(v) => onUpdate(cert.id, { provider: v })}
+                  value={cert.name ?? ""}
+                  onChange={(v) => onUpdate(cert.id, { name: v })}
                   isInteractive={isInteractive}
-                  className={styles.institutionName}
-                  placeholder="Issuing Provider / Authority"
+                  className={styles.certTitleText}
+                  placeholder="Certification Name"
                 />
               ) : (
-                cert.provider && (
-                  <span className={styles.institutionName}>{cert.provider}</span>
-                )
+                <span className={styles.certTitleText}>{cert.name}</span>
               )}
-              {(isInteractive || cert.completionDate) && (
-                <span className={styles.datesBadge}>
-                  [{" "}
-                  {isInteractive && onUpdate ? (
-                    <EditableText
-                      value={cert.completionDate ?? ""}
-                      onChange={(v) => onUpdate(cert.id, { completionDate: v })}
-                      isInteractive={isInteractive}
-                      placeholder="Date"
-                    />
-                  ) : (
-                    cert.completionDate
-                  )}{" "}
-                  ]
-                </span>
+              {cert.completionDate && (
+                <span className={styles.datesBadge}>[{cert.completionDate}]</span>
               )}
             </div>
-          )}
 
-          {isInteractive && onUpdate ? (
-            <EditableText
-              value={cert.description ?? ""}
-              onChange={(v) => onUpdate(cert.id, { description: v })}
-              isInteractive={isInteractive}
-              multiline
-              className={styles.educationDetails}
-              placeholder="Key skills learned / certification details..."
-            />
-          ) : (
-            cert.description && (
-              <div className={styles.educationDetails}>{cert.description}</div>
-            )
-          )}
+            {(isInteractive || cert.provider) && (
+              <div className={styles.certProviderText}>
+                {isInteractive && onUpdate ? (
+                  <EditableText
+                    value={cert.provider ?? ""}
+                    onChange={(v) => onUpdate(cert.id, { provider: v })}
+                    isInteractive={isInteractive}
+                    placeholder="Issuing Provider (e.g. Coursera)"
+                  />
+                ) : (
+                  <span>{cert.provider}</span>
+                )}
+              </div>
+            )}
 
-          {(isInteractive || cert.credentialLink) && (
-            <div className={styles.entryLinkRow}>
-              {isInteractive && onUpdate ? (
-                <EditableText
-                  value={cert.credentialLink ?? ""}
-                  href={cert.credentialLink ? normalizePdfUrl(cert.credentialLink) : undefined}
-                  onChange={(v) => onUpdate(cert.id, { credentialLink: v })}
-                  isInteractive={isInteractive}
+            {cert.description && (
+              <div className={styles.educationDetails} style={{ paddingLeft: "3.5mm" }}>
+                {cert.description}
+              </div>
+            )}
+
+            {cert.credentialLink && (
+              <div className={styles.entryLinkRow} style={{ paddingLeft: "3.5mm" }}>
+                <a
+                  href={normalizePdfUrl(cert.credentialLink)}
+                  target="_blank"
+                  rel="noreferrer"
                   className={styles.blueLink}
-                  placeholder="Credential URL"
-                  as="a"
-                />
-              ) : (
-                cert.credentialLink && (
-                  <a
-                    href={normalizePdfUrl(cert.credentialLink)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={styles.blueLink}
-                    data-pdf-link={normalizePdfUrl(cert.credentialLink)}
-                  >
-                    {cert.credentialLink}
-                  </a>
-                )
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+                  data-pdf-link={normalizePdfUrl(cert.credentialLink)}
+                >
+                  {cert.credentialLink}
+                </a>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 });

@@ -69,36 +69,130 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
       {/* Other languages */}
       {(isInteractive || otherLanguages.length > 0) && (
         <div className={styles.otherLanguagesRow}>
-          <span className={styles.identityLabel}>Other language(s):</span>{" "}
-          <span className={styles.identityValue}>
-            {isInteractive && onUpdateEntry ? (
-              otherLanguages.map((lang, idx) => (
-                <span key={lang.id || idx}>
-                  {idx > 0 && ", "}
-                  <EditableText
-                    value={lang.language ?? ""}
-                    onChange={(v) => onUpdateEntry(lang.id, { language: v })}
-                    isInteractive={isInteractive}
-                    placeholder="Language"
-                  />
-                  <span> (</span>
-                  <EditableText
-                    value={lang.level ?? ""}
-                    onChange={(v) => onUpdateEntry(lang.id, { level: v })}
-                    isInteractive={isInteractive}
-                    placeholder="Level e.g. B2"
-                  />
-                  <span>)</span>
-                </span>
-              ))
-            ) : (
-              otherLanguages
-                .map((lang) =>
-                  lang.level ? `${lang.language} (${lang.level})` : lang.language
-                )
-                .join(", ")
-            )}
-          </span>
+          <div className={styles.identityLabel} style={{ marginBottom: "1.5mm" }}>
+            Other language(s):
+          </div>
+          {otherLanguages.map((lang, idx) => {
+            const hasCefr = Boolean(
+              lang.listening ||
+              lang.reading ||
+              lang.writing ||
+              lang.spokenProduction ||
+              lang.spokenInteraction ||
+              lang.level
+            );
+
+            if (hasCefr) {
+              return (
+                <div key={lang.id || idx} className={styles.cefrLanguageBlock}>
+                  {isInteractive && onUpdateEntry ? (
+                    <EditableText
+                      value={lang.language ?? ""}
+                      onChange={(v) => onUpdateEntry(lang.id, { language: v })}
+                      isInteractive={isInteractive}
+                      className={styles.cefrLanguageTitle}
+                      placeholder="Language (e.g. English)"
+                      as="h4"
+                    />
+                  ) : (
+                    <h4 className={styles.cefrLanguageTitle}>{lang.language}</h4>
+                  )}
+
+                  <div className={styles.cefrGrid}>
+                    <div className={styles.cefrRow}>
+                      <span className={styles.cefrItem}>
+                        <span className={styles.cefrSkillLabel}>LISTENING</span>
+                        {isInteractive && onUpdateEntry ? (
+                          <EditableText
+                            value={lang.listening ?? "C1"}
+                            onChange={(v) => onUpdateEntry(lang.id, { listening: v })}
+                            isInteractive={isInteractive}
+                            className={styles.cefrSkillBadge}
+                            placeholder="C1"
+                          />
+                        ) : (
+                          <span className={styles.cefrSkillBadge}>{lang.listening || "C1"}</span>
+                        )}
+                      </span>
+
+                      <span className={styles.cefrItem}>
+                        <span className={styles.cefrSkillLabel}>READING</span>
+                        {isInteractive && onUpdateEntry ? (
+                          <EditableText
+                            value={lang.reading ?? "C1"}
+                            onChange={(v) => onUpdateEntry(lang.id, { reading: v })}
+                            isInteractive={isInteractive}
+                            className={styles.cefrSkillBadge}
+                            placeholder="C1"
+                          />
+                        ) : (
+                          <span className={styles.cefrSkillBadge}>{lang.reading || "C1"}</span>
+                        )}
+                      </span>
+
+                      <span className={styles.cefrItem}>
+                        <span className={styles.cefrSkillLabel}>WRITING</span>
+                        {isInteractive && onUpdateEntry ? (
+                          <EditableText
+                            value={lang.writing ?? "C1"}
+                            onChange={(v) => onUpdateEntry(lang.id, { writing: v })}
+                            isInteractive={isInteractive}
+                            className={styles.cefrSkillBadge}
+                            placeholder="C1"
+                          />
+                        ) : (
+                          <span className={styles.cefrSkillBadge}>{lang.writing || "C1"}</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className={styles.cefrRow}>
+                      <span className={styles.cefrItem}>
+                        <span className={styles.cefrSkillLabel}>SPOKEN PRODUCTION</span>
+                        {isInteractive && onUpdateEntry ? (
+                          <EditableText
+                            value={lang.spokenProduction ?? "B2"}
+                            onChange={(v) => onUpdateEntry(lang.id, { spokenProduction: v })}
+                            isInteractive={isInteractive}
+                            className={styles.cefrSkillBadge}
+                            placeholder="B2"
+                          />
+                        ) : (
+                          <span className={styles.cefrSkillBadge}>{lang.spokenProduction || "B2"}</span>
+                        )}
+                      </span>
+
+                      <span className={styles.cefrItem}>
+                        <span className={styles.cefrSkillLabel}>SPOKEN INTERACTION</span>
+                        {isInteractive && onUpdateEntry ? (
+                          <EditableText
+                            value={lang.spokenInteraction ?? "C1"}
+                            onChange={(v) => onUpdateEntry(lang.id, { spokenInteraction: v })}
+                            isInteractive={isInteractive}
+                            className={styles.cefrSkillBadge}
+                            placeholder="C1"
+                          />
+                        ) : (
+                          <span className={styles.cefrSkillBadge}>{lang.spokenInteraction || "C1"}</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={styles.cefrLegend}>
+                    Levels: A1 and A2: Basic user; B1 and B2: Independent user; C1 and C2: Proficient user
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <span key={lang.id || idx}>
+                {idx > 0 && ", "}
+                {lang.language} {lang.level ? `(${lang.level})` : ""}
+              </span>
+            );
+          })}
         </div>
       )}
     </section>

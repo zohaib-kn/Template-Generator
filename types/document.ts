@@ -78,6 +78,11 @@ export interface LanguageEntry {
   language?: string;
   /** Self-assessed level, e.g. "Native", "B2", "Intermediate". */
   level?: string;
+  listening?: string;
+  reading?: string;
+  writing?: string;
+  spokenProduction?: string;
+  spokenInteraction?: string;
 }
 
 export interface SkillEntry {
