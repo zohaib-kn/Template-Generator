@@ -675,6 +675,7 @@ export function DocumentStudioDashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
+  const [isSectionsExpanded, setIsSectionsExpanded] = useState(false);
   const addSectionMenuRef = useRef<HTMLDivElement>(null);
   const [showInfoPopover, setShowInfoPopover] = useState(false);
   const infoMenuRef = useRef<HTMLDivElement>(null);
@@ -875,6 +876,23 @@ export function DocumentStudioDashboard() {
     };
     setChatMessages((prev) => [...prev, deleteNotice]);
     setAiToast({ message: `🗑️ Removed ${removed.heading || "Section"}`, type: "info" });
+  };
+
+  // Canvas Section Management: Scroll into view when clicking a section chip
+  const handleScrollToSection = (heading?: string) => {
+    if (!heading) return;
+    const paper = document.querySelector(".a4-paper-sheet");
+    if (!paper) return;
+    const elements = paper.querySelectorAll("h1, h2, h3, p, strong, div");
+    const normalized = heading.trim().toLowerCase();
+    for (const el of Array.from(elements)) {
+      if (el.textContent && el.textContent.trim().toLowerCase().includes(normalized)) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-indigo-400", "rounded", "transition-all");
+        setTimeout(() => el.classList.remove("ring-2", "ring-indigo-400"), 1500);
+        break;
+      }
+    }
   };
 
   // Canvas Section Management: Add Section
@@ -3640,170 +3658,224 @@ export function DocumentStudioDashboard() {
               </div>
 
               {/* ── Document Section Manager & Customization Strip ── */}
-              <div className="w-full max-w-[210mm] mx-auto mb-3 px-2 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <rect x="3" y="3" width="7" height="7" />
-                      <rect x="14" y="3" width="7" height="7" />
-                      <rect x="14" y="14" width="7" height="7" />
-                      <rect x="3" y="14" width="7" height="7" />
-                    </svg>
-                    Sections:
-                  </span>
-                  {editableDocContent.sections.map((sec, idx) => {
-                    const isEmpty = !sec.content || !sec.content.trim();
-                    return (
-                      <div
-                        key={`${sec.heading}-${idx}`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
-                          isEmpty
-                            ? "bg-amber-50/80 border-amber-200 text-amber-900"
-                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
-                        }`}
+              {editableDocContent?.sections && editableDocContent.sections.length > 0 && (
+                <div className="w-full max-w-[210mm] mx-auto mb-2 px-3 py-1.5 bg-slate-50/90 hover:bg-slate-50 border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
+                  <div className="flex items-center justify-between gap-2 min-h-[30px]">
+                    {/* Collapsed/Expand Toggle and Summary */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setIsSectionsExpanded((prev) => !prev)}
+                        className="inline-flex items-center gap-1.5 text-slate-700 hover:text-indigo-600 font-semibold px-2 py-1 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition cursor-pointer select-none shrink-0"
+                        title={isSectionsExpanded ? "Collapse section list" : "Expand section list"}
                       >
-                        <span className="truncate max-w-[140px]">{sec.heading}</span>
-                        {isEmpty && (
-                          <span className="text-[9.5px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-800 font-bold">
-                            Empty
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-500">
+                          <rect x="3" y="3" width="7" height="7" />
+                          <rect x="14" y="3" width="7" height="7" />
+                          <rect x="14" y="14" width="7" height="7" />
+                          <rect x="3" y="14" width="7" height="7" />
+                        </svg>
+                        <span className="text-[11px] uppercase tracking-wider font-bold">Sections</span>
+                        <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-700 rounded-full text-[10px] font-bold">
+                          {editableDocContent.sections.length}
+                        </span>
+                        {editableDocContent.sections.some((s) => !s.content || !s.content.trim()) && (
+                          <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">
+                            {editableDocContent.sections.filter((s) => !s.content || !s.content.trim()).length} empty
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSection(idx)}
-                          className="ml-1 text-slate-400 hover:text-rose-600 rounded p-0.5 transition cursor-pointer"
-                          title={`Delete ${sec.heading} section`}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                        <span className="text-slate-400 text-[11px] font-normal flex items-center gap-0.5 ml-0.5">
+                          <span>{isSectionsExpanded ? "Hide" : "Manage"}</span>
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            className={`transition-transform duration-150 ${isSectionsExpanded ? "rotate-180" : ""}`}
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </span>
+                      </button>
 
-                {/* + Add Section Dropdown */}
-                <div className="relative shrink-0" ref={addSectionMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-semibold rounded-lg text-xs transition cursor-pointer shadow-2xs"
-                  >
-                    <span className="text-sm font-bold leading-none">+</span>
-                    <span>Add Section</span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className={`transition-transform duration-150 ${isAddSectionOpen ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </button>
+                      {/* Quiet horizontal preview when collapsed */}
+                      {!isSectionsExpanded && (
+                        <div className="hidden sm:flex items-center gap-1.5 overflow-hidden text-slate-400 text-[11px] truncate">
+                          <span className="text-slate-300">•</span>
+                          <span className="truncate max-w-[340px] text-slate-500 font-normal">
+                            {editableDocContent.sections.map((s) => s.heading).join(" · ")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
-                  {isAddSectionOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
-                      <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Add Section
-                      </div>
-                      <div className="py-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("WORK EXPERIENCE", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                    {/* Right side: + Add Section Dropdown */}
+                    <div className="relative shrink-0" ref={addSectionMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs"
+                      >
+                        <span className="text-sm font-bold leading-none">+</span>
+                        <span>Add Section</span>
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          className={`transition-transform duration-150 ${isAddSectionOpen ? "rotate-180" : ""}`}
                         >
-                          <span>💼 Work Experience</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("ENGLISH LANGUAGE CERTIFICATE", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>🌐 English Certificate (IELTS)</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("EDUCATION AND TRAINING", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>🎓 Education &amp; Training</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("DIGITAL SKILLS", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>⚡ Digital &amp; Technical Skills</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("CERTIFICATIONS", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>📜 Certifications</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("HOBBIES AND INTERESTS", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>🎯 Hobbies &amp; Extracurricular</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("ACADEMIC PROJECTS", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                        >
-                          <span>🔬 Academic Projects</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                      </div>
-                      <div className="py-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleAddSection("CUSTOM SECTION", "");
-                            setIsAddSectionOpen(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer font-medium"
-                        >
-                          <span>➕ Blank Custom Section</span>
-                          <span className="text-[10px] text-slate-400">Empty</span>
-                        </button>
-                      </div>
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+
+                      {isAddSectionOpen && (
+                        <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
+                          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Add Section
+                          </div>
+                          <div className="py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("WORK EXPERIENCE", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>💼 Work Experience</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("ENGLISH LANGUAGE CERTIFICATE", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>🌐 English Certificate (IELTS)</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("EDUCATION AND TRAINING", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>🎓 Education &amp; Training</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("DIGITAL SKILLS", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>⚡ Digital &amp; Technical Skills</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("CERTIFICATIONS", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>📜 Certifications</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("HOBBIES AND INTERESTS", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>🎯 Hobbies &amp; Extracurricular</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("ACADEMIC PROJECTS", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                            >
+                              <span>🔬 Academic Projects</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                          </div>
+                          <div className="py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleAddSection("CUSTOM SECTION", "");
+                                setIsAddSectionOpen(false);
+                              }}
+                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer font-medium"
+                            >
+                              <span>➕ Blank Custom Section</span>
+                              <span className="text-[10px] text-slate-400">Empty</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded Section Chips List */}
+                  {isSectionsExpanded && (
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center gap-1.5 animate-in fade-in duration-150">
+                      {editableDocContent.sections.map((sec, idx) => {
+                        const isEmpty = !sec.content || !sec.content.trim();
+                        return (
+                          <div
+                            key={`${sec.heading}-${idx}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                              isEmpty
+                                ? "bg-amber-50/80 border-amber-200 text-amber-900"
+                                : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                            }`}
+                          >
+                            <span
+                              onClick={() => handleScrollToSection(sec.heading)}
+                              className="truncate max-w-[140px] cursor-pointer hover:text-indigo-600 transition"
+                              title={`Click to jump to ${sec.heading} in document`}
+                            >
+                              {sec.heading}
+                            </span>
+                            {isEmpty && (
+                              <span className="text-[9.5px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-800 font-bold">
+                                Empty
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSection(idx)}
+                              className="ml-1 text-slate-400 hover:text-rose-600 rounded p-0.5 transition cursor-pointer"
+                              title={`Delete ${sec.heading} section`}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              </div>
+              )}
 
               {/* ── Document Canvas: Either Cairo Europass Theme or Tiptap Caret Engine ── */}
               {editableDocContent.docType === "CV" && cvViewMode === "europass" ? (
