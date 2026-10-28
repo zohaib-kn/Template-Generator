@@ -162,6 +162,7 @@ export interface StudentDocumentContext {
     gender: string;
     /** Comma-separated languages, e.g. "Hindi (Native), English (C1)" */
     languages: string;
+    returnFamilyReason?: string;
   };
 
   academics: {
@@ -172,6 +173,7 @@ export interface StudentDocumentContext {
     subjects: string;
     percentage: string;
     previousDegree?: string;
+    favoriteSubjects?: string;
   };
 
   tests: {
@@ -182,7 +184,9 @@ export interface StudentDocumentContext {
       writing: string;
       speaking: string;
       dateTaken: string;
+      type?: string;
     };
+    additionalTestsText?: string;
   };
 
   destination: {
@@ -197,6 +201,17 @@ export interface StudentDocumentContext {
     consulate: string;
     consulateCity: string;
     consulateAddress: string;
+    courseDisciplines?: string;
+    universityHistory?: string;
+    distinguishedScholars?: string;
+    masterSpecialization?: string;
+  };
+
+  family?: {
+    count?: string;
+    fatherOccupation?: string;
+    motherOccupation?: string;
+    siblingText?: string;
   };
 
   career: {
@@ -221,6 +236,13 @@ export interface StudentDocumentContext {
     availableBalance: string;
     totalFundsAvailable: string;
     currency: string;
+    disbursedAmount?: string;
+    bankAccount?: string;
+    statementDate?: string;
+    availableBalanceEur?: string;
+    netWorth?: string;
+    itrYears?: string;
+    exchangeRate?: string;
   };
 
   accommodation: {
@@ -232,6 +254,7 @@ export interface StudentDocumentContext {
     fromDate: string;
     toDate: string;
     bookingReference: string;
+    nameAndAddress?: string;
   };
 
   insurance: {
@@ -241,6 +264,7 @@ export interface StudentDocumentContext {
     fromDate: string;
     toDate: string;
     coverageAmount: string;
+    policyType?: string;
   };
 
   travel: {
@@ -251,6 +275,7 @@ export interface StudentDocumentContext {
     travelDate: string;
     pnr: string;
     returnDate?: string;
+    transit?: string;
   };
 
   /**

@@ -1,8 +1,8 @@
-import { GoogleDocsDashboard } from "@/features/dashboard/components/GoogleDocsDashboard";
+import { DocumentStudioDashboard } from "@/features/dashboard/components/DocumentStudioDashboard";
 
 /**
  * Home Page: /
- * Google Docs-style Application Document Studio Dashboard.
+ * Unified Template Generator Studio Dashboard.
  *
  * Features:
  * - Approved, immutable template skeletons gallery.
@@ -10,5 +10,5 @@ import { GoogleDocsDashboard } from "@/features/dashboard/components/GoogleDocsD
  * - Recent student document history grid with direct workspace resumption.
  */
 export default function HomePage() {
-  return <GoogleDocsDashboard />;
+  return <DocumentStudioDashboard />;
 }

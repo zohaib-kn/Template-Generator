@@ -67,6 +67,37 @@ a {
   text-decoration: none;
 }
 
+/* ─── Modern Sleek Custom Scrollbars (No Cheap OS Bars) ──────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.65);
+}
+
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* ─── A4 Physical Sheet Elevation ─────────────────────────────────────────── */
 .a4-paper-sheet {
   width: 210mm;
@@ -117,8 +148,21 @@ a {
   opacity: 0.92;
 }
 
+/* ─── Scrollbar Utility ───────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* ─── Print Stylesheet ────────────────────────────────────────────────────── */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 11.5mm;
+  }
   body {
     background: #ffffff !important;
   }
@@ -128,8 +172,10 @@ a {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
   }
   .no-print {
     display: none !important;
   }
 }
+

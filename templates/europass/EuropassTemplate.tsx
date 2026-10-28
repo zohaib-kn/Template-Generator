@@ -96,15 +96,15 @@ export const EUROPASS_DEFAULT_SECTION_ORDER: string[] = [
   "education",
   "languages",
   "englishCertificate",
+  "hobbies",
   "internships",
   "academicProjects",
   "achievements",
   "certifications",
+  "skills",
   "leadershipActivities",
   "volunteering",
-  "skills",
   "academicInterests",
-  "hobbies",
   "recommendations",
   "declaration",
 ];
@@ -213,7 +213,8 @@ export function EuropassTemplate({
             englishCertificate.reading ||
             englishCertificate.writing ||
             englishCertificate.speaking ||
-            englishCertificate.issuingBody)
+            englishCertificate.issuingBody ||
+            englishCertificate.trfNumber)
       ),
     [englishCertificate]
   );
@@ -369,7 +370,7 @@ export function EuropassTemplate({
         case "education":
           return 38 + educationEntries.length * 110;
         case "languages":
-          return 80;
+          return 110;
         case "englishCertificate":
           return 200;
         case "internships":
@@ -379,11 +380,11 @@ export function EuropassTemplate({
         case "achievements":
           return 38 + achievementEntries.length * 70;
         case "certifications":
-          return 38 + certificationEntries.length * 80;
+          return 38 + certificationEntries.length * 45;
         case "skills":
-          return 120;
+          return 50;
         case "hobbies":
-          return 100;
+          return 90;
         case "recommendations":
           return 38 + recommendations.length * 150;
         default:

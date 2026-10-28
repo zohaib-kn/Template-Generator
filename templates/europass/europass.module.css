@@ -904,3 +904,132 @@
   color: #333333;
   margin-top: 0;
 }
+
+/* --- Europass CEFR Multilingual Matrix --------------------------------- */
+.motherTongueRow {
+  font-size: 10pt;
+  color: #1e293b;
+  margin-bottom: 2mm;
+}
+
+.otherLanguagesRow {
+  font-size: 10pt;
+  color: #1e293b;
+  margin-bottom: 2mm;
+}
+
+.cefrLanguageBlock {
+  margin-top: 2mm;
+  margin-bottom: 3mm;
+}
+
+.cefrLanguageTitle {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: #0e4194;
+  margin: 0 0 1.5mm 0;
+}
+
+.cefrGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+}
+
+.cefrRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6mm;
+}
+
+.cefrItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  font-size: 9.5pt;
+}
+
+.cefrSkillLabel {
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+
+.cefrSkillBadge {
+  font-weight: 600;
+  color: #0c56a5;
+}
+
+.cefrLegend {
+  font-size: 8.5pt;
+  font-style: italic;
+  color: #64748b;
+  margin-top: 2mm;
+  line-height: 1.4;
+}
+
+/* --- Inline Slash Skills Format ---------------------------------------- */
+.slashSkillsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2mm 3mm;
+  font-size: 10.2pt;
+  color: #1e293b;
+  line-height: 1.5;
+  margin-top: 1mm;
+}
+
+.slashSkillItem {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.slashDivider {
+  color: #94a3b8;
+  font-weight: 400;
+  user-select: none;
+}
+
+/* --- Certifications Two-Line Pairing ----------------------------------- */
+.certList {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5mm;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.certItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+}
+
+.certTitleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+}
+
+.certTitleText {
+  font-size: 10pt;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.certProviderText {
+  font-size: 9.3pt;
+  color: #475569;
+  padding-left: 3.5mm;
+}
+
+.declarationSubheading {
+  font-size: 9.5pt;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 1.5mm;
+}

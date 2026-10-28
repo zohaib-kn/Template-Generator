@@ -97,9 +97,13 @@ export function mapNormalizedToSop(profile: NormalizedStudentProfile): StudentDo
       loanProvider: fin?.bankName || "",
       bankName: fin?.bankName || "",
       accountHolderName: sponsorName || p.fullName || "",
-      availableBalance: "", // Liquid balance not fabricated
-      totalFundsAvailable: "",
+      availableBalance: (fin as any)?.availableBalance || "",
+      totalFundsAvailable: (fin as any)?.totalFundsAvailable || "",
       currency: fin?.currency || "",
+      disbursedAmount: (fin as any)?.disbursedAmount || "",
+      bankAccount: (fin as any)?.bankAccount || "",
+      statementDate: (fin as any)?.statementDate || "",
+      availableBalanceEur: (fin as any)?.availableBalanceEur || "",
     },
 
     accommodation: {

@@ -26,40 +26,23 @@ export const SkillsSection = memo(function SkillsSection({
       {showTitle && (
         <EuropassSectionTitle title={title || "SKILLS"} />
       )}
-      <ul className={styles.skillsGrid}>
-        {entries.map((skill) => (
-          <li key={skill.id} className={styles.skillGridItem}>
+      <div className={styles.slashSkillsContainer}>
+        {entries.map((skill, idx) => (
+          <span key={skill.id} className={styles.slashSkillItem}>
+            {idx > 0 && <span className={styles.slashDivider}>&nbsp;/&nbsp;</span>}
             {isInteractive && onUpdate ? (
-              <>
-                <EditableText
-                  value={skill.name ?? ""}
-                  onChange={(v) => onUpdate(skill.id, { name: v })}
-                  isInteractive={isInteractive}
-                  placeholder="Skill"
-                />
-                {skill.proficiency && (
-                  <span className={styles.datesBadge}>
-                    {" "}—{" "}
-                    <EditableText
-                      value={skill.proficiency}
-                      onChange={(v) => onUpdate(skill.id, { proficiency: v })}
-                      isInteractive={isInteractive}
-                      placeholder="Level"
-                    />
-                  </span>
-                )}
-              </>
+              <EditableText
+                value={skill.name ?? ""}
+                onChange={(v) => onUpdate(skill.id, { name: v })}
+                isInteractive={isInteractive}
+                placeholder="Skill"
+              />
             ) : (
-              <>
-                <span>{skill.name}</span>
-                {skill.proficiency && (
-                  <span className={styles.datesBadge}> — {skill.proficiency}</span>
-                )}
-              </>
+              <span>{skill.name}</span>
             )}
-          </li>
+          </span>
         ))}
-      </ul>
+      </div>
     </section>
   );
 });

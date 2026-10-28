@@ -65,13 +65,16 @@ export function getNaturalFallback(path: string, ctx: StudentDocumentContext): s
       return `Embassy of ${country} / Consulate General`;
 
     case "destination.consulateAddress":
-      return "Visa & Consular Section";
+      return ctx.destination?.consulateCity ? `${ctx.destination.consulateCity}, India` : "Mumbai, India";
+
+    case "destination.consulateCity":
+      return country === "Italy" ? "Mumbai" : country;
 
     case "destination.university":
       return `designated university in ${country}`;
 
     case "destination.course":
-      return "chosen academic programme";
+      return "chosen academic field";
 
     case "destination.city":
       return country;
@@ -176,6 +179,18 @@ export function getNaturalFallback(path: string, ctx: StudentDocumentContext): s
     case "finance.totalFundsAvailable":
       return "sufficient funds as per visa guidelines";
 
+    case "finance.disbursedAmount":
+      return "the disbursed loan proceeds";
+
+    case "finance.bankAccount":
+      return "our designated savings account";
+
+    case "finance.statementDate":
+      return "the latest statement date";
+
+    case "finance.availableBalanceEur":
+      return "equivalent funds in Euros";
+
     // ── Logistics: Accommodation, Insurance, Travel ─────────────────────
     case "accommodation.name":
       return "the student university residence";
@@ -222,8 +237,59 @@ export function getNaturalFallback(path: string, ctx: StudentDocumentContext): s
     case "travel.travelDate":
       return "the scheduled travel date";
 
-    case "travel.pnr":
-      return "confirmed booking";
+    case "insurance.policyType":
+      return "365-day Comprehensive Overseas Student Travel Insurance Policy";
+
+    case "accommodation.nameAndAddress":
+      return "convenient student accommodation in Padova, Italy";
+
+    case "tests.ielts.type":
+      return "IELTS Academic";
+
+    case "tests.additionalTestsText":
+      return "";
+
+    case "family.count":
+      return "four";
+
+    case "family.fatherOccupation":
+      return "Corporate Executive";
+
+    case "family.motherOccupation":
+      return "Senior Professional";
+
+    case "family.siblingText":
+      return "supportive siblings";
+
+    case "student.returnFamilyReason":
+      return "Being close to my family and rooted in India";
+
+    case "academics.favoriteSubjects":
+      return "Mathematics and Analytical Problem Solving";
+
+    case "destination.courseDisciplines":
+      return "core theoretical engineering, computational algorithms, and applied automation";
+
+    case "destination.universityHistory":
+      return "800 years";
+
+    case "destination.distinguishedScholars":
+      return "Galileo Galilei, Nicolaus Copernicus, and William Harvey";
+
+    case "destination.masterSpecialization":
+      return "advanced engineering and technology specializations";
+
+    case "finance.netWorth":
+      return "INR 2,00,00,000";
+
+    case "finance.itrYears":
+      return "2024–25, 2025–26, and 2026–27";
+
+    case "finance.exchangeRate":
+      return "1 EUR = INR 109.79";
+
+    case "travel.transit":
+      return "Dubai (DXB)";
 
     default: {
       const leaf = path.split(".").pop() || path;

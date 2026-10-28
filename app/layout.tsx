@@ -24,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${openSans.variable} h-full antialiased`}>
-      <body className="h-full">
+    <html lang="en" className={`${openSans.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="h-full" suppressHydrationWarning>
         <GlobalStudentProvider>
           <DocumentProvider>{children}</DocumentProvider>
         </GlobalStudentProvider>

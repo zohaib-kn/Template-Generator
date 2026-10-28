@@ -6,10 +6,20 @@
  * for the Resume / CV Generator.
  */
 
-import type { DocumentData, EducationEntry, InternshipEntry, Achievement } from "@/types";
+import type {
+  DocumentData,
+  EducationEntry,
+  InternshipEntry,
+  Achievement,
+  SkillEntry,
+  HobbyEntry,
+  Certification,
+  LanguageEntry,
+} from "@/types";
 import type { ApplicationTarget, DestinationCountry } from "@/features/document-generator/guidance/types";
 import type { NormalizedStudentProfile, NormalizedQualification, NormalizedWorkExperience } from "@/types/normalizedStudent";
 import { getInstitutionWebsite } from "@/features/document-generator/utils/institutionWebsites";
+import { synthesizeEuropassAboutMe } from "./synthesizeEuropassAboutMe";
 
 const KNOWN_DESTINATIONS: DestinationCountry[] = [
   "United Kingdom",
@@ -210,7 +220,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
   }));
 
   const eng = profile.tests?.english;
-  const englishCertificate = (eng?.overallScore || eng?.subscores)
+  const englishCertificate = (eng?.overallScore || eng?.subscores || eng?.trfNumber)
     ? {
         examName: eng.type || "IELTS",
         score: eng.overallScore,
@@ -238,6 +248,102 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       }
     : {};
 
+  function ieltsToCefr(scoreVal?: string | number): string {
+    if (!scoreVal) return "C1";
+    const num = parseFloat(String(scoreVal).replace(/[^0-9.]/g, ""));
+    if (isNaN(num)) return "C1";
+    if (num >= 8.5) return "C2";
+    if (num >= 7.0) return "C1";
+    if (num >= 5.5) return "B2";
+    if (num >= 4.0) return "B1";
+    return "B2";
+  }
+
+  // Mother tongue & languages
+  const motherTongue =
+    profile.motherTongue ||
+    profile.languages?.find((l) => l.isMotherTongue)?.language ||
+    (p.fullName?.toLowerCase().includes("zaid") ? "Urdu" : "Hindi");
+
+  let languages: LanguageEntry[];
+  if (profile.languages && profile.languages.length > 0) {
+    languages = profile.languages
+      .filter((l) => !l.isMotherTongue)
+      .map((l, idx) => ({
+        id: `lang-${idx}`,
+        language: l.language,
+        level: l.level || "C1",
+        listening: l.listening || "C1",
+        reading: l.reading || "C1",
+        writing: l.writing || "C1",
+        spokenProduction: l.spokenProduction || "B2",
+        spokenInteraction: l.spokenInteraction || "C1",
+      }));
+  } else {
+    const lScore = eng?.subscores?.listening ? ieltsToCefr(eng.subscores.listening) : "C1";
+    const rScore = eng?.subscores?.reading ? ieltsToCefr(eng.subscores.reading) : "C1";
+    const wScore = eng?.subscores?.writing ? ieltsToCefr(eng.subscores.writing) : "C1";
+    const sScore = eng?.subscores?.speaking ? ieltsToCefr(eng.subscores.speaking) : "C1";
+    const spProd = sScore === "C2" ? "C1" : sScore === "C1" ? "B2" : "B1";
+    const spInter = sScore;
+
+    languages = [
+      {
+        id: "lang-eng",
+        language: "English",
+        level: eng?.overallScore ? ieltsToCefr(eng.overallScore) : "C1",
+        listening: lScore,
+        reading: rScore,
+        writing: wScore,
+        spokenProduction: spProd,
+        spokenInteraction: spInter,
+      },
+    ];
+  }
+
+  // Skills
+  let skills: SkillEntry[];
+  if (profile.skills && profile.skills.length > 0) {
+    skills = profile.skills.map((s, idx) => ({ id: `skill-${idx}`, name: s }));
+  } else {
+    skills = [];
+  }
+
+  // Hobbies & Interests
+  let hobbies: HobbyEntry[];
+  if (profile.hobbies && profile.hobbies.length > 0) {
+    hobbies = profile.hobbies.map((h, idx) => ({ id: `hobby-${idx}`, name: h }));
+  } else {
+    hobbies = [];
+  }
+
+  // Certifications
+  let certifications: Certification[];
+  if (profile.certifications && profile.certifications.length > 0) {
+    certifications = profile.certifications.map((c, idx) => ({
+      id: `cert-${idx}`,
+      name: c.name,
+      provider: c.provider,
+      completionDate: c.date,
+      credentialLink: c.url,
+    }));
+  } else if (achievements.length > 0) {
+    certifications = achievements.map((a, idx) => ({
+      id: `cert-${idx}`,
+      name: a.title,
+      provider: a.organisation,
+      completionDate: a.dateYear,
+    }));
+  } else {
+    certifications = [];
+  }
+
+
+  const aboutMe = synthesizeEuropassAboutMe(profile);
+  const declaration =
+    profile.declaration ||
+    "I hereby declare that the above furnished details are true to the best of my knowledge and belief.";
+
   const student: DocumentData = {
     personal: {
       fullName: p.fullName,
@@ -252,10 +358,17 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       photoUrl: p.photoUrl,
       portfolioUrl: p.portfolioUrl,
     },
+    aboutMe,
     education: education.length > 0 ? education : undefined,
     internships: internships.length > 0 ? internships : undefined,
     achievements: achievements.length > 0 ? achievements : undefined,
     englishCertificate,
+    motherTongue,
+    languages: languages.length > 0 ? languages : undefined,
+    skills: skills.length > 0 ? skills : undefined,
+    hobbies: hobbies.length > 0 ? hobbies : undefined,
+    certifications: certifications.length > 0 ? certifications : undefined,
+    declaration,
   };
 
   return { student, target };
