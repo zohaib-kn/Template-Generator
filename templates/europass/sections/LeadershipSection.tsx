@@ -64,7 +64,11 @@ export const LeadershipSection = memo(function LeadershipSection({
                 )
               )}
               {(isInteractive || item.duration) && (
-                <span className={styles.datesBadge}>
+                <span
+                  className={styles.datesBadge}
+                  data-html2canvas-ignore={!item.duration?.trim() ? "true" : undefined}
+                  data-pdf-ignore={!item.duration?.trim() ? "true" : undefined}
+                >
                   [{" "}
                   {isInteractive && onUpdate ? (
                     <EditableText

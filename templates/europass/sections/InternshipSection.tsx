@@ -2,7 +2,7 @@ import { memo } from "react";
 import type { InternshipEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
-import { parseDescriptionToBullets } from "../utils/descriptionParser";
+import { parseDescriptionToBullets, stripLeadingMarkers } from "../utils/descriptionParser";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
 
@@ -79,7 +79,13 @@ export const InternshipSection = memo(function InternshipSection({
                       className={styles.institutionName}
                       placeholder="Company / Organization"
                     />
-                    <span className={styles.pipeDivider}> | </span>
+                    <span
+                      className={styles.pipeDivider}
+                      data-html2canvas-ignore={!item.location?.trim() || !item.company?.trim() ? "true" : undefined}
+                      data-pdf-ignore={!item.location?.trim() || !item.company?.trim() ? "true" : undefined}
+                    >
+                      {" | "}
+                    </span>
                     <EditableText
                       value={item.location ?? ""}
                       onChange={(v) => onUpdate(item.id, { location: v })}
@@ -128,39 +134,48 @@ export const InternshipSection = memo(function InternshipSection({
                 </div>
               ) : (
                 <div className={styles.bulletList}>
-                  {bullets.map((point, i) => (
-                    <div key={i} className={styles.bulletItem}>
-                      <span className={styles.bulletDot} aria-hidden="true">•</span>
-                      <EditableText
-                        value={point}
-                        onChange={(newPoint) => {
-                          const newBullets = [...bullets];
-                          newBullets[i] = newPoint;
-                          onUpdate(item.id, {
-                            description: newBullets.map((b) => `• ${b}`).join("\n"),
-                          });
-                        }}
-                        isInteractive={isInteractive}
-                        multiline
-                        className={styles.bulletText}
-                        placeholder="Bullet contribution..."
-                      />
-                    </div>
-                  ))}
+                  {bullets.map((point, i) => {
+                    const cleanPoint = stripLeadingMarkers(point);
+                    return (
+                      <div key={i} className={styles.bulletItem}>
+                        <span className={styles.bulletDot} aria-hidden="true">•</span>
+                        <EditableText
+                          value={cleanPoint}
+                          onChange={(newPoint) => {
+                            const cleaned = stripLeadingMarkers(newPoint);
+                            const newBullets = [...bullets.map(stripLeadingMarkers)];
+                            newBullets[i] = cleaned;
+                            const filtered = newBullets.filter(Boolean);
+                            onUpdate(item.id, {
+                              description: filtered.length > 0
+                                ? filtered.map((b) => `• ${b}`).join("\n")
+                                : "",
+                            });
+                          }}
+                          isInteractive={isInteractive}
+                          multiline
+                          className={styles.bulletText}
+                          placeholder="Bullet contribution..."
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               )
             ) : (
               item.description && (() => {
-                return bullets.length === 1 && !item.hideHeader ? (
-                  <div className={styles.educationDetails}>{bullets[0]}</div>
-                ) : (
+                return (
                   <div className={styles.bulletList}>
-                    {bullets.map((point, i) => (
-                      <div key={i} className={styles.bulletItem}>
-                        <span className={styles.bulletDot} aria-hidden="true">•</span>
-                        <span className={styles.bulletText}>{point}</span>
-                      </div>
-                    ))}
+                    {bullets.map((point, i) => {
+                      const cleanPoint = stripLeadingMarkers(point);
+                      if (!cleanPoint) return null;
+                      return (
+                        <div key={i} className={styles.bulletItem}>
+                          <span className={styles.bulletDot} aria-hidden="true">•</span>
+                          <span className={styles.bulletText}>{cleanPoint}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()
