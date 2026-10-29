@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import { aiService, getActiveAiProvider } from "@/services/ai/gemini/geminiClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,37 +46,27 @@ Strict Rules:
 - Tone should be professional, academic, and purposeful.
 - Return ONLY the final paragraph. Do not include introductory notes, headers, or conversational filler.`;
 
-// Preferred Flash model (gemini-3.8-flash) cascading to nearest responsive Flash models
-const FLASH_MODELS_CASCADE = [
-  "gemini-3.8-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-];
-
 // ---------------------------------------------------------------------------
 // POST /api/ai/test
 // ---------------------------------------------------------------------------
 
 /**
  * Dedicated backend test route for Phase AI-1.
- * Tests server-side Google Gemini API connectivity using dummy data only.
+ * Tests server-side AI provider connectivity (OpenAI or Gemini) using dummy data only.
  *
  * Security:
- * - API key is read solely from process.env.GEMINI_API_KEY.
+ * - API key is read solely from the server environment (OPENAI_API_KEY / GEMINI_API_KEY).
  * - API key is NEVER passed to frontend or included in responses/logs.
  * - Does not accept or process real student or CRM data.
  */
 export async function POST(req: NextRequest) {
-  // 1. Verify GEMINI_API_KEY is configured on the server
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-
-  if (!apiKey) {
+  // 1. Verify an AI key (OpenAI or Gemini) is configured on the server
+  if (!getActiveAiProvider()) {
     const errorBody: AiTestErrorResponse = {
       success: false,
       error: {
-        code: "GEMINI_API_KEY_MISSING",
-        message:
-          "GEMINI_API_KEY is not configured on the server. Please check your .env.local file.",
+        code: "AI_API_KEY_MISSING",
+        message: "No AI key is configured on the server. Set OPENAI_API_KEY (or GEMINI_API_KEY) in your .env file.",
       },
     };
     return NextResponse.json(errorBody, { status: 500 });
@@ -100,123 +90,16 @@ export async function POST(req: NextRequest) {
     // Body parsing failure is non-fatal for { test: true } calls
   }
 
-  // 3. Initialize GoogleGenAI SDK server-side
-  let ai: GoogleGenAI;
-  try {
-    ai = new GoogleGenAI({ apiKey });
-  } catch {
-    const errorBody: AiTestErrorResponse = {
-      success: false,
-      error: {
-        code: "GEMINI_INIT_FAILED",
-        message: "Failed to initialize Gemini SDK on the server.",
-      },
-    };
-    return NextResponse.json(errorBody, { status: 500 });
-  }
-
-  // 4. Attempt generation with preferred model, falling back to nearest Flash if unavailable
-  let lastError: unknown = null;
-
-  for (const modelName of FLASH_MODELS_CASCADE) {
-    try {
-      // 6-second timeout safeguard per model attempt
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("TIMEOUT")), 6_000)
-      );
-
-      const generatePromise = ai.models.generateContent({
-        model: modelName,
-        contents: DUMMY_SOP_PROMPT,
-      });
-
-      const response = await Promise.race([generatePromise, timeoutPromise]);
-
-      const text = response?.text?.trim();
-
-      if (!text) {
-        const errorBody: AiTestErrorResponse = {
-          success: false,
-          error: {
-            code: "GEMINI_EMPTY_RESPONSE",
-            message: "Gemini returned an empty response.",
-          },
-        };
-        return NextResponse.json(errorBody, { status: 502 });
-      }
-
-      // Success
-      const successBody: AiTestSuccessResponse = {
-        success: true,
-        model: modelName,
-        text,
-      };
-      return NextResponse.json(successBody, { status: 200 });
-    } catch (err: unknown) {
-      lastError = err;
-
-      const errStr = err instanceof Error ? err.message : String(err);
-      const isTemporaryOrNotFound =
-        errStr.includes("503") ||
-        errStr.includes("UNAVAILABLE") ||
-        errStr.includes("404") ||
-        errStr.includes("not found") ||
-        errStr.includes("TIMEOUT");
-
-      // If it's a model not found / temporary high-demand error, cascade to nearest Flash model
-      if (
-        isTemporaryOrNotFound &&
-        modelName !== FLASH_MODELS_CASCADE[FLASH_MODELS_CASCADE.length - 1]
-      ) {
-        continue;
-      }
-
-      // Break immediately on authorization or client errors
-      break;
-    }
-  }
-
-  // 5. Controlled error mapping without exposing sensitive secrets or stack traces
-  const errMessage =
-    lastError instanceof Error ? lastError.message : String(lastError ?? "");
-
-  let code = "GEMINI_REQUEST_FAILED";
-  let message = "Unable to generate AI response.";
-  let statusCode = 502;
-
-  if (errMessage.includes("TIMEOUT")) {
-    code = "GEMINI_TIMEOUT";
-    message = "Gemini API request timed out after 15 seconds.";
-    statusCode = 504;
-  } else if (
-    errMessage.includes("API_KEY_INVALID") ||
-    errMessage.includes("401") ||
-    errMessage.includes("API key not valid")
-  ) {
-    code = "GEMINI_API_KEY_INVALID";
-    message = "The configured Gemini API key is invalid or unauthorized.";
-    statusCode = 401;
-  } else if (
-    errMessage.includes("RESOURCE_EXHAUSTED") ||
-    errMessage.includes("429") ||
-    errMessage.includes("quota")
-  ) {
-    code = "GEMINI_QUOTA_EXCEEDED";
-    message = "Gemini API quota or rate limit exceeded. Please try again later.";
-    statusCode = 429;
-  } else if (errMessage.includes("503") || errMessage.includes("UNAVAILABLE")) {
-    code = "GEMINI_UNAVAILABLE";
-    message = "Gemini API service is temporarily unavailable.";
-    statusCode = 503;
+  // 3. Generate through the shared provider-aware client (model cascade + timeouts inside)
+  const result = await aiService.generate({ prompt: DUMMY_SOP_PROMPT, timeoutMs: 15_000, minOutputLength: 1 });
+  if (result.success) {
+    const successBody: AiTestSuccessResponse = { success: true, model: result.model, text: result.text };
+    return NextResponse.json(successBody, { status: 200 });
   }
 
   const errorBody: AiTestErrorResponse = {
     success: false,
-    error: {
-      code,
-      message,
-    },
+    error: { code: result.error.code, message: result.error.message },
   };
-
-  return NextResponse.json(errorBody, { status: statusCode });
+  return NextResponse.json(errorBody, { status: result.error.statusCode });
 }
