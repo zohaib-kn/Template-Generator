@@ -23,6 +23,19 @@ interface StudentListError {
 
 export type StudentListResponse = StudentListSuccess | StudentListError;
 
+/**
+ * CRM_STUDENT_LIST_URL wins when set; otherwise the URL is built from
+ * SENIOR_API_BASE_URL + SENIOR_API_KEY. Returns null when neither is configured.
+ */
+function resolveStudentListUrl(): string | null {
+  const explicit = process.env.CRM_STUDENT_LIST_URL?.trim();
+  if (explicit) return explicit;
+  const baseUrl = process.env.SENIOR_API_BASE_URL?.trim();
+  const apiKey = process.env.SENIOR_API_KEY?.trim();
+  if (!baseUrl || !apiKey) return null;
+  return `${baseUrl}/api/students?key=${encodeURIComponent(apiKey)}`;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/students/list
 // ---------------------------------------------------------------------------
@@ -39,10 +52,14 @@ export type StudentListResponse = StudentListSuccess | StudentListError;
  * We project it to:          [{ id,   name, email           }]
  */
 export async function GET() {
-  const listUrl =
-    process.env.CRM_STUDENT_LIST_URL?.trim() ||
-    "https://crm.digi-wire.com/api/students?key=e01b1c45dd038fe78ff72fdd267acbecaf39d9650ed85ae9";
-
+  const listUrl = resolveStudentListUrl();
+  if (!listUrl) {
+    console.error("[api/students/list] CRM roster configuration is missing on server.");
+    return NextResponse.json<StudentListError>(
+      { success: false, error: "Student CRM is not configured on this server." },
+      { status: 500 }
+    );
+  }
 
   try {
     const upstream = await fetch(listUrl, {
