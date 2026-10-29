@@ -1409,6 +1409,12 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      if (res.headers.get("X-Exceeds-Page-Limit") === "true") {
+        setAiBannerNotice({
+          type: "info",
+          message: `The exported PDF runs to ${res.headers.get("X-Page-Count")} pages, over the target length. Nothing was cut — consider trimming the letter.`,
+        });
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Vector PDF export failed";
       setAiBannerNotice({ type: "error", message: msg });

@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
+import { buildCoverLetterLayout } from "@/lib/export/coverLetterLayout";
 import { jsPDF } from "jspdf";
 
 interface ExportPdfSection {
@@ -74,14 +75,13 @@ export async function POST(req: NextRequest) {
     let currentY = margin;
     let currentPage = 1;
 
-    // Helper: Page boundary check
+    // Helper: Page boundary check. Content is never dropped or drawn off the page: if it
+    // needs more than maxPages, a page is still added and the overflow is reported back.
     const checkPageBreak = (neededHeightMm: number) => {
       if (currentY + neededHeightMm > pageHeight - margin) {
-        if (currentPage < maxPages) {
-          doc.addPage();
-          currentPage += 1;
-          currentY = margin;
-        }
+        doc.addPage();
+        currentPage += 1;
+        currentY = margin;
       }
     };
 
@@ -99,25 +99,7 @@ export async function POST(req: NextRequest) {
       doc.line((pageWidth - textWidth) / 2, currentY + 0.9, (pageWidth + textWidth) / 2, currentY + 0.9);
       currentY += 5.5;
 
-      const getSec = (match: string) =>
-        sections.find((s) => s.title?.toLowerCase().includes(match.toLowerCase()))?.content || "";
-
-      const recipient = getSec("recipient") || getSec("consulate");
-      const subject = getSec("subject");
-      const intro = getSec("student introduction");
-      const academics = getSec("academic background");
-      const whyCourse = getSec("why this course") || getSec("why course");
-      const whyUniv = getSec("why this university") || getSec("why university");
-      const whyItaly = getSec("why italy") || getSec("why this country");
-      const futurePlan = getSec("future academic plan");
-      const careerPlan = getSec("career plan");
-      const returnIntent = getSec("return") || getSec("home country");
-      const finance = getSec("financial") || getSec("sponsorship");
-      const accommodation = getSec("accommodation");
-      const insurance = getSec("insurance");
-      const travel = getSec("travel");
-      const closing = getSec("closing");
-      const signature = getSec("signature") || getSec("contact");
+      const { recipient, subject, paragraphs: masterParagraphs, signature } = buildCoverLetterLayout(sections);
 
       // 2. Recipient Block (Left aligned, ~8pt)
       if (recipient) {
@@ -125,8 +107,12 @@ export async function POST(req: NextRequest) {
         doc.setFontSize(8.25);
         doc.setTextColor(17, 17, 17);
         const cleanRecipient = recipient.replace(/\*\*/g, "");
-        const recLines = cleanRecipient.split(/\n+/).filter(Boolean);
+        const recLines = cleanRecipient
+          .split(/\n+/)
+          .filter(Boolean)
+          .flatMap((line) => doc.splitTextToSize(line, printableWidth) as string[]);
         for (const line of recLines) {
+          checkPageBreak(3.4);
           doc.text(line, margin, currentY);
           currentY += 3.4;
         }
@@ -145,17 +131,6 @@ export async function POST(req: NextRequest) {
       }
 
       // 4. Master Flowing 8 Paragraphs (Fully justified, 8.25pt, ~1.15 line spacing)
-      const masterParagraphs = [
-        [intro, academics].filter(Boolean).join(" "),
-        whyCourse,
-        whyUniv,
-        whyItaly,
-        [futurePlan, careerPlan, returnIntent].filter(Boolean).join(" "),
-        finance,
-        [accommodation, insurance, travel].filter(Boolean).join(" "),
-        closing,
-      ].filter(Boolean);
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.25);
       doc.setTextColor(17, 17, 17);
@@ -172,7 +147,10 @@ export async function POST(req: NextRequest) {
       // 5. Signature Block
       if (signature) {
         const cleanSig = signature.replace(/\*\*/g, "");
-        const sigLines = cleanSig.split(/\n+/).filter(Boolean);
+        const sigLines = cleanSig
+          .split(/\n+/)
+          .filter(Boolean)
+          .flatMap((line) => (/^email:/i.test(line) ? [line] : (doc.splitTextToSize(line, printableWidth) as string[])));
         checkPageBreak(sigLines.length * 3.4 + 3);
         currentY += 1.5;
         doc.setFont("helvetica", "normal");
@@ -256,6 +234,8 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${fileName}"`,
+        "X-Page-Count": String(currentPage),
+        "X-Exceeds-Page-Limit": currentPage > maxPages ? "true" : "false",
       },
     });
   } catch (err: unknown) {
