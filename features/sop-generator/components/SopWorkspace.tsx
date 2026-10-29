@@ -20,7 +20,7 @@ import type { SopStudentLoadedPayload } from "./SopStudentLoader";
 import { getApplication, getStudentDocumentContext } from "../lib/applicationService";
 import { getDefaultTemplate, getTemplate } from "../lib/templateRegistry";
 import { validateDocumentContext, hasErrors } from "../lib/validateDocumentContext";
-import { interpolate } from "../lib/interpolateTemplate";
+import { interpolate, findMissingMarkers } from "../lib/interpolateTemplate";
 import { useSopPdfGenerator } from "../hooks/useSopPdfGenerator";
 import { AppHeader } from "@/components/common/AppHeader";
 import { SopDraftsModal } from "./SopDraftsModal";
@@ -1243,40 +1243,39 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     setDocApproved(true);
   }
 
+  // Every placeholder still unresolved in the rendered letter (including text edited on the
+  // canvas, which keeps its [MISSING: …] markers) blocks a silent export.
   const criticalMissingFields = useMemo(() => {
+    const seen = new Set<string>();
     const list: { label: string; field: string; fallbackText: string }[] = [];
-    if (!ctx.destination?.university?.trim()) {
-      list.push({
-        label: "Destination University",
-        field: "destination.university",
-        fallbackText: `designated university in ${ctx.destination?.country || "Italy"}`,
-      });
-    }
-    if (!ctx.destination?.course?.trim()) {
-      list.push({
-        label: "Intended Course",
-        field: "destination.course",
-        fallbackText: "chosen academic programme",
-      });
-    }
-    if (!ctx.destination?.intakeYear) {
-      list.push({
-        label: "Intake Year",
-        field: "destination.intakeYear",
-        fallbackText: "academic session",
-      });
-    }
-    if (activeDocumentType === "VISA_COVER_LETTER" && !ctx.destination?.consulate?.trim()) {
-      list.push({
-        label: "Embassy / Consulate",
-        field: "destination.consulate",
-        fallbackText: `Embassy of ${ctx.destination?.country || "Italy"} / Consulate General`,
-      });
+    for (const section of sections) {
+      const rendered = interpolate(sectionContents[section.id] ?? section.content, ctx);
+      for (const field of findMissingMarkers(rendered)) {
+        if (seen.has(field)) continue;
+        seen.add(field);
+        const leaf = field.split(".").pop() || field;
+        list.push({
+          label: `${section.title}: ${leaf.replace(/([A-Z])/g, " $1").toLowerCase().trim()}`,
+          field,
+          fallbackText: `[MISSING: ${field}]`,
+        });
+      }
     }
     return list;
-  }, [ctx.destination, activeDocumentType]);
+  }, [sections, sectionContents, ctx]);
 
   const [showFallbackNoticeModal, setShowFallbackNoticeModal] = useState(false);
+  const [pendingExport, setPendingExport] = useState<(() => Promise<void>) | null>(null);
+
+  /** Runs an export, or first shows the missing-data warning when any field is unresolved. */
+  function guardExport(run: () => Promise<void>) {
+    if (criticalMissingFields.length > 0) {
+      setPendingExport(() => run);
+      setShowFallbackNoticeModal(true);
+      return;
+    }
+    void run();
+  }
 
   async function executeDownloadPdf() {
     const target =
@@ -1327,15 +1326,21 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
-  async function handleDownloadPdf(force = false) {
-    if (!force && criticalMissingFields.length > 0) {
-      setShowFallbackNoticeModal(true);
-      return;
-    }
-    await executeDownloadPdf();
+  // Wired straight to onClick handlers: takes no arguments so a click event can never
+  // be mistaken for a "skip validation" flag.
+  function handleDownloadPdf() {
+    guardExport(executeDownloadPdf);
   }
 
-  async function handleDownloadDocx() {
+  function handleDownloadDocx() {
+    guardExport(executeDownloadDocx);
+  }
+
+  function handleDownloadVectorPdf() {
+    guardExport(executeDownloadVectorPdf);
+  }
+
+  async function executeDownloadDocx() {
     const sectionsPayload = sections.map((s) => ({
       title: s.title,
       content: sectionContents[s.id] ?? s.content,
@@ -1372,7 +1377,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }
   }
 
-  async function handleDownloadVectorPdf() {
+  async function executeDownloadVectorPdf() {
     const sectionsPayload = sections.map((s) => ({
       title: s.title,
       content: sectionContents[s.id] ?? s.content,
@@ -1544,7 +1549,28 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         </div>
       )}
 
-
+      {/* Document Approved Banner */}
+      {docApproved && (
+        <div
+          role="status"
+          className="flex-shrink-0 px-6 py-2.5 bg-emerald-800 text-white text-xs font-medium flex items-center justify-between gap-4 flex-wrap"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">✓ Document Approved.</span>
+            <span className="opacity-90 text-[11px]">
+              All required sections have been reviewed and verified for submission.
+            </span>
+          </div>
+          <button
+            id="sop-approved-banner-download-btn"
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="bg-white text-emerald-900 hover:bg-emerald-50 px-3 py-1 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1.5 shadow-xs"
+          >
+            {isGeneratingPdf ? "Generating PDF…" : "📥 Download Official PDF"}
+          </button>
+        </div>
+      )}
 
       {/* Main Document-First Editorial Workspace */}
       <div className="flex flex-1 overflow-hidden relative bg-[#E2E6EE]">
@@ -1835,10 +1861,10 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
               </span>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900" id="sop-fallback-dialog-title">
-                  Fallback Phrasing In Use
+                  Missing Student Data
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  {criticalMissingFields.length} field{criticalMissingFields.length > 1 ? "s are" : " is"} currently using default phrasing:
+                  {criticalMissingFields.length} field{criticalMissingFields.length > 1 ? "s are" : " is"} missing from the CRM and still marked in the letter:
                 </p>
               </div>
             </div>
@@ -1883,11 +1909,13 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                 type="button"
                 onClick={() => {
                   setShowFallbackNoticeModal(false);
-                  handleDownloadPdf(true);
+                  const run = pendingExport;
+                  setPendingExport(null);
+                  if (run) void run();
                 }}
                 className="h-8 px-3.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer shadow-2xs"
               >
-                Download PDF Anyway
+                Download Anyway
               </button>
             </div>
           </div>

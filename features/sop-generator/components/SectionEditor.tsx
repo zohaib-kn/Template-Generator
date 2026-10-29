@@ -539,6 +539,37 @@ export function SectionEditor({
             </span>
           </div>
         </div>
+
+        {/* Approve section CTA / Approved state with Undo */}
+        <div className="flex items-center justify-end gap-1.5 pt-2">
+          {status === "APPROVED" ? (
+            <>
+              <span className="h-8 px-3 rounded-lg bg-emerald-50 border border-emerald-200/90 text-emerald-800 text-xs font-medium flex items-center gap-1">
+                ✓ Approved
+              </span>
+              {onUndoApprove && (
+                <button
+                  type="button"
+                  onClick={onUndoApprove}
+                  className="h-8 px-2.5 rounded-lg border border-slate-200 text-slate-500 bg-white hover:bg-slate-50 text-xs font-medium transition-colors cursor-pointer"
+                  title="Undo approval"
+                >
+                  Undo
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              id={`approve-${section.id}`}
+              onClick={onApprove}
+              disabled={isRegenerating}
+              className="h-8 px-3.5 rounded-lg bg-[#096491] hover:bg-[#074f74] active:bg-[#063f5d] text-white text-xs font-medium transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+            >
+              Approve Section
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── 3. Streamlined AI & Tone Action Bar ── */}
