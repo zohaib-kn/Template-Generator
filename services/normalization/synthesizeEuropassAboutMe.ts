@@ -3,14 +3,14 @@
  *
  * Deterministic synthesis engine for the Europass "ABOUT ME" profile summary.
  *
- * Follows the proven 5-tier narrative formula from the benchmark Europass CV:
- * 1. Personal introduction & values (upbringing, dedication to excellence).
- * 2. Academic milestone (degree, specialization, prestigious institution & city).
- * 3. Exact academic metric (CGPA / percentage / honors from CRM).
- * 4. Articulated career vision aligned with target domain & active program.
- * 5. Value proposition & commitment to innovation and lifelong growth.
+ * Builds a short, factual summary from CRM data only:
+ * 1. Name.
+ * 2. Degree, specialization, institution & city.
+ * 3. Exact academic metric (CGPA / percentage) when the CRM has one.
+ * 4. Target programme (or the study domain it belongs to).
  *
- * 100% grounded in verified CRM profile data — zero artificial placeholders.
+ * No invented personal history, superlatives ("remarkable", "prestigious") or
+ * keyword-guessed fields — counsellors can extend the text with real details.
  */
 
 import type { NormalizedStudentProfile, NormalizedQualification } from "@/types/normalizedStudent";
@@ -29,30 +29,35 @@ function cleanInstitution(inst?: string): string {
   return inst.replace(/\s*,\s*india$/i, "").trim();
 }
 
-function deriveDomain(course?: string, degree?: string, fieldOfStudy?: string): string {
+/** Whole-word / phrase match, so "it" does not match "hospitality" and "ai" not "maintenance". */
+function hasTerm(text: string, ...terms: string[]): boolean {
+  return terms.some((t) => new RegExp(`(^|[^a-z])${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`, "i").test(text));
+}
+
+export function deriveDomain(course?: string, degree?: string, fieldOfStudy?: string): string {
   const combined = `${course || ""} ${fieldOfStudy || ""} ${degree || ""}`.toLowerCase();
-  if (combined.includes("artificial intelligence") || combined.includes("machine learning") || combined.includes("aiml") || combined.includes("ai")) {
-    return "AI and tech innovation";
+  if (hasTerm(combined, "artificial intelligence", "machine learning", "aiml", "ai", "ai/ml")) {
+    return "artificial intelligence and machine learning";
   }
-  if (combined.includes("computer science") || combined.includes("software") || combined.includes("information technology") || combined.includes("it")) {
+  if (hasTerm(combined, "data science", "analytics", "data analytics")) {
+    return "data science and analytics";
+  }
+  if (hasTerm(combined, "computer science", "computer engineering", "software", "information technology", "it", "information engineering")) {
     return "computer science and software engineering";
   }
-  if (combined.includes("law") || combined.includes("legal") || combined.includes("llm")) {
-    return "international legal practice and corporate compliance";
+  if (hasTerm(combined, "law", "legal", "llm", "llb")) {
+    return "law";
   }
-  if (combined.includes("analytics") || combined.includes("data science")) {
-    return "business analytics and data-driven intelligence";
+  if (hasTerm(combined, "finance", "accounting", "banking")) {
+    return "finance and accounting";
   }
-  if (combined.includes("business") || combined.includes("management") || combined.includes("mba")) {
-    return "strategic management and global enterprise";
+  if (hasTerm(combined, "business", "management", "mba", "commerce")) {
+    return "business and management";
   }
-  if (combined.includes("finance") || combined.includes("accounting")) {
-    return "financial markets and corporate strategy";
+  if (hasTerm(combined, "mechanical", "robotics", "mechatronics")) {
+    return "mechanical engineering and robotics";
   }
-  if (combined.includes("mechanical") || combined.includes("robotics")) {
-    return "advanced engineering and intelligent systems";
-  }
-  return course ? `${course.trim()} and contemporary innovation` : "cutting-edge technology and innovation";
+  return course?.trim() || fieldOfStudy?.trim() || "";
 }
 
 export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): string {
@@ -84,35 +89,34 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
     ? `, with a specialization in ${field}`
     : "";
 
-  // 2. Academic score metric
-  let gradePhrase: string;
+  // 2. Academic score metric (stated as recorded, without superlatives)
+  let gradePhrase = "";
   const score = primaryQual?.score?.trim();
   const system = primaryQual?.gradingSystem?.trim();
 
   if (score) {
-    if (score.includes("%") || /^\d+(\.\d+)?%$/.test(score)) {
-      gradePhrase = `There, I achieved a remarkable score of ${score}, reflecting my dedication and technical prowess.`;
-    } else if (system && (system === "10" || system === "7" || system.toLowerCase().includes("cgpa"))) {
-      gradePhrase = `There, I achieved a remarkable CGPA of ${score}, reflecting my dedication and technical prowess.`;
-    } else if (!isNaN(Number(score)) && Number(score) <= 10) {
-      gradePhrase = `There, I achieved a remarkable CGPA of ${score}, reflecting my dedication and technical prowess.`;
+    if (score.includes("%")) {
+      gradePhrase = `I graduated with a score of ${score}.`;
+    } else if ((system && (system === "10" || system === "7" || system === "4" || system.toLowerCase().includes("cgpa"))) || (!isNaN(Number(score)) && Number(score) <= 10)) {
+      gradePhrase = `I graduated with a CGPA of ${score}${system && /^\d+$/.test(system) ? `/${system}` : ""}.`;
     } else {
-      gradePhrase = `There, I achieved an impressive grade of ${score}, reflecting my dedication and academic rigor.`;
+      gradePhrase = `I graduated with a final grade of ${score}.`;
     }
-  } else {
-    gradePhrase = `Throughout my studies, I maintained strong scholastic dedication and technical prowess.`;
   }
 
-  // 3. Domain & Career Vision
+  // 3. Target programme / domain
   const activeProg = profile.applications?.activeProgram;
+  const targetCourse = activeProg?.course?.trim();
+  const targetUniversity = activeProg?.university?.trim();
   const targetDomain = deriveDomain(activeProg?.course, degreeName, field);
 
-  // Construct complete 5-part narrative
-  const part1 = `I am ${salutation}${fullName}, raised in a close-knit family that instilled in me a deep passion for learning and excellence. From a young age, I stayed very-focused on my studies, channeling my energy into pursuing a challenging academic path.`;
-  const part2 = `I successfully completed my ${degreeName}${specialization}, from the prestigious ${institution}${city}.`;
-  const part3 = `${gradePhrase}`;
-  const part4 = `Highly focused and determined, I have a clear vision for my future in the dynamic world of ${targetDomain}.`;
-  const part5 = `With strong problem-solving skills and a commitment to lifelong growth, I am eager to contribute to innovative projects and advance my expertise in this transformative field.`;
+  const intro = `I am ${salutation}${fullName}.`;
+  const academic = `I completed my ${degreeName}${specialization} at ${institution}${city}.`;
+  const goal = targetCourse
+    ? `I am applying to pursue ${targetCourse}${targetUniversity ? ` at ${targetUniversity}` : ""} to build my expertise in ${targetDomain || "this field"}.`
+    : targetDomain
+    ? `I aim to build my career in ${targetDomain}.`
+    : "";
 
-  return `${part1} ${part2} ${part3} ${part4} ${part5}`;
+  return [intro, academic, gradePhrase, goal].filter(Boolean).join(" ");
 }

@@ -248,15 +248,17 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       }
     : {};
 
+  /** IELTS band → CEFR (IELTS published alignment). Empty when there is no usable score. */
   function ieltsToCefr(scoreVal?: string | number): string {
-    if (!scoreVal) return "C1";
+    if (scoreVal === undefined || scoreVal === null || scoreVal === "") return "";
     const num = parseFloat(String(scoreVal).replace(/[^0-9.]/g, ""));
-    if (isNaN(num)) return "C1";
+    if (isNaN(num)) return "";
     if (num >= 8.5) return "C2";
     if (num >= 7.0) return "C1";
     if (num >= 5.5) return "B2";
     if (num >= 4.0) return "B1";
-    return "B2";
+    if (num >= 3.0) return "A2";
+    return "A1";
   }
 
   // Mother tongue & languages
@@ -272,33 +274,32 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       .map((l, idx) => ({
         id: `lang-${idx}`,
         language: l.language,
-        level: l.level || "C1",
-        listening: l.listening || "C1",
-        reading: l.reading || "C1",
-        writing: l.writing || "C1",
-        spokenProduction: l.spokenProduction || "B2",
-        spokenInteraction: l.spokenInteraction || "C1",
+        level: l.level || "",
+        listening: l.listening || "",
+        reading: l.reading || "",
+        writing: l.writing || "",
+        spokenProduction: l.spokenProduction || "",
+        spokenInteraction: l.spokenInteraction || "",
       }));
-  } else {
-    const lScore = eng?.subscores?.listening ? ieltsToCefr(eng.subscores.listening) : "C1";
-    const rScore = eng?.subscores?.reading ? ieltsToCefr(eng.subscores.reading) : "C1";
-    const wScore = eng?.subscores?.writing ? ieltsToCefr(eng.subscores.writing) : "C1";
-    const sScore = eng?.subscores?.speaking ? ieltsToCefr(eng.subscores.speaking) : "C1";
-    const spProd = sScore === "C2" ? "C1" : sScore === "C1" ? "B2" : "B1";
-    const spInter = sScore;
-
+  } else if (eng && (eng.overallScore || eng.subscores)) {
+    // Derived only from an actual English test. IELTS has a single speaking band, so both
+    // spoken production and interaction take that band's CEFR level.
+    const speaking = ieltsToCefr(eng.subscores?.speaking);
     languages = [
       {
         id: "lang-eng",
         language: "English",
-        level: eng?.overallScore ? ieltsToCefr(eng.overallScore) : "C1",
-        listening: lScore,
-        reading: rScore,
-        writing: wScore,
-        spokenProduction: spProd,
-        spokenInteraction: spInter,
+        level: ieltsToCefr(eng.overallScore),
+        listening: ieltsToCefr(eng.subscores?.listening),
+        reading: ieltsToCefr(eng.subscores?.reading),
+        writing: ieltsToCefr(eng.subscores?.writing),
+        spokenProduction: speaking,
+        spokenInteraction: speaking,
       },
     ];
+  } else {
+    // No language data in the CRM: list nothing rather than assume English proficiency.
+    languages = [];
   }
 
   // Skills

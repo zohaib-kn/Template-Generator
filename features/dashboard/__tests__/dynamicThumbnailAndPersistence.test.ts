@@ -141,8 +141,8 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     assert.ok(langSection.content.includes("Reading C1"), "Reading 7.5 must map to CEFR C1");
     // Writing 6.5 -> B2
     assert.ok(langSection.content.includes("Writing B2"), "Writing 6.5 must map to CEFR B2");
-    // Speaking 7.0 -> C1 (Interaction C1, Production B2)
-    assert.ok(langSection.content.includes("Spoken Production B2"), "Speaking 7.0 must map to Spoken Production B2");
+    // Speaking 7.0 -> C1 (IELTS has one speaking band, so production and interaction match)
+    assert.ok(langSection.content.includes("Spoken Production C1"), "Speaking 7.0 must map to Spoken Production C1");
     assert.ok(langSection.content.includes("Spoken Interaction C1"), "Speaking 7.0 must map to Spoken Interaction C1");
   });
 });
