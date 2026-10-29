@@ -1565,6 +1565,7 @@ export function DocumentStudioDashboard() {
         body: JSON.stringify({
           title: editableDocContent.title,
           studentName: editableDocContent.studentName,
+          studentId: editableDocContent.studentId,
           documentType: editableDocContent.docType,
           fontFamily: fontFamilyLabel,
           html: liveHtml,

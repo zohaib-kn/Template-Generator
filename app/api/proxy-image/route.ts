@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth/session";
 
 /**
  * GET /api/proxy-image?url=<encoded_url>
@@ -8,6 +9,9 @@ import { NextRequest, NextResponse } from "next/server";
  * html2canvas to draw them without tainted-canvas CORS drops.
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (auth.response) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const imageUrl = searchParams.get("url")?.trim();
 

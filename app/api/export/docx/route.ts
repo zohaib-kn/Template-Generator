@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth/session";
 import {
   Document,
   Paragraph,
@@ -38,6 +39,8 @@ interface ExportDocxPayload {
   fontFamily?: string;
   html?: string;
   sections?: ExportDocxSection[];
+  /** When present, the operator must have access to this student. */
+  studentId?: string;
 }
 
 /**
@@ -250,6 +253,8 @@ function parseHtmlToDocxParagraphs(
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ExportDocxPayload;
+    const auth = await requireSession(req, { studentId: body?.studentId ?? null });
+    if (auth.response) return auth.response;
     const { title, studentName, documentType, fontFamily: requestedFont, html, sections } = body;
     const isCoverLetter =
       documentType === "COVER_LETTER" ||
