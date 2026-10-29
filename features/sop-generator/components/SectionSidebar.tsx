@@ -112,6 +112,9 @@ export function SectionSidebar({
               <ul className="space-y-0.5" role="listbox">
                 {groupSecs.map((section) => {
                   const isSelected = section.id === selectedId;
+                  const status = statuses[section.id] ?? "NOT_REVIEWED";
+                  const isApproved = status === "APPROVED";
+                  const isNeedsReview = status === "NEEDS_REVIEW";
                   const orderNum = String(section.order).padStart(2, "0");
 
                   return (
@@ -157,6 +160,37 @@ export function SectionSidebar({
                             </span>
                           )}
                         </div>
+
+                        {/* Interactive Status Toggle Circle */}
+                        {onToggleStatus && (
+                          <button
+                            type="button"
+                            id={`section-status-toggle-${section.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleStatus(section.id);
+                            }}
+                            className="flex-shrink-0 p-0.5 rounded-full hover:scale-110 active:scale-95 transition-all cursor-pointer focus:outline-none"
+                            title={isApproved ? "Click to unapprove section" : "Click to approve section"}
+                            aria-label={
+                              isApproved ? `Mark ${section.title} as unapproved` : `Mark ${section.title} as approved`
+                            }
+                          >
+                            {isApproved ? (
+                              <span className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-300 flex items-center justify-center text-[10px] font-bold shadow-2xs hover:bg-emerald-100 hover:text-emerald-700">
+                                ✓
+                              </span>
+                            ) : isNeedsReview ? (
+                              <span className="w-4 h-4 rounded-full bg-amber-50 text-amber-600 border border-amber-300 flex items-center justify-center text-[10px] font-bold shadow-2xs hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-300">
+                                !
+                              </span>
+                            ) : (
+                              <span className="w-4 h-4 rounded-full border border-slate-300 text-slate-300 flex items-center justify-center text-[9px] hover:border-emerald-400 hover:text-emerald-500 hover:bg-emerald-50">
+                                ○
+                              </span>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </li>
                   );

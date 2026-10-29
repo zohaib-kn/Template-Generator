@@ -19,7 +19,7 @@ interface SopCanvasInlineEditorProps {
  * - 100% font-matched to Times New Roman 13px / 1.23 line-height
  * - Auto-resizes height dynamically with zero layout jump
  * - Auto-saves on blur (when clicking anywhere outside)
- * - Esc key exits editing
+ * - Esc key reverts to the text as it was when editing started, then exits
  */
 export function SopCanvasInlineEditor({
   sectionId,
@@ -32,10 +32,15 @@ export function SopCanvasInlineEditor({
 }: SopCanvasInlineEditorProps) {
   const [text, setText] = useState(initialContent);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Text at the start of this edit session; Escape restores it.
   const initialRef = useRef(initialContent);
+  // Last value this editor emitted, so our own keystrokes echoing back through the parent
+  // are not mistaken for an external change (which would reset the Escape snapshot).
+  const lastEmittedRef = useRef<string | null>(null);
 
-  // Sync internal state if initialContent changes externally from AI/Undo
+  // Sync internal state only when initialContent changes externally (AI/Undo)
   useEffect(() => {
+    if (initialContent === lastEmittedRef.current) return;
     setText(initialContent);
     initialRef.current = initialContent;
   }, [initialContent]);
@@ -66,6 +71,7 @@ export function SopCanvasInlineEditor({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
     setText(newVal);
+    lastEmittedRef.current = newVal;
     onChange(newVal);
   };
 
@@ -76,8 +82,12 @@ export function SopCanvasInlineEditor({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
-      // Revert if cancelled via Escape
-      onChange(initialRef.current);
+      // Revert if cancelled via Escape — only when something was actually typed, so an
+      // untouched section is not rewritten (or knocked out of APPROVED)
+      if (text !== initialRef.current) {
+        lastEmittedRef.current = initialRef.current;
+        onChange(initialRef.current);
+      }
       if (onCancel) {
         onCancel();
       } else {

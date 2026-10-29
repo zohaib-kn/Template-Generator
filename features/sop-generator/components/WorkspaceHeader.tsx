@@ -212,6 +212,14 @@ export function WorkspaceHeader({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const statusCfg = DOC_STATUS_LABELS[documentStatus] ?? DOC_STATUS_LABELS.draft;
+  const allRequiredApproved = approvedCount >= requiredCount;
+  const canApprove = allRequiredApproved && !hasErrors;
+  const isApproved = documentStatus === "approved";
+  const approveDisabledReason = !canApprove
+    ? hasErrors
+      ? "Resolve validation errors before approving"
+      : `${requiredCount - approvedCount} section${requiredCount - approvedCount !== 1 ? "s" : ""} still need review`
+    : null;
   const cleanStudentName = studentName.replace(/\s*-\s*$/, "").trim() || "Student";
 
   const initials =
@@ -468,6 +476,41 @@ export function WorkspaceHeader({
             <span>Preview</span>
           </button>
 
+          {/* Approve Document */}
+          <div className="relative group">
+            <button
+              type="button"
+              id="sop-approve-document-btn"
+              onClick={onApproveDocument}
+              disabled={!canApprove || isApproved}
+              className={`h-8 px-3 rounded-lg text-xs font-medium transition-all shadow-2xs flex items-center gap-1.5
+                ${
+                  isApproved
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200/90 cursor-default"
+                    : canApprove
+                    ? "border border-slate-200/90 text-slate-700 bg-white hover:bg-slate-50 cursor-pointer"
+                    : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                }`}
+            >
+              {isApproved ? (
+                <>
+                  <span>✓</span>
+                  <span>Document Approved</span>
+                </>
+              ) : (
+                <span>Approve Document</span>
+              )}
+            </button>
+            {approveDisabledReason && !isApproved && (
+              <div
+                role="tooltip"
+                className="absolute right-0 top-full mt-1.5 z-30 w-52 bg-slate-800 text-white text-[11px] leading-relaxed rounded-lg px-2.5 py-1.5 shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                {approveDisabledReason}
+              </div>
+            )}
+          </div>
+
           {/* Primary CTA: Download PDF */}
           {onDownloadPdf && (
             <button
@@ -551,6 +594,23 @@ export function WorkspaceHeader({
                   >
                     <UploadCloudIcon className="w-3.5 h-3.5 text-slate-500" />
                     <span>Import Existing SOP</span>
+                  </button>
+                )}
+
+                {/* Approve All */}
+                {onApproveAll && !isApproved && (
+                  <button
+                    type="button"
+                    id="sop-header-approve-all-btn"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onApproveAll();
+                    }}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 cursor-pointer"
+                    role="menuitem"
+                  >
+                    <span>✓</span>
+                    <span>Approve All Sections</span>
                   </button>
                 )}
 
