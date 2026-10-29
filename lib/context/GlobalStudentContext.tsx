@@ -32,7 +32,7 @@ import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToR
 import {
   getSampleAaravMehtaSnapshot,
   getSampleAafiaAmeenSnapshot,
-  getSampleMirzaFarhanZaidSnapshot,
+  getSampleRohanIyerSnapshot,
 } from "@/lib/sampleStudents";
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ interface GlobalStudentContextValue {
 
   // Actions
   selectStudent: (id: string) => void;
-  loadSampleStudent: (key: "aarav-mehta" | "aafia-ameen" | "mirza-farhan-zaid") => void;
+  loadSampleStudent: (key: "aarav-mehta" | "aafia-ameen" | "rohan-iyer") => void;
   clearStudent: () => void;
 }
 
@@ -134,15 +134,15 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Load Sample Student ──────────────────────────────────────────────────
-  const loadSampleStudent = useCallback((key: "aarav-mehta" | "aafia-ameen" | "mirza-farhan-zaid") => {
+  const loadSampleStudent = useCallback((key: "aarav-mehta" | "aafia-ameen" | "rohan-iyer") => {
     let studentId = "sample-aarav-mehta";
     let studentName = "Aarav Mehta";
     let snapshot = getSampleAaravMehtaSnapshot();
 
-    if (key === "mirza-farhan-zaid") {
-      studentId = "sample-mirza-farhan-zaid";
-      studentName = "Mirza Farhan Zaid";
-      snapshot = getSampleMirzaFarhanZaidSnapshot();
+    if (key === "rohan-iyer") {
+      studentId = "sample-rohan-iyer";
+      studentName = "Rohan Iyer";
+      snapshot = getSampleRohanIyerSnapshot();
     } else if (key === "aafia-ameen") {
       studentId = "sample-aafia-ameen";
       studentName = "Aafia Ameen";
@@ -229,8 +229,8 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const selectStudent = useCallback(async (id: string) => {
     if (!id) return;
 
-    if (id === "sample-mirza-farhan-zaid") {
-      loadSampleStudent("mirza-farhan-zaid");
+    if (id === "sample-rohan-iyer") {
+      loadSampleStudent("rohan-iyer");
       return;
     }
     if (id === "sample-aarav-mehta") {

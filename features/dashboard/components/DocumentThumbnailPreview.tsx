@@ -9,6 +9,8 @@ export interface DocumentThumbnailPreviewProps {
   targetCountry?: string;
   sections?: { heading: string; content: string }[];
   isTemplateCard?: boolean;
+  /** Candidate photo for CV thumbnails; initials monogram is shown when absent. */
+  photoUrl?: string;
   className?: string;
 }
 
@@ -57,12 +59,13 @@ function extractPhone(text: string, fallback: string): string {
  */
 export function DocumentThumbnailPreview({
   docType,
-  studentName = "Aafia Ameen",
+  studentName = "",
   targetUniversity = "Università degli Studi di Padova",
   targetCourse = "Master of Science in Data Science",
   targetCountry = "Italy",
   sections = [],
   isTemplateCard = false,
+  photoUrl,
   className = "",
 }: DocumentThumbnailPreviewProps) {
   // Helper to retrieve section content safely
@@ -81,13 +84,9 @@ export function DocumentThumbnailPreview({
     const university = isTemplateCard ? "University / Institution" : targetUniversity;
     const course = isTemplateCard ? "Field of Study / Degree" : targetCourse;
 
-    // Avatar logic: Only Mirza Farhan Zaid gets the sample avatar in recent docs;
-    // Template cards get a neutral candidate silhouette SVG placeholder
-    const isMirza =
-      !isTemplateCard && (
-        studentName.toLowerCase().includes("mirza") ||
-        studentName.toLowerCase().includes("zaid")
-      );
+    // Avatar logic: a photo is shown only when the document supplies one;
+    // otherwise an initials monogram (template cards get a neutral silhouette)
+    const hasPhoto = !isTemplateCard && Boolean(photoUrl);
 
     const initials = getInitials(studentName);
 
@@ -209,11 +208,11 @@ export function DocumentThumbnailPreview({
                   <circle cx="12" cy="7" r="4" />
                 </svg>
               </div>
-            ) : isMirza ? (
+            ) : hasPhoto ? (
               <div className="w-6 h-7.5 bg-slate-200 rounded-[2px] border border-slate-300 overflow-hidden shrink-0 shadow-2xs">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/sample-avatar.png"
+                  src={photoUrl}
                   alt="Candidate"
                   className="w-full h-full object-cover"
                   onError={(e) => {

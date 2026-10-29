@@ -10,18 +10,18 @@ import {
   RECENT_DOCS_STORAGE_KEY,
 } from "../utils/documentHydrator";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
-import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_Kaavya.json";
-import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fardee.json";
 import type { Editor } from "@tiptap/react";
 import { TiptapEditor, type FormattingState } from "./TiptapEditor";
 import { DocumentThumbnailPreview } from "./DocumentThumbnailPreview";
 import { EuropassTemplate } from "@/templates/europass/EuropassTemplate";
 import { mapCrmToNormalizedStudent, mapNormalizedToResume } from "@/services/normalization";
-import { testStudentData } from "@/features/document-generator/utils/testStudentData";
+import { createEmptyDocumentData } from "@/features/document-generator/utils/documentDefaults";
 import {
-  getSampleMirzaFarhanZaidSnapshot,
+  getSampleRohanIyerSnapshot,
   getSampleAaravMehtaSnapshot,
   getSampleAafiaAmeenSnapshot,
+  getSampleSnapshotById,
+  SAMPLE_STUDENTS,
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
 import { syncSectionsToCvData } from "../utils/documentStudioSync";
@@ -52,19 +52,19 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
   {
     ...hydrateDocumentFromSnapshot(
       "CV",
-      getSampleMirzaFarhanZaidSnapshot(),
-      "sample-mirza-farhan-zaid"
+      getSampleRohanIyerSnapshot(),
+      "sample-rohan-iyer"
     ),
-    title: "Mirza Farhan Zaid – Europass CV",
+    title: "Rohan Iyer – Europass CV",
     updatedAt: "Opened 10m ago",
   },
   {
     ...hydrateDocumentFromSnapshot(
       "SOP",
-      kaavyaSnapshot as any,
-      "6a508a96af13bb33e9fc07ce"
+      getSampleRohanIyerSnapshot(),
+      "sample-rohan-iyer"
     ),
-    title: "Kaavya Girish Nair – Statement of Purpose",
+    title: "Rohan Iyer – Statement of Purpose",
     updatedAt: "Opened Oct 26, 2026",
   },
   {
@@ -80,10 +80,10 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
   {
     ...hydrateDocumentFromSnapshot(
       "CV",
-      fardeeSnapshot as any,
-      "69e600e750f7c6e4051f547e"
+      getSampleAaravMehtaSnapshot(),
+      "sample-aarav-mehta"
     ),
-    title: "Fardeen – Europass Academic CV",
+    title: "Aarav Mehta – Europass Academic CV",
     updatedAt: "Opened Jul 24, 2024",
   },
   {
@@ -328,84 +328,45 @@ function getEuropassData(
   studentName?: string,
   globalStudentData?: any
 ): DocumentData {
-  if (globalStudentData && globalStudentData.student) {
+  // Only the selected student's own CRM snapshot, or an exact sample ID, may populate a CV.
+  const ownSnapshot =
+    globalStudentData && globalStudentData.student ? globalStudentData : getSampleSnapshotById(studentId);
+  if (ownSnapshot) {
     try {
-      const norm = mapCrmToNormalizedStudent(globalStudentData);
+      const norm = mapCrmToNormalizedStudent(ownSnapshot);
       const proj = mapNormalizedToResume(norm);
       if (proj.student && proj.student.personal?.fullName) return proj.student;
     } catch {}
   }
-  if (
-    studentId === "sample-aafia-ameen" ||
-    studentName?.toLowerCase().includes("aafia") ||
-    studentName?.toLowerCase().includes("ameen")
-  ) {
-    try {
-      const aafiaSnap = getSampleAafiaAmeenSnapshot();
-      const norm = mapCrmToNormalizedStudent(aafiaSnap);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student) return proj.student;
-    } catch {}
-  }
-  if (
-    studentId === "sample-mirza-farhan-zaid" ||
-    studentName?.toLowerCase().includes("mirza") ||
-    studentName?.toLowerCase().includes("zaid") ||
-    studentName?.toLowerCase().includes("farhan")
-  ) {
-    try {
-      const mirzaSnap = getSampleMirzaFarhanZaidSnapshot();
-      const norm = mapCrmToNormalizedStudent(mirzaSnap);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student) return proj.student;
-    } catch {}
-  }
-  if (studentId === "6a508a96af13bb33e9fc07ce" || studentName?.toLowerCase().includes("kaavya")) {
-    try {
-      const norm = mapCrmToNormalizedStudent(kaavyaSnapshot as any);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student) return proj.student;
-    } catch {}
-  }
-  if (studentId === "sample-aarav-mehta" || studentName?.toLowerCase().includes("aarav")) {
-    try {
-      const aaravSnap = getSampleAaravMehtaSnapshot();
-      const norm = mapCrmToNormalizedStudent(aaravSnap);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student) return proj.student;
-    } catch {}
-  }
-  if (
-    studentId === "69e600e750f7c6e4051f547e" ||
-    studentName?.toLowerCase().includes("fardeen") ||
-    studentName?.toLowerCase().includes("fardee")
-  ) {
-    try {
-      const norm = mapCrmToNormalizedStudent(fardeeSnapshot as any);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student) return proj.student;
-    } catch {}
-  }
-  try {
-    const snap = getSampleMirzaFarhanZaidSnapshot();
-    const norm = mapCrmToNormalizedStudent(snap);
-    if (studentName) {
-      norm.personal.fullName = studentName;
-    }
-    const proj = mapNormalizedToResume(norm);
-    if (proj.student) return proj.student;
-  } catch {}
 
+  const empty = createEmptyDocumentData();
   return {
-    ...testStudentData,
+    ...empty,
     personal: {
-      ...testStudentData.personal,
-      fullName: studentName || testStudentData.personal?.fullName || "Candidate",
+      ...empty.personal,
+      fullName: studentName || "",
     },
   };
 }
 
 
+
+/**
+ * Loads the selected student's own snapshot: fictional samples by exact ID, everyone else
+ * from the CRM. Returns null on any failure so callers stop instead of substituting data.
+ */
+async function loadStudentSnapshot(studentId: string): Promise<CrmSnapshot | null> {
+  const sample = getSampleSnapshotById(studentId);
+  if (sample) return sample;
+  try {
+    const res = await fetch(`/api/student/${encodeURIComponent(studentId)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.success && json.data ? (json.data as CrmSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function getDocTypeMeta(docType?: string) {
   switch (docType) {
@@ -755,7 +716,7 @@ export function DocumentStudioDashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [aiPromptText, setAiPromptText] = useState("");
   const [isAiCooking, setIsAiCooking] = useState(false);
-  const [aiToast, setAiToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const [aiToast, setAiToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [fontSize, setFontSize] = useState<number>(11);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isBold, setIsBold] = useState(false);
@@ -1166,9 +1127,7 @@ export function DocumentStudioDashboard() {
           courseContext.includes("science") ||
           courseContext.includes("tech") ||
           courseContext.includes("ai") ||
-          courseContext.includes("information") ||
-          (updated.studentName || "").toLowerCase().includes("zaid") ||
-          (updated.studentName || "").toLowerCase().includes("aafia");
+          courseContext.includes("information");
 
         // ── Case 3: Operator shares Work Experience details ──────────────────────
         if (
@@ -1549,23 +1508,12 @@ export function DocumentStudioDashboard() {
   const handleSwitchDocType = async (newType: "COVER_LETTER" | "SOP" | "CV" | "LOR") => {
     if (!activeDocument) return;
     setIsAiCooking(true);
-    let snapshot: CrmSnapshot = kaavyaSnapshot as unknown as CrmSnapshot;
-    if (activeDocument.studentId === "sample-aafia-ameen") {
-      snapshot = getSampleAafiaAmeenSnapshot();
-    } else if (activeDocument.studentId === "sample-mirza-farhan-zaid") {
-      snapshot = getSampleMirzaFarhanZaidSnapshot();
-    } else if (activeDocument.studentId === "sample-aarav-mehta") {
-      snapshot = getSampleAaravMehtaSnapshot();
+    const snapshot = await loadStudentSnapshot(activeDocument.studentId);
+    if (!snapshot) {
+      setIsAiCooking(false);
+      setAiToast({ message: "Could not load this student's CRM data. Document type was not changed.", type: "error" });
+      return;
     }
-    try {
-      const res = await fetch(`/api/student/${activeDocument.studentId}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          snapshot = json.data as CrmSnapshot;
-        }
-      }
-    } catch {}
 
     const newDoc = hydrateDocumentFromSnapshot(newType, snapshot, activeDocument.studentId);
     if (editableDocContent) {
@@ -1668,43 +1616,39 @@ export function DocumentStudioDashboard() {
     }, 1500);
   };
 
-  // Fallback initial roster so the dropdown is never empty
-  const FALLBACK_STUDENTS = useMemo(
-    () => [
-      { id: "sample-aafia-ameen", name: "Aafia Ameen", email: "aafia.ameen@example.com" },
-      { id: "sample-mirza-farhan-zaid", name: "Mirza Farhan Zaid", email: "zaidmirzafarhan@gmail.com" },
-      { id: "6a508a96af13bb33e9fc07ce", name: "Kaavya Girish Nair", email: "kaavya.nair@example.com" },
-      { id: "sample-aarav-mehta", name: "Aarav Mehta", email: "aarav.mehta@example.com" },
-      { id: "69e600e750f7c6e4051f547e", name: "Fardeen", email: "fardeen@example.com" },
-    ],
+  // Fictional demo students, clearly labelled; always listed after the live CRM roster
+  const SAMPLE_ROSTER = useMemo(
+    () => SAMPLE_STUDENTS.map((s) => ({ id: s.id, name: `${s.name} (Sample)`, email: s.email })),
     []
   );
 
-  const [studentRoster, setStudentRoster] = useState<Array<{ id: string; name: string; email: string | null }>>(FALLBACK_STUDENTS);
+  const [studentRoster, setStudentRoster] = useState<Array<{ id: string; name: string; email: string | null }>>(SAMPLE_ROSTER);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
 
   // Sync roster from GlobalStudentContext and direct /api/students/list
   useEffect(() => {
     if (students && students.length > 0) {
-      setStudentRoster(students);
-      if (!modalStudentId) {
-        setModalStudentId(students[0].id);
-      }
+      setStudentRoster([...students, ...SAMPLE_ROSTER]);
+      setRosterError(null);
       return;
     }
 
     fetch("/api/students/list")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success && Array.isArray(json.students) && json.students.length > 0) {
-          setStudentRoster(json.students);
-          if (!modalStudentId) {
-            setModalStudentId(json.students[0].id);
-          }
+        if (json.success && Array.isArray(json.students)) {
+          setStudentRoster([...json.students, ...SAMPLE_ROSTER]);
+          setRosterError(null);
+        } else {
+          setRosterError("Could not load the CRM student roster. Only sample students are listed.");
         }
       })
-      .catch(() => {});
-  }, [students, modalStudentId]);
+      .catch(() => {
+        setRosterError("Could not load the CRM student roster. Only sample students are listed.");
+      });
+  }, [students, SAMPLE_ROSTER]);
 
 
   // Filter recent documents by global search
@@ -1801,6 +1745,7 @@ export function DocumentStudioDashboard() {
     if (!modalStudentId) return;
 
     // Start fancy countdown cooking loader
+    setGenerateError(null);
     setIsCooking(true);
     setCookingCountdown(3);
     setCookingStage(0);
@@ -1824,25 +1769,14 @@ export function DocumentStudioDashboard() {
       setCookingStage((prev) => (prev < 3 ? prev + 1 : prev));
     }, 750);
 
-    // Fetch student CRM data
-    let snapshot: CrmSnapshot = kaavyaSnapshot as unknown as CrmSnapshot;
-    if (modalStudentId === "sample-aafia-ameen") {
-      snapshot = getSampleAafiaAmeenSnapshot();
-    } else if (modalStudentId === "sample-mirza-farhan-zaid") {
-      snapshot = getSampleMirzaFarhanZaidSnapshot();
-    } else if (modalStudentId === "sample-aarav-mehta") {
-      snapshot = getSampleAaravMehtaSnapshot();
-    }
-    try {
-      const res = await fetch(`/api/student/${modalStudentId}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          snapshot = json.data as CrmSnapshot;
-        }
-      }
-    } catch {
-      // Offline fallback
+    // Fetch the selected student's own CRM data; never fall back to another student
+    const snapshot = modalDocType === "BLANK" ? null : await loadStudentSnapshot(modalStudentId);
+    if (modalDocType !== "BLANK" && !snapshot) {
+      clearInterval(countdownInterval);
+      clearInterval(stageInterval);
+      setIsCooking(false);
+      setGenerateError(`Could not load CRM data for ${studentName}. No document was generated — please retry.`);
+      return;
     }
 
     // After countdown completes (~2.7s), reveal generated document right in front
@@ -1873,7 +1807,7 @@ export function DocumentStudioDashboard() {
           ],
         };
       } else {
-        generatedDoc = hydrateDocumentFromSnapshot(modalDocType, snapshot, modalStudentId);
+        generatedDoc = hydrateDocumentFromSnapshot(modalDocType, snapshot as CrmSnapshot, modalStudentId);
         generatedDoc.updatedAt = "Created just now";
       }
 
@@ -2419,6 +2353,12 @@ export function DocumentStudioDashboard() {
                 )}
               </div>
             </div>
+
+            {(rosterError || generateError) && (
+              <p role="alert" className="mt-4 text-xs text-red-600">
+                {generateError || rosterError}
+              </p>
+            )}
 
             {/* Modal Actions */}
             <div className="mt-6 flex items-center justify-end gap-2.5">
@@ -4094,13 +4034,15 @@ export function DocumentStudioDashboard() {
           {aiToast && (
             <div className="fixed bottom-12 right-6 z-40 bg-slate-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-3 animate-in slide-from-bottom-2 duration-200">
               <span>{aiToast.message}</span>
-              <button
-                type="button"
-                onClick={handleUndo}
-                className="text-indigo-400 hover:text-white font-semibold underline cursor-pointer"
-              >
-                Undo
-              </button>
+              {aiToast.type !== "error" && (
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  className="text-indigo-400 hover:text-white font-semibold underline cursor-pointer"
+                >
+                  Undo
+                </button>
+              )}
             </div>
           )}
 

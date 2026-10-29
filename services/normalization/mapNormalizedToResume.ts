@@ -263,7 +263,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
   const motherTongue =
     profile.motherTongue ||
     profile.languages?.find((l) => l.isMotherTongue)?.language ||
-    (p.fullName?.toLowerCase().includes("zaid") ? "Urdu" : "Hindi");
+    "";
 
   let languages: LanguageEntry[];
   if (profile.languages && profile.languages.length > 0) {

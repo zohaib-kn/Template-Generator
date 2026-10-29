@@ -7,7 +7,7 @@ import {
 } from "@/features/dashboard/utils/documentHydrator";
 import { syncSectionsToCvData } from "@/features/dashboard/utils/documentStudioSync";
 import type { DocumentData } from "@/types/document";
-import { getSampleMirzaFarhanZaidSnapshot } from "@/lib/sampleStudents";
+import { getSampleRohanIyerSnapshot } from "@/lib/sampleStudents";
 import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fardee.json";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 
@@ -137,7 +137,7 @@ describe("AI Chat Assistant Conversation State & Suggestions Logic", () => {
   it("determines suggestion visibility: visible when chatMessages is empty, hidden when convo begins", () => {
     const emptyChat: unknown[] = [];
     const activeChat = [
-      { id: "msg-1", sender: "user", text: "IELTS 7.5 TRF 26IA506129FAIM003A", timestamp: "12:00 PM" },
+      { id: "msg-1", sender: "user", text: "IELTS 7.5 TRF SAMPLE-TRF-0001", timestamp: "12:00 PM" },
     ];
 
     const showSuggestionsEmpty = emptyChat.length === 0;
@@ -148,11 +148,11 @@ describe("AI Chat Assistant Conversation State & Suggestions Logic", () => {
   });
 
   it("constructs correct scoped localStorage key for multi-turn studio chat persistence", () => {
-    const studentId = "sample-mirza-farhan-zaid";
+    const studentId = "sample-rohan-iyer";
     const docType = "CV";
     const expectedKey = `antigravity_studio_chat_${studentId}_${docType}`;
 
-    assert.equal(expectedKey, "antigravity_studio_chat_sample-mirza-farhan-zaid_CV");
+    assert.equal(expectedKey, "antigravity_studio_chat_sample-rohan-iyer_CV");
   });
 
   it("handles deletion of empty or customized section cleanly", () => {

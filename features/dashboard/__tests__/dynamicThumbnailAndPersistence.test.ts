@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import React from "react";
 import ReactDOMServer from "react-dom/server";
-import { getSampleAafiaAmeenSnapshot, getSampleAaravMehtaSnapshot, getSampleMirzaFarhanZaidSnapshot } from "@/lib/sampleStudents";
+import { getSampleAafiaAmeenSnapshot, getSampleAaravMehtaSnapshot, getSampleRohanIyerSnapshot } from "@/lib/sampleStudents";
 import { hydrateDocumentFromSnapshot, RECENT_DOCS_STORAGE_KEY } from "@/features/dashboard/utils/documentHydrator";
 import { DocumentThumbnailPreview } from "@/features/dashboard/components/DocumentThumbnailPreview";
 
@@ -36,12 +36,12 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
 
     // Must NOT contain Aafia Ameen's hardcoded data
     assert.ok(!html.includes("Aafia Ameen"), "Must not display Aafia Ameen");
-    assert.ok(!html.includes("Carmel Convent"), "Must not display Carmel Convent");
-    assert.ok(!html.includes("aafiaameen9@gmail.com"), "Must not display Aafia's email");
-    assert.ok(!html.includes("Dimora in Prato"), "Must not display Aafia's accommodation");
+    assert.ok(!html.includes("National College Bangalore"), "Must not display Aafia's school");
+    assert.ok(!html.includes("aafia.ameen.test@example.com"), "Must not display Aafia's email");
+    assert.ok(!html.includes("Sample Student Residence"), "Must not display Aafia's accommodation");
   });
 
-  it("Fardeen Europass CV thumbnail renders Fardeen's initials monogram and zero Mirza Farhan Zaid data", () => {
+  it("Fardeen Europass CV thumbnail renders Fardeen's initials monogram and zero Rohan Iyer data", () => {
     const fardeenSections = [
       {
         heading: "ABOUT ME",
@@ -80,31 +80,32 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     assert.ok(html.includes("Financial Analyst Trainee"), "Should render role");
     assert.ok(html.includes("Bachelor of Commerce"), "Should render Fardeen's degree");
 
-    // Must NOT contain Mirza Farhan Zaid's photo, passport, or internship
-    assert.ok(!html.includes("/sample-avatar.png"), "Must NOT render Mirza's avatar image for Fardeen");
-    assert.ok(!html.includes("MIRZA FARHAN ZAID"), "Must NOT render Mirza's name");
-    assert.ok(!html.includes("zaidmirza@gmail.com"), "Must NOT render Mirza's email");
+    // Must NOT contain Rohan Iyer's photo, passport, or internship
+    assert.ok(!html.includes("/sample-avatar.png"), "Must NOT render Rohan's avatar image for Fardeen");
+    assert.ok(!html.includes("ROHAN IYER"), "Must NOT render Rohan's name");
+    assert.ok(!html.includes("rohan.iyer.test@example.com"), "Must NOT render Rohan's email");
     assert.ok(!html.includes("TechSolutions Global"), "Must NOT render TechSolutions Global");
   });
 
-  it("Mirza Farhan Zaid CV thumbnail renders official candidate photo", () => {
-    const mirzaSnapshot = getSampleMirzaFarhanZaidSnapshot();
-    const mirzaDoc = hydrateDocumentFromSnapshot("CV", mirzaSnapshot, "sample-mirza-farhan-zaid");
+  it("CV thumbnail renders the candidate photo only when one is supplied", () => {
+    const rohanSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
 
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(DocumentThumbnailPreview, {
-        docType: mirzaDoc.docType,
-        studentName: mirzaDoc.studentName,
-        targetUniversity: mirzaDoc.targetUniversity,
-        targetCourse: mirzaDoc.targetCourse,
-        targetCountry: mirzaDoc.targetCountry,
-        sections: mirzaDoc.sections,
+        docType: rohanDoc.docType,
+        studentName: rohanDoc.studentName,
+        targetUniversity: rohanDoc.targetUniversity,
+        targetCourse: rohanDoc.targetCourse,
+        targetCountry: rohanDoc.targetCountry,
+        sections: rohanDoc.sections,
         isTemplateCard: false,
+        photoUrl: "/sample-avatar.png",
       })
     );
 
-    assert.ok(html.includes("MIRZA FARHAN ZAID"), "Should render Mirza's name");
-    assert.ok(html.includes("/sample-avatar.png"), "Should render avatar photo for Mirza");
+    assert.ok(html.includes("ROHAN IYER"), "Should render Rohan's name");
+    assert.ok(html.includes("/sample-avatar.png"), "Should render avatar photo for Rohan");
   });
 
   it("LocalStorage persistence key is exported and configured for operator session recovery", () => {
@@ -113,13 +114,13 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     assert.ok(RECENT_DOCS_STORAGE_KEY.includes("antigravity_recent_documents"));
   });
 
-  it("Mirza Farhan Zaid CV hydrates authentic IELTS Test Report Form data and TRF number", () => {
-    const mirzaSnapshot = getSampleMirzaFarhanZaidSnapshot();
-    const mirzaDoc = hydrateDocumentFromSnapshot("CV", mirzaSnapshot, "sample-mirza-farhan-zaid");
+  it("Rohan Iyer CV hydrates IELTS Test Report Form data and TRF number", () => {
+    const rohanSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
 
-    const certSection = mirzaDoc.sections.find((s) => s.heading === "ENGLISH LANGUAGE CERTIFICATE");
+    const certSection = rohanDoc.sections.find((s) => s.heading === "ENGLISH LANGUAGE CERTIFICATE");
     assert.ok(certSection, "Must include ENGLISH LANGUAGE CERTIFICATE section");
-    assert.ok(certSection.content.includes("26IA506129FAIM003A"), "Must contain TRF Number 26IA506129FAIM003A");
+    assert.ok(certSection.content.includes("SAMPLE-TRF-0001"), "Must contain TRF Number SAMPLE-TRF-0001");
     assert.ok(certSection.content.includes("Listening - 9.0"), "Must contain Listening - 9.0");
     assert.ok(certSection.content.includes("Reading - 7.5"), "Must contain Reading - 7.5");
     assert.ok(certSection.content.includes("Writing - 6.5"), "Must contain Writing - 6.5");
@@ -129,10 +130,10 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
   });
 
   it("CEFR language skills levels accurately map from IELTS subscores (9.0 -> C2, 6.5 -> B2)", () => {
-    const mirzaSnapshot = getSampleMirzaFarhanZaidSnapshot();
-    const mirzaDoc = hydrateDocumentFromSnapshot("CV", mirzaSnapshot, "sample-mirza-farhan-zaid");
+    const rohanSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
 
-    const langSection = mirzaDoc.sections.find((s) => s.heading === "LANGUAGE SKILLS");
+    const langSection = rohanDoc.sections.find((s) => s.heading === "LANGUAGE SKILLS");
     assert.ok(langSection, "Must include LANGUAGE SKILLS section");
     // Listening 9.0 -> C2
     assert.ok(langSection.content.includes("Listening C2"), "Listening 9.0 must map to CEFR C2");

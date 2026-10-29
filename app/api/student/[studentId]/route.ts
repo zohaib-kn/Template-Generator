@@ -3,7 +3,7 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_Kaavya.json";
 import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fardee.json";
 
-import { getSampleMirzaFarhanZaidSnapshot, getSampleAaravMehtaSnapshot, getSampleAafiaAmeenSnapshot } from "@/lib/sampleStudents";
+import { getSampleSnapshotById } from "@/lib/sampleStudents";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,24 +44,22 @@ export type StudentApiResponse = StudentSuccessResponse | StudentErrorResponse;
 const MONGO_OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
 
 /**
- * Retrieves a development cached snapshot if the ID matches known test students.
+ * Sample students resolve by exact sample ID only. The two recorded CRM fixtures are
+ * development-only and are never served in production, so a live CRM outage can never
+ * be masked by stale or substituted data.
  */
 function getCachedSnapshot(studentId: string): CrmSnapshot | null {
+  const sample = getSampleSnapshotById(studentId);
+  if (sample) return sample;
+
+  if (process.env.NODE_ENV === "production") return null;
+
   const normalized = studentId.toLowerCase();
   if (normalized === "6a508a96af13bb33e9fc07ce") {
     return kaavyaSnapshot as unknown as CrmSnapshot;
   }
   if (normalized === "69e600e750f7c6e4051f547e") {
     return fardeeSnapshot as unknown as CrmSnapshot;
-  }
-  if (normalized === "sample-mirza-farhan-zaid" || normalized.includes("mirza")) {
-    return getSampleMirzaFarhanZaidSnapshot();
-  }
-  if (normalized === "sample-aarav-mehta" || normalized.includes("aarav")) {
-    return getSampleAaravMehtaSnapshot();
-  }
-  if (normalized === "sample-aafia-ameen" || normalized.includes("aafia")) {
-    return getSampleAafiaAmeenSnapshot();
   }
   return null;
 }
@@ -86,9 +84,9 @@ export async function GET(
   const { studentId } = await context.params;
   const trimmedId = studentId?.trim();
 
-  // 1. Check development cached / sample snapshots first
+  // 1. Fictional sample students (exact sample ID only) never hit the CRM
   if (trimmedId) {
-    const cached = getCachedSnapshot(trimmedId);
+    const cached = getSampleSnapshotById(trimmedId);
     if (cached) {
       return NextResponse.json<StudentSuccessResponse>({
         success: true,
