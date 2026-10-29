@@ -106,7 +106,7 @@ export function AboutMeForm() {
             type="button"
             onClick={() => setAboutMe(suggestedTemplate)}
             className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-all border text-indigo-700 hover:text-indigo-800 bg-indigo-50/80 hover:bg-indigo-100/90 border-indigo-200/90 shadow-2xs cursor-pointer active:scale-98"
-            title="Auto-generate a complete academic profile with student's background, family values, and target degree"
+            title="Auto-generate a clean, professional profile with student's academic background and future study goals"
           >
             <span>✨</span>
             <span>Generate Academic Profile</span>

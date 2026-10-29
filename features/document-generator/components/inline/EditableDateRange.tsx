@@ -149,6 +149,8 @@ export function EditableDateRange({
     return (
       <span
         className={className}
+        data-html2canvas-ignore={!localValue.trim() ? "true" : undefined}
+        data-pdf-ignore={!localValue.trim() ? "true" : undefined}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -189,6 +191,8 @@ export function EditableDateRange({
     <span
       className={className}
       onClick={handleClick}
+      data-html2canvas-ignore={!currentDisplay ? "true" : undefined}
+      data-pdf-ignore={!currentDisplay ? "true" : undefined}
       style={{
         cursor: "text",
         borderBottom: "1px dashed transparent",

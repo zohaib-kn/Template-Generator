@@ -22,11 +22,13 @@ const MAX_BULLETS = 6;
 const MIN_ITEM_LENGTH = 10;
 
 /**
- * Strip a leading bullet marker character from a string.
- * Handles •, -, *, –, —, quotes, ticks followed by optional whitespace.
+ * Strip all leading bullet marker characters from a string repeatedly.
+ * Handles •, ◦, ▪, ●, -, *, –, —, ·, ., quotes, ticks, and any surrounding spaces.
+ * Ensures multi-bullet sequences like "• • • " or "- - " are stripped completely down to the actual text.
  */
-function stripLeadingMarker(s: string): string {
-  return s.replace(/^[\u2022\-\*\u2013\u2014\u2018\u2019\'\"·]\s*/, "").trim();
+export function stripLeadingMarkers(s: string): string {
+  if (!s) return "";
+  return s.replace(/^[\s\u2022\u25E6\u25AA\u25CF\-\*\u2013\u2014\u2018\u2019\'\"·\.]+/g, "").trim();
 }
 
 /**
@@ -39,14 +41,14 @@ function capitaliseFirst(s: string): string {
 
 /**
  * Clean and filter a list of candidate bullet strings.
- * - Strips leading markers
+ * - Strips all leading markers
  * - Capitalises first letter
  * - Removes items shorter than MIN_ITEM_LENGTH
  * - Caps at MAX_BULLETS
  */
 function cleanAndCap(items: string[]): string[] {
   return items
-    .map(stripLeadingMarker)
+    .map(stripLeadingMarkers)
     .map(capitaliseFirst)
     .filter((s) => s.length >= MIN_ITEM_LENGTH)
     .slice(0, MAX_BULLETS);
@@ -72,14 +74,24 @@ export function parseDescriptionToBullets(raw: string): string[] {
   const text = raw.trim();
   if (!text) return [""];
 
-  // ── Strategy 1: Already has manual bullet markers on their own lines ──────
-  const manualBulletLines = text
+  // ── Strategy 1: Already has manual bullet markers on lines ──────
+  const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => /^[\u2022\-\*\u2013\u2014\u2018\u2019\'\"·]/.test(l));
+    .filter(Boolean);
 
-  if (manualBulletLines.length >= 2) {
+  const manualBulletLines = lines.filter((l) =>
+    /^[\u2022\u25E6\u25AA\u25CF\-\*\u2013\u2014\u2018\u2019\'\"·]/.test(l)
+  );
+
+  if (manualBulletLines.length >= 1) {
     const cleaned = cleanAndCap(manualBulletLines);
+    if (cleaned.length >= 1) return cleaned;
+  }
+
+  // Multiple lines without explicit bullet markers
+  if (lines.length >= 2) {
+    const cleaned = cleanAndCap(lines);
     if (cleaned.length >= 2) return cleaned;
   }
 
@@ -105,5 +117,6 @@ export function parseDescriptionToBullets(raw: string): string[] {
   }
 
   // ── Strategy 4: Short or unsplittable text — single plain item ───────────
-  return [capitaliseFirst(text.replace(/\.$/, "").trim())];
+  const single = stripLeadingMarkers(text.replace(/\.$/, "").trim());
+  return [capitaliseFirst(single)];
 }
