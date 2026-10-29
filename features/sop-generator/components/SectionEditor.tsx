@@ -162,7 +162,7 @@ export function SourceDataDialog({ section, ctx, onClose }: SourceDataDialogProp
                           <span>{value}</span>
                           {isMissing && (
                             <span className="ml-2 inline-block text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.2 font-normal">
-                              Default Fallback
+                              Missing in CRM
                             </span>
                           )}
                         </td>
