@@ -16,6 +16,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
+import { buildCoverLetterLayout } from "@/lib/export/coverLetterLayout";
+import { buildEuropassParagraphs } from "@/lib/export/europassDocx";
+import { isAllowedExportFont, resolveExportFont } from "@/lib/export/fonts";
+import { parseHtmlToDocxParagraphs } from "@/lib/export/htmlToDocx";
 import {
   Document,
   Paragraph,
@@ -74,182 +78,6 @@ function markdownToRuns(
     .filter(Boolean) as TextRun[];
 }
 
-/**
- * Parses an HTML fragment (e.g. from Tiptap or template renderer) into docx TextRuns.
- */
-function htmlFragmentToRuns(
-  htmlFragment: string,
-  defaultFont = "Calibri",
-  defaultSize = 16
-): TextRun[] {
-  const s = htmlFragment.replace(/<br\s*\/?>/gi, "\n");
-  const tagRegex = /(<\/?(?:strong|b|em|i|u|s|span|a)[^>]*>)/gi;
-  const tokens = s.split(tagRegex);
-
-  const runs: TextRun[] = [];
-  let isBold = false;
-  let isItalic = false;
-  let isUnderline = false;
-  let isStrike = false;
-  let isLink = false;
-  let currentFont = defaultFont;
-
-  for (const token of tokens) {
-    if (!token) continue;
-    const lower = token.toLowerCase();
-
-    if (lower === "<strong>" || lower === "<b>") {
-      isBold = true;
-    } else if (lower === "</strong>" || lower === "</b>") {
-      isBold = false;
-    } else if (lower === "<em>" || lower === "<i>") {
-      isItalic = true;
-    } else if (lower === "</em>" || lower === "</i>") {
-      isItalic = false;
-    } else if (lower === "<u>") {
-      isUnderline = true;
-    } else if (lower === "</u>") {
-      isUnderline = false;
-    } else if (lower === "<s>" || lower === "<strike>") {
-      isStrike = true;
-    } else if (lower === "</s>" || lower === "</strike>") {
-      isStrike = false;
-    } else if (lower.startsWith("<a")) {
-      isLink = true;
-      isUnderline = true;
-    } else if (lower === "</a>") {
-      isLink = false;
-      isUnderline = false;
-    } else if (lower.startsWith("<span")) {
-      if (lower.includes("font-weight: bold") || lower.includes("font-weight:bold") || lower.includes("700")) {
-        isBold = true;
-      }
-      if (lower.includes("text-decoration: underline") || lower.includes("text-decoration:underline")) {
-        isUnderline = true;
-      }
-      if (lower.includes("font-style: italic") || lower.includes("font-style:italic")) {
-        isItalic = true;
-      }
-      const fontMatch = token.match(/font-family:\s*([^;"]+)/i);
-      if (fontMatch) {
-        const raw = fontMatch[1].trim().replace(/['"]/g, "").split(",")[0].trim();
-        if (raw) currentFont = raw;
-      }
-    } else if (lower === "</span>") {
-      isBold = false;
-      isUnderline = false;
-      isItalic = false;
-      currentFont = defaultFont;
-    } else if (token.startsWith("<") && token.endsWith(">")) {
-      // Ignore unknown tags
-    } else {
-      const decoded = token
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ");
-
-      if (decoded) {
-        const lines = decoded.split("\n");
-        for (let li = 0; li < lines.length; li++) {
-          if (lines[li]) {
-            runs.push(
-              new TextRun({
-                text: lines[li],
-                bold: isBold,
-                italics: isItalic,
-                underline: isUnderline || isLink ? { type: UnderlineType.SINGLE } : undefined,
-                color: isLink ? "1D4ED8" : undefined,
-                strike: isStrike,
-                font: currentFont,
-                size: defaultSize,
-              })
-            );
-          }
-          if (li < lines.length - 1) {
-            runs.push(new TextRun({ break: 1 }));
-          }
-        }
-      }
-    }
-  }
-
-  return runs;
-}
-
-/**
- * Converts rich HTML from Tiptap or doc renderer into docx Paragraphs.
- */
-function parseHtmlToDocxParagraphs(
-  html: string,
-  defaultFont = "Calibri",
-  isCoverLetter = false
-): Paragraph[] {
-  const paragraphs: Paragraph[] = [];
-  const blockRegex = /<(p|div|h1|h2|h3|li)([^>]*)>([\s\S]*?)<\/\1>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = blockRegex.exec(html)) !== null) {
-    const tag = match[1].toLowerCase();
-    const attrs = match[2];
-    const inner = match[3];
-
-    // Determine alignment
-    let alignment: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT;
-    if (attrs.includes("text-align: center") || attrs.includes("text-align:center")) {
-      alignment = AlignmentType.CENTER;
-    } else if (attrs.includes("text-align: right") || attrs.includes("text-align:right")) {
-      alignment = AlignmentType.RIGHT;
-    } else if (attrs.includes("text-align: justify") || attrs.includes("text-align:justify")) {
-      alignment = AlignmentType.JUSTIFIED;
-    }
-
-    let size = isCoverLetter ? 16.5 : 22; // 8.25pt for master cover letter, 11pt default
-    let spacing: { before?: number; after?: number; line?: number } = isCoverLetter
-      ? { after: 110, line: 235 }
-      : { after: 140, line: 260 };
-
-    if (tag === "h1") {
-      size = isCoverLetter ? 18 : 28;
-      spacing = isCoverLetter ? { before: 140, after: 100 } : { before: 200, after: 120 };
-    } else if (tag === "h2") {
-      size = isCoverLetter ? 17 : 24;
-      spacing = isCoverLetter ? { before: 120, after: 80 } : { before: 180, after: 100 };
-    } else if (tag === "h3") {
-      size = isCoverLetter ? 16.5 : 22;
-      spacing = isCoverLetter ? { before: 100, after: 60 } : { before: 140, after: 80 };
-    } else if (
-      (inner.includes("COVER LETTER") || inner.includes("STATEMENT OF PURPOSE")) &&
-      alignment === AlignmentType.CENTER
-    ) {
-      size = isCoverLetter ? 17 : 24;
-      spacing = isCoverLetter ? { after: 140 } : { after: 200 };
-    }
-
-    // Check if inner contains nested blocks (like <div><div>...</div></div>)
-    if (/<(p|div|h1|h2|h3)[\s>]/i.test(inner)) {
-      const innerParas = parseHtmlToDocxParagraphs(inner, defaultFont, isCoverLetter);
-      paragraphs.push(...innerParas);
-      continue;
-    }
-
-    const runs = htmlFragmentToRuns(inner, defaultFont, size);
-    if (runs.length > 0) {
-      paragraphs.push(
-        new Paragraph({
-          children: runs,
-          alignment,
-          spacing,
-        })
-      );
-    }
-  }
-
-  return paragraphs;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ExportDocxPayload;
@@ -268,11 +96,8 @@ export async function POST(req: NextRequest) {
             s.title.toLowerCase().includes("subject line")
         ));
 
-    const defaultFont = requestedFont
-      ? requestedFont.replace(/['"]/g, "").split(",")[0].trim()
-      : isCoverLetter
-      ? "Calibri"
-      : "Times New Roman";
+    const isCv = documentType === "CV";
+    const defaultFont = resolveExportFont(requestedFont, isCv ? "Arial" : isCoverLetter ? "Calibri" : "Times New Roman");
 
     const docChildren: Paragraph[] = [];
 
@@ -281,9 +106,14 @@ export async function POST(req: NextRequest) {
       documentType === "UNIVERSITY_SOP" ||
       (title ? title.toLowerCase().includes("statement of purpose") : false);
 
+    // CV: rebuild the Europass structure from sections (the editor HTML is a flat view)
+    if (isCv && sections && Array.isArray(sections)) {
+      docChildren.push(...buildEuropassParagraphs(studentName || "", sections, defaultFont));
+    }
+
     // Option A: Use live HTML if passed and valid
-    if (html && html.trim().length > 30) {
-      const parsedParas = parseHtmlToDocxParagraphs(html, defaultFont, isCoverLetter);
+    if (!isCv && html && html.trim().length > 30) {
+      const parsedParas = parseHtmlToDocxParagraphs(html, { defaultFont, isCoverLetter: Boolean(isCoverLetter), isAllowedFont: isAllowedExportFont });
       if (parsedParas.length > 0) {
         docChildren.push(...parsedParas);
       }
@@ -310,25 +140,7 @@ export async function POST(req: NextRequest) {
           })
         );
 
-        const getSec = (match: string) =>
-          sections.find((s) => s.title?.toLowerCase().includes(match.toLowerCase()))?.content || "";
-
-        const recipient = getSec("recipient") || getSec("consulate");
-        const subject = getSec("subject");
-        const intro = getSec("student introduction");
-        const academics = getSec("academic background");
-        const whyCourse = getSec("why this course") || getSec("why course");
-        const whyUniv = getSec("why this university") || getSec("why university");
-        const whyItaly = getSec("why italy") || getSec("why this country");
-        const futurePlan = getSec("future academic plan");
-        const careerPlan = getSec("career plan");
-        const returnIntent = getSec("return") || getSec("home country");
-        const finance = getSec("financial") || getSec("sponsorship");
-        const accommodation = getSec("accommodation");
-        const insurance = getSec("insurance");
-        const travel = getSec("travel");
-        const closing = getSec("closing");
-        const signature = getSec("signature") || getSec("contact");
+        const { recipient, subject, paragraphs: bodyParagraphs, signature } = buildCoverLetterLayout(sections);
 
         // 2. Recipient Block (No developer heading!)
         if (recipient) {
@@ -363,85 +175,12 @@ export async function POST(req: NextRequest) {
         }
 
         // 4. Master 8 Paragraphs (Flowing, justified, 1.15 line spacing, 8pt Calibri)
-        const p1 = [intro, academics].filter(Boolean).join(" ");
-        if (p1) {
+        for (const paragraph of bodyParagraphs) {
           docChildren.push(
             new Paragraph({
               alignment: AlignmentType.JUSTIFIED,
               spacing: { after: 110, line: 235 },
-              children: markdownToRuns(p1, defaultFont, 16),
-            })
-          );
-        }
-
-        if (whyCourse) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(whyCourse, defaultFont, 16),
-            })
-          );
-        }
-
-        if (whyUniv) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(whyUniv, defaultFont, 16),
-            })
-          );
-        }
-
-        if (whyItaly) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(whyItaly, defaultFont, 16),
-            })
-          );
-        }
-
-        const p5 = [futurePlan, careerPlan, returnIntent].filter(Boolean).join(" ");
-        if (p5) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(p5, defaultFont, 16),
-            })
-          );
-        }
-
-        if (finance) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(finance, defaultFont, 16),
-            })
-          );
-        }
-
-        const p7 = [accommodation, insurance, travel].filter(Boolean).join(" ");
-        if (p7) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(p7, defaultFont, 16),
-            })
-          );
-        }
-
-        if (closing) {
-          docChildren.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 110, line: 235 },
-              children: markdownToRuns(closing, defaultFont, 16),
+              children: markdownToRuns(paragraph, defaultFont, 16),
             })
           );
         }
