@@ -36,6 +36,8 @@ export interface GenerateGeminiOptions {
   maxOutputTokens?: number;
   timeoutMs?: number;
   minOutputLength?: number;
+  /** Ask the model for a single JSON object (OpenAI response_format / Gemini responseMimeType). */
+  jsonMode?: boolean;
 }
 
 export interface GeminiSuccessResponse {
@@ -121,6 +123,7 @@ export class GeminiService {
           messages,
           temperature: options.temperature,
           max_completion_tokens: options.maxOutputTokens,
+          ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,
       });
@@ -138,12 +141,13 @@ export class GeminiService {
     }
   }
 
-  private async callGemini(model: string, apiKey: string, options: GenerateGeminiOptions & { temperature: number; maxOutputTokens: number; timeoutMs: number }): Promise<string> {
+  private async callGemini(model: string, apiKey: string, options: GenerateGeminiOptions & { temperature: number; maxOutputTokens: number; timeoutMs: number; jsonMode: boolean }): Promise<string> {
     const config: Record<string, unknown> = {
       temperature: options.temperature,
       maxOutputTokens: options.maxOutputTokens,
     };
     if (options.systemInstruction) config.systemInstruction = options.systemInstruction;
+    if (options.jsonMode) config.responseMimeType = "application/json";
     const response = await withTimeout(
       this.getGeminiClient(apiKey).models.generateContent({ model, contents: options.prompt, config }),
       options.timeoutMs
@@ -172,6 +176,7 @@ export class GeminiService {
       maxOutputTokens: options.maxOutputTokens ?? 2048,
       timeoutMs: options.timeoutMs ?? 25000,
       minOutputLength: options.minOutputLength ?? 20,
+      jsonMode: options.jsonMode ?? false,
     };
 
     const models: string[] = provider === "openai" ? openAiModels() : [...FLASH_MODELS_CASCADE];
