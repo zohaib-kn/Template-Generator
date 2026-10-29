@@ -3,7 +3,8 @@
  *
  * REST API for approved invariant templates.
  * GET /api/templates — lists all approved templates, optionally filtered by country and docType.
- * Auto-seeds initial templates from SEED_TEMPLATES if MongoDB is empty.
+ * Read-only: when the collection is empty or unreachable, the built-in SEED_TEMPLATES are
+ * returned without writing anything to the database.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,12 +22,19 @@ export async function GET(req: NextRequest) {
     const country = searchParams.get("country")?.trim();
     const docType = searchParams.get("docType")?.trim();
 
+    const matchesFilters = (t: { targetCountry?: string; documentType?: string; status?: string }) =>
+      t.status === "APPROVED" &&
+      (!country || t.targetCountry === country || t.targetCountry === "Global") &&
+      (!docType || t.documentType === docType);
+
     await connectToDatabase();
 
-    // Check count and seed initial approved templates if collection is empty
-    const count = await TemplateModel.countDocuments();
-    if (count === 0) {
-      await TemplateModel.insertMany(SEED_TEMPLATES);
+    if ((await TemplateModel.estimatedDocumentCount()) === 0) {
+      return NextResponse.json({
+        success: true,
+        templates: SEED_TEMPLATES.filter(matchesFilters),
+        source: "seed",
+      });
     }
 
     const query: Record<string, unknown> = {
@@ -48,13 +56,12 @@ export async function GET(req: NextRequest) {
       templates,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Failed to retrieve templates";
-    // If DB is unreachable (e.g. offline unit test mode), return SEED_TEMPLATES gracefully
+    // DB unreachable (e.g. offline unit test mode): serve built-in templates; details stay in server logs
+    console.error("[api/templates] Falling back to built-in templates:", err instanceof Error ? err.message : err);
     return NextResponse.json({
       success: true,
       templates: SEED_TEMPLATES,
       source: "seed_fallback",
-      warning: message,
     });
   }
 }

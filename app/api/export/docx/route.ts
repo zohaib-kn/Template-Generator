@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
+import { attachmentDisposition, InvalidJsonError, readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
 import { buildCoverLetterLayout } from "@/lib/export/coverLetterLayout";
 import { buildEuropassParagraphs } from "@/lib/export/europassDocx";
 import { isAllowedExportFont, resolveExportFont } from "@/lib/export/fonts";
@@ -78,11 +79,20 @@ function markdownToRuns(
     .filter(Boolean) as TextRun[];
 }
 
+const MAX_DOCX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_SECTIONS = 100;
+
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as ExportDocxPayload;
+    const auth0 = await requireSession(req);
+    if (auth0.response) return auth0.response;
+
+    const body = await readJsonBody<ExportDocxPayload>(req, MAX_DOCX_BODY_BYTES);
     const auth = await requireSession(req, { studentId: body?.studentId ?? null });
     if (auth.response) return auth.response;
+    if (body.sections !== undefined && (!Array.isArray(body.sections) || body.sections.length > MAX_SECTIONS)) {
+      return NextResponse.json({ success: false, error: `sections must be an array of at most ${MAX_SECTIONS} items.` }, { status: 400 });
+    }
     const { title, studentName, documentType, fontFamily: requestedFont, html, sections } = body;
     const isCoverLetter =
       documentType === "COVER_LETTER" ||
@@ -324,19 +334,23 @@ export async function POST(req: NextRequest) {
     });
 
     const buffer = await Packer.toBuffer(doc);
-    const safeStudentName = (studentName || "Student").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const fileName = `${safeStudentName}_${documentType || "Document"}.docx`;
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": attachmentDisposition(`${studentName || "Student"}_${documentType || "Document"}`, "docx"),
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "DOCX generation failed";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    if (err instanceof RequestTooLargeError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 413 });
+    }
+    if (err instanceof InvalidJsonError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 400 });
+    }
+    console.error("[export/docx] generation failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ success: false, error: "DOCX generation failed." }, { status: 500 });
   }
 }

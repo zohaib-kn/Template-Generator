@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
+import { readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
 import { GoogleGenAI } from "@google/genai";
 import type {
   StudentDocumentContext,
@@ -135,17 +136,37 @@ export { extractLockedFacts };
 // POST Handler: /api/sop/generate
 // ---------------------------------------------------------------------------
 
+const MAX_GENERATE_BODY_BYTES = 256 * 1024;
+const MAX_INSTRUCTION_CHARS = 1000;
+
 export async function POST(req: NextRequest) {
+  const auth0 = await requireSession(req);
+  if (auth0.response) return auth0.response;
+
   let body: GenerateSectionRequest;
   try {
-    body = (await req.json()) as GenerateSectionRequest;
-  } catch {
+    body = await readJsonBody<GenerateSectionRequest>(req, MAX_GENERATE_BODY_BYTES);
+  } catch (err) {
+    const tooLarge = err instanceof RequestTooLargeError;
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: tooLarge ? "PAYLOAD_TOO_LARGE" : "INVALID_REQUEST",
+          message: tooLarge ? err.message : "Invalid JSON request body.",
+        },
+      },
+      { status: tooLarge ? 413 : 400 }
+    );
+  }
+
+  if (body?.instruction !== undefined && (typeof body.instruction !== "string" || body.instruction.length > MAX_INSTRUCTION_CHARS)) {
     return NextResponse.json(
       {
         success: false,
         error: {
           code: "INVALID_REQUEST",
-          message: "Invalid JSON request body.",
+          message: `instruction must be a string of at most ${MAX_INSTRUCTION_CHARS} characters.`,
         },
       },
       { status: 400 }
