@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
+import { attachmentDisposition, InvalidJsonError, readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
 import { buildCoverLetterLayout } from "@/lib/export/coverLetterLayout";
 import { jsPDF } from "jspdf";
 
@@ -32,16 +33,23 @@ interface ExportPdfPayload {
   studentId?: string;
 }
 
+const MAX_PDF_BODY_BYTES = 1024 * 1024;
+const MAX_SECTIONS = 100;
+
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as ExportPdfPayload;
+    const auth0 = await requireSession(req);
+    if (auth0.response) return auth0.response;
+
+    const body = await readJsonBody<ExportPdfPayload>(req, MAX_PDF_BODY_BYTES);
     const auth = await requireSession(req, { studentId: body?.studentId ?? null });
     if (auth.response) return auth.response;
-    const { title, studentName, documentType, sections, maxPages = 2 } = body;
+    const { title, studentName, documentType, sections } = body;
+    const maxPages = Math.min(Math.max(Math.trunc(Number(body.maxPages) || 2), 1), 10);
 
-    if (!sections || !Array.isArray(sections)) {
+    if (!sections || !Array.isArray(sections) || sections.length > MAX_SECTIONS) {
       return NextResponse.json(
-        { success: false, error: "Sections array is required for PDF export." },
+        { success: false, error: `Sections array (at most ${MAX_SECTIONS} items) is required for PDF export.` },
         { status: 400 }
       );
     }
@@ -226,20 +234,24 @@ export async function POST(req: NextRequest) {
 
     // Output Binary Buffer
     const arrayBuffer = doc.output("arraybuffer");
-    const safeStudentName = (studentName || "Student").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const fileName = `${safeStudentName}_${documentType || "Document"}_Vector.pdf`;
 
     return new NextResponse(new Uint8Array(arrayBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": attachmentDisposition(`${studentName || "Student"}_${documentType || "Document"}_Vector`, "pdf"),
         "X-Page-Count": String(currentPage),
         "X-Exceeds-Page-Limit": currentPage > maxPages ? "true" : "false",
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "PDF export failed";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    if (err instanceof RequestTooLargeError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 413 });
+    }
+    if (err instanceof InvalidJsonError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 400 });
+    }
+    console.error("[export/pdf] generation failed:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ success: false, error: "PDF export failed." }, { status: 500 });
   }
 }
