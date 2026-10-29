@@ -146,3 +146,21 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     assert.ok(langSection.content.includes("Spoken Interaction C1"), "Speaking 7.0 must map to Spoken Interaction C1");
   });
 });
+
+describe("Dashboard editor HTML for cover letters", () => {
+  it("prints insurance once and keeps travel arrangements (same layout as exports)", async () => {
+    const { docSectionsToHtml } = await import("@/features/dashboard/utils/docSectionsToHtml");
+    const html = docSectionsToHtml(
+      [
+        { heading: "Recipient / Consulate", content: "To,\nConsulate" },
+        { heading: "Accommodation", content: "ACCOMMODATION-UNIQUE." },
+        { heading: "Travel & Health Insurance", content: "INSURANCE-UNIQUE." },
+        { heading: "Travel Arrangements", content: "TRAVEL-UNIQUE." },
+        { heading: "Closing Statement", content: "Thanks." },
+      ],
+      "COVER_LETTER"
+    );
+    assert.equal(html.split("INSURANCE-UNIQUE").length - 1, 1);
+    assert.equal(html.split("TRAVEL-UNIQUE").length - 1, 1);
+  });
+});

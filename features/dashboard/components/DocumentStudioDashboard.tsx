@@ -25,6 +25,7 @@ import {
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
 import { syncSectionsToCvData } from "../utils/documentStudioSync";
+import { docSectionsToHtml } from "../utils/docSectionsToHtml";
 
 export { RECENT_DOCS_STORAGE_KEY, syncSectionsToCvData };
 
@@ -188,140 +189,6 @@ export const AVAILABLE_FONTS: FontOption[] = [
   },
 ];
 
-function docSectionsToHtml(
-  sections: { heading?: string; content: string }[],
-  docType?: "SOP" | "CV" | "LOR" | "COVER_LETTER" | "BLANK",
-  title?: string
-): string {
-  const isCoverLetter =
-    docType === "COVER_LETTER" ||
-    (title ? title.toLowerCase().includes("cover letter") : false) ||
-    sections.some(
-      (s) =>
-        s.heading === "Recipient / Consulate" ||
-        s.heading === "Subject Line" ||
-        s.heading === "Student Contact & Signature"
-    );
-
-  const fmt = (text: string) => text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-
-  if (isCoverLetter) {
-    const getSec = (match: string) =>
-      sections.find((s) => s.heading?.toLowerCase().includes(match.toLowerCase()))?.content || "";
-
-    const recipient = getSec("recipient") || getSec("consulate");
-    const subject = getSec("subject");
-    const intro = getSec("student introduction");
-    const academics = getSec("academic background");
-    const whyCourse = getSec("why this course") || getSec("why course");
-    const whyUniv = getSec("why this university") || getSec("why university");
-    const whyItaly = getSec("why italy") || getSec("why this country");
-    const futurePlan = getSec("future academic plan");
-    const careerPlan = getSec("career plan");
-    const returnIntent = getSec("return") || getSec("home country");
-    const finance = getSec("financial") || getSec("sponsorship");
-    const accommodation = getSec("accommodation");
-    const insurance = getSec("insurance");
-    const travel = getSec("travel");
-    const closing = getSec("closing");
-    const signature = getSec("signature") || getSec("contact");
-
-    const headerHtml = `<div style="text-align: center; margin-bottom: 12px;"><span style="font-size: 8.5pt; font-weight: bold; text-decoration: underline; letter-spacing: 0.05em;">COVER LETTER</span></div>`;
-
-    const recipientHtml = recipient
-      ? `<div style="text-align: left; margin-bottom: 11px; line-height: 1.25; white-space: pre-line;">${fmt(recipient)}</div>`
-      : "";
-    const subjectHtml = subject
-      ? `<div style="text-align: left; margin-bottom: 11px; font-weight: bold; line-height: 1.25;">${fmt(subject)}</div>`
-      : "";
-
-    // P1: Intro + Academics combined into single continuous paragraph matching Image 1
-    const p1Parts = [intro, academics].filter(Boolean).map(fmt).join(" ");
-    const p1Html = p1Parts
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${p1Parts}</p>`
-      : "";
-
-    // P2: Why Course
-    const p2Html = whyCourse
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${fmt(whyCourse)}</p>`
-      : "";
-
-    // P3: Why University
-    const p3Html = whyUniv
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${fmt(whyUniv)}</p>`
-      : "";
-
-    // P4: Why Italy
-    const p4Html = whyItaly
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${fmt(whyItaly)}</p>`
-      : "";
-
-    // P5: Future Plans, Career & Return Intent combined into single continuous paragraph matching Image 1
-    const p5Parts = [futurePlan, careerPlan, returnIntent].filter(Boolean).map(fmt).join(" ");
-    const p5Html = p5Parts
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${p5Parts}</p>`
-      : "";
-
-    // P6: Financial Sponsorship
-    const p6Html = finance
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${fmt(finance)}</p>`
-      : "";
-
-    // P7: Logistics (Accommodation + Insurance + Travel)
-    const p7Parts = [accommodation, insurance, travel].filter(Boolean).map(fmt).join(" ");
-    const p7Html = p7Parts
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 7px; line-height: 1.16;">${p7Parts}</p>`
-      : "";
-
-    // P8: Closing Statement
-    const p8Html = closing
-      ? `<p style="text-align: justify; text-justify: inter-word; margin-top: 0; margin-bottom: 11px; line-height: 1.16;">${fmt(closing)}</p>`
-      : "";
-
-    // Signature block with blue underlined email link
-    let sigFormatted = signature ? fmt(signature) : "";
-    sigFormatted = sigFormatted.replace(
-      /(Email:\s*)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i,
-      `$1<a href="mailto:$2" style="color: #1d4ed8; text-decoration: underline;">$2</a>`
-    );
-    const sigHtml = sigFormatted
-      ? `<div style="text-align: left; margin-top: 11px; line-height: 1.25; white-space: pre-line;">${sigFormatted}</div>`
-      : "";
-
-    return `<div style="font-family: Calibri, Carlito, Aptos, 'Segoe UI', sans-serif; font-size: 8.25pt; line-height: 1.16; color: #111111;">${headerHtml}${recipientHtml}${subjectHtml}${p1Html}${p2Html}${p3Html}${p4Html}${p5Html}${p6Html}${p7Html}${p8Html}${sigHtml}</div>`;
-  }
-
-  const isSop =
-    docType === "SOP" || (title ? title.toLowerCase().includes("statement of purpose") : false);
-
-  if (isSop) {
-    const headerHtml = `<div style="text-align: center; margin-bottom: 18px;"><span style="font-size: 15px; font-weight: bold; text-decoration: underline; letter-spacing: 0.08em;">STATEMENT OF PURPOSE</span></div>`;
-    const bodyHtml = sections
-      .map((s) => {
-        const bodyContent = s.content
-          .split("\n\n")
-          .map((para) => `<p style="text-align: justify; margin-bottom: 14px; line-height: 1.35;">${fmt(para).replace(/\n/g, "<br/>")}</p>`)
-          .join("");
-        return bodyContent;
-      })
-      .join("");
-    return `<div style="font-family: 'Times New Roman', Times, Georgia, serif; font-size: 14px; line-height: 1.35; color: #111827;">${headerHtml}${bodyHtml}</div>`;
-  }
-
-  return sections
-    .map((s) => {
-      const headingHtml = s.heading ? `<h2>${s.heading}</h2>` : "";
-      const bodyHtml = s.content
-        .split("\n\n")
-        .map((para) => {
-          const boldFormatted = para.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-          return `<p>${boldFormatted.replace(/\n/g, "<br/>")}</p>`;
-        })
-        .join("");
-      return headingHtml + bodyHtml;
-    })
-    .join("");
-}
 
 function getEuropassData(
   studentId: string,
