@@ -19,7 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
-import { GoogleGenAI } from "@google/genai";
+import { aiService, getActiveAiKey } from "@/services/ai/gemini/geminiClient";
 import type {
   StudentDocumentContext,
   SopDocumentType,
@@ -66,14 +66,6 @@ export interface GenerateSectionRequest {
   documentType?: SopDocumentType;
   instruction?: string;
 }
-
-// Fast Flash models cascade
-const FAST_FLASH_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.8-flash",
-  "gemini-3.5-flash",
-  "gemini-3.6-flash",
-];
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -457,7 +449,7 @@ export async function POST(req: NextRequest) {
   lastGeneratedPrompt = prompt;
 
   // ── Step 10: AI Model Execution ───────────────────────────────────────────
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const apiKey = getActiveAiKey();
 
   // Test mode mock fallback
   if (isTestEnvironment() && (!apiKey || apiKey === "mock-test-key" || apiKey === "test")) {
@@ -506,108 +498,67 @@ export async function POST(req: NextRequest) {
         success: false,
         error: {
           code: "API_KEY_MISSING",
-          message: "GEMINI_API_KEY is not configured on the server.",
+          message: "No AI key is configured on the server (set OPENAI_API_KEY or GEMINI_API_KEY).",
         },
       },
       { status: 500 }
     );
   }
 
-  // Initialize Gemini SDK
-  let ai: GoogleGenAI;
-  try {
-    ai = new GoogleGenAI({ apiKey });
-  } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: "GEMINI_INIT_FAILED",
-          message: "Failed to initialize Gemini SDK.",
-        },
-      },
-      { status: 500 }
-    );
-  }
-
-  // Try fast Flash models in sequence with a 15s timeout safeguard
+  // Up to two generations (the client cascades models internally); a draft that alters
+  // or omits locked student facts is rejected and regenerated once.
   let lastError: unknown = null;
 
-  for (const modelName of FAST_FLASH_MODELS) {
-    try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("TIMEOUT")), 15_000)
-      );
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await aiService.generate({ prompt, timeoutMs: 15_000, minOutputLength: 21 });
 
-      const generatePromise = ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-      });
-
-      const response = await Promise.race([generatePromise, timeoutPromise]);
-      const text = response?.text?.trim();
-
-      if (text && text.length > 20) {
-        // Step 11: Immutable Locked Fact Validation Guard
-        const sectionLockedFacts = extractSectionLockedFacts(sanitizedContext, {
-          sectionId,
-          documentType,
-          generatedText: text,
-        });
-        const validation = validateLockedFacts(text, sectionLockedFacts);
-
-        if (!validation.valid) {
-          console.warn(
-            `[SOP Generate API] Locked fact validation failed on model ${modelName}:`,
-            validation.missingFacts
-          );
-          lastError = new Error(
-            `LOCKED_FACT_VALIDATION_FAILED: ${validation.missingFacts
-              .map((f) => f.field)
-              .join(", ")}`
-          );
-          // Try next model if any
-          continue;
-        }
-
-        return NextResponse.json(
-          {
-            success: true,
-            sectionId,
-            mode,
-            model: modelName,
-            text,
-            validation,
-          },
-          { status: 200 }
-        );
-      }
-    } catch (err: unknown) {
-      lastError = err;
-      const errStr = err instanceof Error ? err.message : String(err);
-
-      if (
-        errStr.includes("503") ||
-        errStr.includes("UNAVAILABLE") ||
-        errStr.includes("high demand") ||
-        errStr.includes("TIMEOUT") ||
-        errStr.includes("404") ||
-        errStr.includes("429") ||
-        errStr.includes("quota") ||
-        errStr.includes("RESOURCE_EXHAUSTED")
-      ) {
+    if (!result.success) {
+      lastError = new Error(`${result.error.code}: ${result.error.message}`);
+      if (result.error.code === "AI_TIMEOUT" || result.error.code === "AI_UNAVAILABLE") {
         await delay(800);
         continue;
       }
       break;
     }
+
+    const text = result.text;
+    // Step 11: Immutable Locked Fact Validation Guard
+    const sectionLockedFacts = extractSectionLockedFacts(sanitizedContext, {
+      sectionId,
+      documentType,
+      generatedText: text,
+    });
+    const validation = validateLockedFacts(text, sectionLockedFacts);
+
+    if (!validation.valid) {
+      console.warn(
+        `[SOP Generate API] Locked fact validation failed on model ${result.model}:`,
+        validation.missingFacts
+      );
+      lastError = new Error(
+        `LOCKED_FACT_VALIDATION_FAILED: ${validation.missingFacts.map((f) => f.field).join(", ")}`
+      );
+      continue;
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        sectionId,
+        mode,
+        model: result.model,
+        text,
+        validation,
+      },
+      { status: 200 }
+    );
   }
 
   const errMessage =
     lastError instanceof Error ? lastError.message : String(lastError ?? "");
 
   let code = "GENERATION_FAILED";
-  let message = "Unable to generate narrative with Gemini.";
+  let message = "Unable to generate narrative with the AI provider.";
   let status = 502;
 
   if (errMessage.includes("LOCKED_FACT_VALIDATION_FAILED")) {
@@ -615,23 +566,19 @@ export async function POST(req: NextRequest) {
     message =
       "Generated narrative altered or omitted immutable student facts. Revision required.";
     status = 422;
-  } else if (
-    errMessage.includes("503") ||
-    errMessage.includes("UNAVAILABLE") ||
-    errMessage.includes("high demand")
-  ) {
+  } else if (errMessage.includes("AI_UNAVAILABLE")) {
     code = "MODEL_OVERLOADED";
-    message = "Google AI is currently experiencing high demand. Please try again in a few seconds.";
+    message = "The AI provider is currently experiencing high demand. Please try again in a few seconds.";
     status = 503;
-  } else if (errMessage.includes("429") || errMessage.includes("quota")) {
+  } else if (errMessage.includes("AI_QUOTA_EXCEEDED")) {
     code = "QUOTA_EXCEEDED";
-    message = "Gemini API rate limit or quota exceeded. Please try again in a moment.";
+    message = "AI rate limit or quota exceeded. Please try again in a moment.";
     status = 429;
-  } else if (errMessage.includes("401") || errMessage.includes("API key not valid")) {
+  } else if (errMessage.includes("AI_API_KEY_INVALID")) {
     code = "INVALID_API_KEY";
-    message = "Configured Gemini API key is invalid.";
+    message = "The configured AI API key is invalid.";
     status = 401;
-  } else if (errMessage.includes("TIMEOUT")) {
+  } else if (errMessage.includes("AI_TIMEOUT")) {
     code = "TIMEOUT";
     message = "AI generation timed out. Please try again.";
     status = 504;
