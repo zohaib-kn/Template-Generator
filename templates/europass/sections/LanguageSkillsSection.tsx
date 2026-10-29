@@ -104,14 +104,14 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                         <span className={styles.cefrSkillLabel}>LISTENING</span>
                         {isInteractive && onUpdateEntry ? (
                           <EditableText
-                            value={lang.listening ?? "C1"}
+                            value={lang.listening ?? ""}
                             onChange={(v) => onUpdateEntry(lang.id, { listening: v })}
                             isInteractive={isInteractive}
                             className={styles.cefrSkillBadge}
                             placeholder="C1"
                           />
                         ) : (
-                          <span className={styles.cefrSkillBadge}>{lang.listening || "C1"}</span>
+                          <span className={styles.cefrSkillBadge}>{lang.listening || "–"}</span>
                         )}
                       </span>
 
@@ -119,14 +119,14 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                         <span className={styles.cefrSkillLabel}>READING</span>
                         {isInteractive && onUpdateEntry ? (
                           <EditableText
-                            value={lang.reading ?? "C1"}
+                            value={lang.reading ?? ""}
                             onChange={(v) => onUpdateEntry(lang.id, { reading: v })}
                             isInteractive={isInteractive}
                             className={styles.cefrSkillBadge}
                             placeholder="C1"
                           />
                         ) : (
-                          <span className={styles.cefrSkillBadge}>{lang.reading || "C1"}</span>
+                          <span className={styles.cefrSkillBadge}>{lang.reading || "–"}</span>
                         )}
                       </span>
 
@@ -134,14 +134,14 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                         <span className={styles.cefrSkillLabel}>WRITING</span>
                         {isInteractive && onUpdateEntry ? (
                           <EditableText
-                            value={lang.writing ?? "C1"}
+                            value={lang.writing ?? ""}
                             onChange={(v) => onUpdateEntry(lang.id, { writing: v })}
                             isInteractive={isInteractive}
                             className={styles.cefrSkillBadge}
                             placeholder="C1"
                           />
                         ) : (
-                          <span className={styles.cefrSkillBadge}>{lang.writing || "C1"}</span>
+                          <span className={styles.cefrSkillBadge}>{lang.writing || "–"}</span>
                         )}
                       </span>
                     </div>
@@ -151,14 +151,14 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                         <span className={styles.cefrSkillLabel}>SPOKEN PRODUCTION</span>
                         {isInteractive && onUpdateEntry ? (
                           <EditableText
-                            value={lang.spokenProduction ?? "B2"}
+                            value={lang.spokenProduction ?? ""}
                             onChange={(v) => onUpdateEntry(lang.id, { spokenProduction: v })}
                             isInteractive={isInteractive}
                             className={styles.cefrSkillBadge}
                             placeholder="B2"
                           />
                         ) : (
-                          <span className={styles.cefrSkillBadge}>{lang.spokenProduction || "B2"}</span>
+                          <span className={styles.cefrSkillBadge}>{lang.spokenProduction || "–"}</span>
                         )}
                       </span>
 
@@ -166,14 +166,14 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
                         <span className={styles.cefrSkillLabel}>SPOKEN INTERACTION</span>
                         {isInteractive && onUpdateEntry ? (
                           <EditableText
-                            value={lang.spokenInteraction ?? "C1"}
+                            value={lang.spokenInteraction ?? ""}
                             onChange={(v) => onUpdateEntry(lang.id, { spokenInteraction: v })}
                             isInteractive={isInteractive}
                             className={styles.cefrSkillBadge}
                             placeholder="C1"
                           />
                         ) : (
-                          <span className={styles.cefrSkillBadge}>{lang.spokenInteraction || "C1"}</span>
+                          <span className={styles.cefrSkillBadge}>{lang.spokenInteraction || "–"}</span>
                         )}
                       </span>
                     </div>

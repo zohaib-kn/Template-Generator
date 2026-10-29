@@ -269,11 +269,17 @@ export function hydrateDocumentFromSnapshot(
       }
       if (resumeStudent?.languages && resumeStudent.languages.length > 0) {
         const otherLangs = resumeStudent.languages
+          .filter((lang) => lang.language)
           .map((lang) => {
-            if (lang.listening && lang.reading && lang.writing) {
-              return `${lang.language || "English"} (Listening ${lang.listening}, Reading ${lang.reading}, Writing ${lang.writing}, Spoken Production ${lang.spokenProduction || "B2"}, Spoken Interaction ${lang.spokenInteraction || "B2"})`;
-            }
-            return `${lang.language || "English"} (${lang.level || "Proficient"})`;
+            const skills = [
+              lang.listening && `Listening ${lang.listening}`,
+              lang.reading && `Reading ${lang.reading}`,
+              lang.writing && `Writing ${lang.writing}`,
+              lang.spokenProduction && `Spoken Production ${lang.spokenProduction}`,
+              lang.spokenInteraction && `Spoken Interaction ${lang.spokenInteraction}`,
+            ].filter(Boolean);
+            if (skills.length > 0) return `${lang.language} (${skills.join(", ")})`;
+            return lang.level ? `${lang.language} (${lang.level})` : lang.language;
           })
           .join("; ");
         parts.push(`Other language(s): ${otherLangs}`);

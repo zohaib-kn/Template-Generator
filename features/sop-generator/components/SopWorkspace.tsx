@@ -1881,7 +1881,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-800">{f.label}</p>
                     <p className="text-[11px] text-slate-500 truncate">
-                      Letter says: <span className="italic text-slate-700 font-medium">"{f.fallbackText}"</span>
+                      Letter says: <span className="italic text-slate-700 font-medium">&ldquo;{f.fallbackText}&rdquo;</span>
                     </p>
                   </div>
                   <button
