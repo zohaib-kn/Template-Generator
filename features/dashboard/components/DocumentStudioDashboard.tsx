@@ -2880,7 +2880,7 @@ export function DocumentStudioDashboard() {
 
                     {/* 3. Dynamic Link to Student's Live CRM Profile */}
                     <a
-                      href="https://crm.digi-wire.com/student-data-viewer?key=***REMOVED-CRM-KEY***"
+                      href={process.env.NEXT_PUBLIC_CRM_VIEWER_URL || "https://crm.digi-wire.com/student-data-viewer"}
                       target="_blank"
                       rel="noreferrer"
                       className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 shadow-2xs text-xs font-semibold text-slate-700 transition cursor-pointer group"
