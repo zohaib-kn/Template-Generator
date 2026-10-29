@@ -217,12 +217,21 @@ export function validateDocumentContext(
       });
     }
 
-    if (!ctx.accommodation.fromDate?.trim() || !ctx.accommodation.toDate?.trim()) {
+    if (!ctx.accommodation.fromDate?.trim()) {
       issues.push({
-        id: "accommodation-dates-missing",
+        id: "accommodation-from-date-missing",
         field: "accommodation.fromDate",
         severity: "warning",
-        message: "Accommodation booking dates are incomplete.",
+        message: "Accommodation check-in date is missing.",
+      });
+    }
+
+    if (!ctx.accommodation.toDate?.trim()) {
+      issues.push({
+        id: "accommodation-to-date-missing",
+        field: "accommodation.toDate",
+        severity: "warning",
+        message: "Accommodation check-out date is missing.",
       });
     }
 
@@ -246,18 +255,30 @@ export function validateDocumentContext(
     }
 
     // ── Travel ─────────────────────────────────────────────────────────────
-    const travelIncomplete =
-      !ctx.travel.airline?.trim() ||
-      !ctx.travel.travelDate?.trim() ||
-      !ctx.travel.pnr?.trim();
-
-    if (travelIncomplete) {
+    if (!ctx.travel.airline?.trim()) {
       issues.push({
-        id: "travel-incomplete",
+        id: "travel-airline-missing",
+        field: "travel.airline",
+        severity: "warning",
+        message: "Travel airline name is missing.",
+      });
+    }
+
+    if (!ctx.travel.travelDate?.trim()) {
+      issues.push({
+        id: "travel-date-missing",
+        field: "travel.travelDate",
+        severity: "warning",
+        message: "Travel departure date is missing.",
+      });
+    }
+
+    if (!ctx.travel.pnr?.trim()) {
+      issues.push({
+        id: "travel-pnr-missing",
         field: "travel.pnr",
         severity: "warning",
-        message:
-          "Travel information is incomplete. Airline, travel date, or PNR reference is missing.",
+        message: "Flight booking reference / PNR is missing.",
       });
     }
   }
