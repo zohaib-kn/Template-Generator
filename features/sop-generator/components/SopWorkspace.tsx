@@ -1348,6 +1348,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         body: JSON.stringify({
           title: template.name,
           studentName: displayStudentName,
+          studentId: selectedStudentId || undefined,
           documentType: activeDocumentType,
           sections: sectionsPayload,
         }),
@@ -1384,6 +1385,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
         body: JSON.stringify({
           title: template.name,
           studentName: displayStudentName,
+          studentId: selectedStudentId || undefined,
           documentType: activeDocumentType,
           sections: sectionsPayload,
           maxPages: activeDocumentType === "VISA_COVER_LETTER" ? 1 : 2,

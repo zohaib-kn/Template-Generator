@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth/session";
 import { GoogleGenAI } from "@google/genai";
 import type {
   StudentDocumentContext,
@@ -150,6 +151,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  const auth = await requireSession(req, { studentId: body?.studentId ?? null });
+  if (auth.response) return auth.response;
 
   const {
     studentId,

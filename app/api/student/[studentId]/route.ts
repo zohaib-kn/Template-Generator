@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
+import { requireSession } from "@/lib/auth/session";
 import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_Kaavya.json";
 import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_Fardee.json";
 
@@ -83,6 +84,10 @@ export async function GET(
 ): Promise<NextResponse<StudentApiResponse>> {
   const { studentId } = await context.params;
   const trimmedId = studentId?.trim();
+
+  // 0. Operator must be signed in and allowed to see this student
+  const auth = await requireSession(req, { studentId: trimmedId ?? "" });
+  if (auth.response) return auth.response as NextResponse<StudentApiResponse>;
 
   // 1. Fictional sample students (exact sample ID only) never hit the CRM
   if (trimmedId) {

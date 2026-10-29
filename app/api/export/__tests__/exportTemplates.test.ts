@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import mammoth from "mammoth";
 import { POST as exportDocx } from "../docx/route";
 import { POST as exportPdf } from "../pdf/route";
+import { testSessionCookie } from "@/lib/auth/__tests__/testSession";
 
 describe("Export Endpoints — Master Template Verification", () => {
   const sampleCoverLetterSections = [
@@ -76,7 +77,7 @@ describe("Export Endpoints — Master Template Verification", () => {
   it("DOCX export follows master cover letter format and removes internal developer section headings", async () => {
     const req = new NextRequest("http://localhost:3000/api/export/docx", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
         title: "Mohammad Taha Faisal – Italy Visa Cover Letter",
         studentName: "Mohammad Taha Faisal",
@@ -124,7 +125,7 @@ describe("Export Endpoints — Master Template Verification", () => {
 
     const req = new NextRequest("http://localhost:3000/api/export/docx", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
         title: "Mohammad Taha Faisal – Italy Visa Cover Letter",
         studentName: "Mohammad Taha Faisal",
@@ -150,7 +151,7 @@ describe("Export Endpoints — Master Template Verification", () => {
   it("PDF vector export follows master cover letter format and removes internal developer headings", async () => {
     const req = new NextRequest("http://localhost:3000/api/export/pdf", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
         title: "Mohammad Taha Faisal – Italy Visa Cover Letter",
         studentName: "Mohammad Taha Faisal",
@@ -170,7 +171,7 @@ describe("Export Endpoints — Master Template Verification", () => {
   it("DOCX export handles custom font family including Calibri", async () => {
     const req = new NextRequest("http://localhost:3000/api/export/docx", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
         title: "Mohammad Taha Faisal – Italy Visa Cover Letter",
         studentName: "Mohammad Taha Faisal",

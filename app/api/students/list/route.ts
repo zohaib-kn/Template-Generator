@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { canAccessStudent, requireSession } from "@/lib/auth/session";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,7 +52,11 @@ function resolveStudentListUrl(): string | null {
  * The CRM returns: { students: [{ _id, name, email, mobile }] }
  * We project it to:          [{ id,   name, email           }]
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (auth.response) return auth.response;
+  const { session } = auth;
+
   const listUrl = resolveStudentListUrl();
   if (!listUrl) {
     console.error("[api/students/list] CRM roster configuration is missing on server.");
@@ -92,6 +97,7 @@ export async function GET() {
     const students: StudentListItem[] = body.students
       .filter((s) => s._id && s.name && s.name.trim())
       .filter((s) => !/(^test |^dummy |^testing )/i.test(s.name.trim()))
+      .filter((s) => canAccessStudent(session, s._id))
       .map((s) => ({
         id: s._id,
         name: s.name.trim(),

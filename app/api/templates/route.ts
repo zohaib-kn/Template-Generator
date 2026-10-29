@@ -10,8 +10,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { TemplateModel } from "@/models/Template";
 import { SEED_TEMPLATES } from "@/services/templateEngine/seedTemplates";
+import { requireSession } from "@/lib/auth/session";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireSession(req);
+  if (auth.response) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const country = searchParams.get("country")?.trim();

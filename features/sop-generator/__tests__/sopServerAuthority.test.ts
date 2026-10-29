@@ -34,6 +34,7 @@ import {
 import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
 import type { AcademicAlignmentResolutionRecord } from "@/models/AcademicAlignmentResolution";
 import type { ResumeDraftRecord } from "@/features/document-generator/types/draft";
+import { testSessionCookie } from "@/lib/auth/__tests__/testSession";
 
 function createBaseContext(overrides?: {
   destination?: Partial<StudentDocumentContext["destination"]>;
@@ -151,7 +152,7 @@ function createBaseContext(overrides?: {
 function makeGenerateRequest(body: Record<string, unknown>): NextRequest {
   return new NextRequest("http://localhost:3000/api/sop/generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
     body: JSON.stringify(body),
   });
 }
