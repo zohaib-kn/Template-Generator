@@ -403,7 +403,7 @@ export function DocumentThumbnailPreview({
       ? stripMarkdown(rawP4)
       : isTemplateCard
       ? "Logistics: Pre-arranged student accommodation near campus, comprehensive overseas medical coverage, and confirmed flight itinerary."
-      : `Logistics: Accommodation confirmed near ${university}, comprehensive 365-day overseas health insurance, and confirmed flight itinerary.`;
+      : "";
 
     // Signature Block extraction
     const rawSig = getSec("signature") || getSec("contact");
