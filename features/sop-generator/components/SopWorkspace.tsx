@@ -38,6 +38,8 @@ import { isSensitiveSection } from "@/services/academicAlignment/academicAlignme
 import { AcademicMismatchBanner } from "@/features/academic-alignment/components/AcademicMismatchBanner";
 import { TransitionJustificationModal } from "./TransitionJustificationModal";
 import type { NormalizedQualification } from "@/types/normalizedStudent";
+import { SOPCopilot } from "./SOPCopilot";
+import type { SopCopilotReadContext } from "../types/copilot";
 
 /**
  * Parses markdown bold (**text**) into <strong> elements for rich embassy-grade rendering.
@@ -327,9 +329,29 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   );
   const [docApproved, setDocApproved] = useState(initialDraft?.docApproved ?? false);
   const [activeDraftId, setActiveDraftId] = useState<string | null>(initialDraft?.id ?? null);
+
+  // ── SOP Copilot Context Identity (Phase 2 Scope Guard) ───────────────────
+  const copilotContextIdentity = useMemo(
+    () => ({
+      studentId: effectiveStudentId,
+      programId: effectiveProgramId,
+      documentType: activeDocumentType,
+      documentId: activeDraftId ?? initialDraft?.id,
+      sectionId: selectedSectionId ?? undefined,
+    }),
+    [
+      effectiveStudentId,
+      effectiveProgramId,
+      activeDocumentType,
+      activeDraftId,
+      initialDraft?.id,
+      selectedSectionId,
+    ]
+  );
   const [draftsModalOpen, setDraftsModalOpen] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [documentInstanceId, setDocumentInstanceId] = useState(() => `doc-inst-${Date.now()}`);
   const [regeneratingSectionId, setRegeneratingSectionId] = useState<string | null>(null);
   const [isGeneratingAllAi, setIsGeneratingAllAi] = useState(false);
   const [aiBannerNotice, setAiBannerNotice] = useState<{
@@ -441,6 +463,119 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     () => calculateDocumentWordCount(sections, sectionContents, ctx),
     [sections, sectionContents, ctx]
   );
+
+  // ── SOP Copilot Phase 3 Read-Only Context Packet ──────────────────────────
+  const unreviewedSectionIds = useMemo(
+    () => sections.filter((s) => sectionStatuses[s.id] !== "APPROVED").map((s) => s.id),
+    [sections, sectionStatuses]
+  );
+
+  const unreviewedSectionTitles = useMemo(
+    () => sections.filter((s) => sectionStatuses[s.id] !== "APPROVED").map((s) => s.title),
+    [sections, sectionStatuses]
+  );
+
+  const approvalBlockers = useMemo(() => {
+    const list: string[] = [];
+    if (unreviewedSectionTitles.length > 0) {
+      list.push(`${unreviewedSectionTitles.length} section${unreviewedSectionTitles.length > 1 ? "s are" : " is"} still unreviewed.`);
+    }
+    const errorIssues = validation.filter((i) => i.severity === "error");
+    errorIssues.forEach((issue) => list.push(issue.message));
+    if (alignmentResult?.status === "ACADEMIC_MISMATCH" && !alignmentResult.evidenceSufficient) {
+      list.push(alignmentResult.blockingReason || "Academic mismatch detected. Transition confirmation required.");
+    } else if (alignmentResult?.status === "UNKNOWN") {
+      list.push(alignmentResult.blockingReason || "Academic alignment could not be determined.");
+    }
+    return list;
+  }, [unreviewedSectionTitles, validation, alignmentResult]);
+
+  const copilotReadContext = useMemo<SopCopilotReadContext>(() => ({
+    identity: copilotContextIdentity,
+    student: {
+      fullName: ctx.student?.fullName,
+      latestQualification: ctx.academics?.latestQualification,
+      fieldOfStudy: ctx.academics?.subjects,
+      institution: ctx.academics?.institution,
+      completionYear: ctx.academics?.completionYear,
+      percentage: ctx.academics?.percentage,
+    },
+    englishTest: {
+      exam: "IELTS",
+      overall: ctx.tests?.ielts?.overall,
+      listening: ctx.tests?.ielts?.listening,
+      reading: ctx.tests?.ielts?.reading,
+      writing: ctx.tests?.ielts?.writing,
+      speaking: ctx.tests?.ielts?.speaking,
+    },
+    destination: {
+      country: ctx.destination?.country,
+      city: ctx.destination?.city,
+      university: ctx.destination?.university,
+      course: ctx.destination?.course,
+      degreeLevel: ctx.destination?.degreeLevel,
+      intake: [ctx.destination?.intakeMonth, ctx.destination?.intakeYear].filter(Boolean).join(" "),
+    },
+    review: {
+      totalSections: sections.length,
+      reviewedSections: approvedCount,
+      unreviewedSectionIds,
+      unreviewedSectionTitles,
+      currentSectionId: selectedSectionId ?? undefined,
+      currentSectionTitle: sections.find((s) => s.id === selectedSectionId)?.title,
+      docApproved,
+      canApproveDocument,
+      approvalBlockers,
+    },
+    validation: {
+      hasErrors: documentHasErrors,
+      issues: validation.map((v) => ({
+        id: v.id,
+        field: v.field,
+        severity: v.severity,
+        message: v.message,
+      })),
+    },
+    alignment: {
+      status: alignmentResult?.status ?? "NOT_EVALUATED",
+      domain: alignmentResult?.sourceField?.domain,
+      targetDomain: alignmentResult?.targetField?.domain,
+      generationAllowed: alignmentResult?.generationAllowed ?? (!isAlignmentBlocked && !isAlignmentUnknown),
+      blockingReason: alignmentResult?.blockingReason,
+      isStale: alignmentResult?.isStale,
+      intentionalTransitionConfirmed: alignmentResult?.resolution === "INTENTIONAL_CONFIRMED",
+    },
+    document: {
+      sections: sections.map((s) => ({
+        id: s.id,
+        title: s.title,
+        content: sectionContents[s.id] ?? s.content,
+        status: sectionStatuses[s.id] ?? "NOT_REVIEWED",
+        required: Boolean(s.required),
+      })),
+      wordCount: totalWordCount,
+      approved: docApproved,
+    },
+  }), [
+    copilotContextIdentity,
+    ctx,
+    sections,
+    approvedCount,
+    unreviewedSectionIds,
+    unreviewedSectionTitles,
+    selectedSectionId,
+    docApproved,
+    canApproveDocument,
+    approvalBlockers,
+    documentHasErrors,
+    validation,
+    alignmentResult,
+    isAlignmentBlocked,
+    isAlignmentUnknown,
+    sectionContents,
+    sectionStatuses,
+    totalWordCount,
+  ]);
 
   // ── Apply loaded student payload ──────────────────────────────────────────
   const applyStudentPayload = useCallback(
@@ -1146,6 +1281,7 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     }));
     setDocApproved(draft.docApproved);
     setActiveDraftId(draft.id);
+    setDocumentInstanceId(`doc-inst-${draft.id}-${Date.now()}`);
     setUseSampleData(true);
     setSavedNoticeText(`Restored draft for ${draft.studentName}`);
     setTimeout(() => setSavedNoticeText(null), 3500);
@@ -1772,6 +1908,20 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
           isLoading={alignmentLoading}
         />
       )}
+
+      {/* Floating AI Chatbot — SOP Copilot */}
+      <SOPCopilot
+        contextIdentity={copilotContextIdentity}
+        readContext={copilotReadContext}
+        documentInstanceId={documentInstanceId}
+        onNavigateToSection={(secId) => {
+          handleSelectSectionFromCanvas(secId);
+        }}
+        onOpenValidationTab={() => {
+          setContextPanelTab("validation");
+          setIsContextCollapsed(false);
+        }}
+      />
 
       {/* Offscreen dedicated printable container for single-page high-DPI capture */}
       <div
