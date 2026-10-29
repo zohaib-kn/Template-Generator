@@ -93,11 +93,11 @@ export function DocumentThumbnailPreview({
     // Dynamic contact details extraction
     const dynamicEmail = isTemplateCard
       ? "email@example.com"
-      : extractEmail(allSectionsText, `${studentName.toLowerCase().replace(/\s+/g, ".")}@gmail.com`);
+      : extractEmail(allSectionsText, "");
 
     const dynamicPhone = isTemplateCard
       ? "+00 000 000 000"
-      : extractPhone(allSectionsText, "+91 98765 43210");
+      : extractPhone(allSectionsText, "");
 
     const dynamicLocation = isTemplateCard
       ? "City, Country"
@@ -408,16 +408,16 @@ export function DocumentThumbnailPreview({
     // Signature Block extraction
     const rawSig = getSec("signature") || getSec("contact");
     const dynamicEmail = !isTemplateCard && rawSig
-      ? extractEmail(rawSig, `${candidateName.toLowerCase().replace(/\s+/g, ".")}@gmail.com`)
+      ? extractEmail(rawSig, "")
       : isTemplateCard
       ? "applicant@example.com"
-      : `${candidateName.toLowerCase().replace(/\s+/g, ".")}@gmail.com`;
+      : "";
 
     const dynamicPhone = !isTemplateCard && rawSig
-      ? extractPhone(rawSig, "+91 98765 43210")
+      ? extractPhone(rawSig, "")
       : isTemplateCard
       ? "+00 000 000 000"
-      : "+91 98765 43210";
+      : "";
 
     return (
       <div

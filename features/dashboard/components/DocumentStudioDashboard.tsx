@@ -984,7 +984,7 @@ export function DocumentStudioDashboard() {
         if (!hasVisaSection) {
           updated.sections.push({
             heading: "Visa Compliance & Genuine Student Intent Declaration",
-            content: `I confirm that I am applying as a Genuine Student with sole intent to complete my specified studies at ${updated.targetUniversity}. My family possesses verified financial sponsorship covering all tuition and maintenance benchmarks. Upon graduation, I will return immediately to India to advance my career.`,
+            content: `I confirm that I am applying as a Genuine Student with sole intent to complete my specified studies at ${updated.targetUniversity}. [MISSING: sponsor and funding confirmation]. Upon graduation, I will return immediately to India to advance my career.`,
           });
         }
         appliedFeedback = "Verified visa compliance standards and inserted Genuine Student Intent declaration.";
@@ -1066,40 +1066,55 @@ export function DocumentStudioDashboard() {
           const sMatch = customPrompt.match(/speaking[:\s]*([0-9](?:\.[0-9])?)/i);
           const dateMatch = customPrompt.match(/(?:issue date|date taken|test date|date)[:\s]*([0-9a-zA-Z\s,/-]+)/i);
 
-          const overall = overallMatch ? overallMatch[1].trim() : "7.5";
-          const trfNumber = trfMatch ? trfMatch[1].trim() : "26IA506129FAIM003A";
-          const lScore = lMatch ? lMatch[1].trim() : "9.0";
-          const rScore = rMatch ? rMatch[1].trim() : "7.5";
-          const wScore = wMatch ? wMatch[1].trim() : "6.5";
-          const sScore = sMatch ? sMatch[1].trim() : "7.0";
-          const testDate = dateMatch ? dateMatch[1].trim() : "23/08/2026";
+          // Only scores the operator actually typed are used; nothing is defaulted.
+          const overall = overallMatch ? overallMatch[1].trim() : "";
+          const trfNumber = trfMatch ? trfMatch[1].trim() : "";
+          const lScore = lMatch ? lMatch[1].trim() : "";
+          const rScore = rMatch ? rMatch[1].trim() : "";
+          const wScore = wMatch ? wMatch[1].trim() : "";
+          const sScore = sMatch ? sMatch[1].trim() : "";
+          const testDate = dateMatch ? dateMatch[1].trim() : "";
+          const subscores = [
+            lScore && `Listening: ${lScore}`,
+            rScore && `Reading: ${rScore}`,
+            wScore && `Writing: ${wScore}`,
+            sScore && `Speaking: ${sScore}`,
+          ].filter(Boolean).join(", ");
 
-          if (updated.docType === "CV") {
+          if (!overall) {
+            appliedFeedback = "No change made — I won't invent IELTS scores. Paste the student's actual details, e.g. \"IELTS overall 7.0, listening 7.5, reading 7.0, writing 6.5, speaking 7.0, TRF 24AB123456\".";
+          } else if (updated.docType === "CV") {
             let certSec = updated.sections.find((s) => s.heading.toLowerCase().includes("english language") || s.heading.toLowerCase().includes("ielts"));
             if (!certSec) {
               certSec = { heading: "ENGLISH LANGUAGE CERTIFICATE", content: "" };
               updated.sections.splice(Math.min(4, updated.sections.length), 0, certSec);
             }
-            certSec.content = `International English Language Testing System\nTest Report Form\n• Overall Band Score - ${overall}\n• Listening - ${lScore}\n• Reading - ${rScore}\n• Writing - ${wScore}\n• Speaking - ${sScore}\n• Issue Date - ${testDate}\n• Test Report Form Number - ${trfNumber}`;
+            certSec.content = [
+              "International English Language Testing System",
+              "Test Report Form",
+              `• Overall Band Score - ${overall}`,
+              lScore && `• Listening - ${lScore}`,
+              rScore && `• Reading - ${rScore}`,
+              wScore && `• Writing - ${wScore}`,
+              sScore && `• Speaking - ${sScore}`,
+              testDate && `• Issue Date - ${testDate}`,
+              trfNumber && `• Test Report Form Number - ${trfNumber}`,
+            ].filter(Boolean).join("\n");
 
-            let langSec = updated.sections.find((s) => s.heading.toLowerCase().includes("language skills"));
-            if (langSec) {
-              langSec.content = `Mother tongue(s): Hindi / Urdu\nOther language(s): English (Listening ${lScore >= "8.5" ? "C2" : "C1"}, Reading ${rScore >= "8.5" ? "C2" : "C1"}, Writing ${wScore >= "7.0" ? "C1" : "B2"}, Spoken Production ${sScore >= "7.5" ? "C1" : "B2"}, Spoken Interaction ${sScore >= "7.5" ? "C1" : "B2"}) - Overall IELTS ${overall}`;
-            }
             sectionUpdated = "ENGLISH LANGUAGE CERTIFICATE";
             actionType = "typed_section";
-            appliedFeedback = `Typed out **English Language Certificate** with IELTS Overall **${overall}**, Subscores (L:${lScore}, R:${rScore}, W:${wScore}, S:${sScore}), and TRF Number **${trfNumber}**. Both Europass and Caret views updated.`;
+            appliedFeedback = `Typed out **English Language Certificate** with IELTS Overall **${overall}**${subscores ? ` (${subscores})` : ""}${trfNumber ? ` and TRF Number **${trfNumber}**` : ""}.`;
           } else {
             const acadSec = updated.sections.find((s) => s.heading.toLowerCase().includes("academic background") || s.heading.toLowerCase().includes("background") || s.heading.toLowerCase().includes("academics"));
             if (acadSec) {
               if (!acadSec.content.includes("IELTS")) {
-                acadSec.content += ` Further, I have demonstrated strong English language proficiency through the International English Language Testing System (**IELTS Academic**), achieving an overall band score of **${overall}** (Listening: ${lScore}, Reading: ${rScore}, Writing: ${wScore}, Speaking: ${sScore}) under Test Report Form (TRF) Number **${trfNumber}**.`;
+                acadSec.content += ` Further, I have demonstrated strong English language proficiency through the International English Language Testing System (**IELTS Academic**), achieving an overall band score of **${overall}**${subscores ? ` (${subscores})` : ""}${trfNumber ? ` under Test Report Form (TRF) Number **${trfNumber}**` : ""}.`;
               } else {
-                acadSec.content = acadSec.content.replace(/(band score of [\d.]+\*\*\.)/i, `band score of **${overall}** (TRF No. **${trfNumber}**).`);
+                acadSec.content = acadSec.content.replace(/(band score of [\d.]+\*\*\.)/i, `band score of **${overall}**${trfNumber ? ` (TRF No. **${trfNumber}**)` : ""}.`);
               }
               sectionUpdated = acadSec.heading;
               actionType = "typed_section";
-              appliedFeedback = `Typed out verified IELTS test scores (Band **${overall}**, TRF No. **${trfNumber}**) into the Academic Background section.`;
+              appliedFeedback = `Typed out IELTS test scores (Band **${overall}**${trfNumber ? `, TRF No. **${trfNumber}**` : ""}) into the Academic Background section.`;
             }
           }
         }
@@ -1119,16 +1134,6 @@ export function DocumentStudioDashboard() {
           promptLower.includes("sample detail") ||
           promptLower.includes("sample cert");
 
-        const courseContext = ((updated.targetCourse || "") + " " + (updated.targetUniversity || "")).toLowerCase();
-        const isTech =
-          courseContext.includes("data") ||
-          courseContext.includes("computer") ||
-          courseContext.includes("engineer") ||
-          courseContext.includes("science") ||
-          courseContext.includes("tech") ||
-          courseContext.includes("ai") ||
-          courseContext.includes("information");
-
         // ── Case 3: Operator shares Work Experience details ──────────────────────
         if (
           promptLower.includes("work experience") ||
@@ -1147,12 +1152,7 @@ export function DocumentStudioDashboard() {
           }
 
           if (isSampleRequest || customPrompt.trim().length < 25) {
-            if (isTech) {
-              workSec.content = "Software Engineering Intern\nTechSolutions Global [ 06/2023 – 04/2024 ]\nLocation: Mumbai, India\n• Developed scalable backend microservices and RESTful API endpoints\n• Automated continuous integration test suites and optimized database queries";
-            } else {
-              workSec.content = "Financial Analyst Trainee\nDeloitte India [ 06/2023 – 04/2024 ]\nLocation: Mumbai, India\n• Performed quarterly financial variance auditing and portfolio reconciliation\n• Automated valuation spreadsheets and cross-border commercial compliance models";
-            }
-            appliedFeedback = "Typed out verified **Work Experience** entry with job role, company, dates, and duties.";
+            appliedFeedback = "No change made — I won't invent work experience. Paste the student's actual details, e.g. \"Work experience: Data Analyst, Acme Pvt Ltd, 06/2023 – 04/2024, Pune, built weekly sales dashboards\".";
           } else if (customPrompt.length > 40 && customPrompt.includes("\n")) {
             workSec.content = customPrompt.trim();
             appliedFeedback = "Typed out **Work Experience** section with provided employment details.";
@@ -1161,17 +1161,18 @@ export function DocumentStudioDashboard() {
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(work\s+experience|internships?|jobs?)[:\s-]*/i, "")
               .trim();
             const lines = cleanText.split(/[,;•\n]+/).map((l) => l.trim()).filter(Boolean);
-            const role = lines[0] || (isTech ? "Software Engineering Intern" : "Financial Analyst Trainee");
-            const company = lines[1] || (isTech ? "TechSolutions Global" : "Deloitte India");
-            const dates = lines.find((l) => /\d{4}/.test(l)) || "06/2023 – 04/2024";
-            const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai/i.test(l)) || "Mumbai, India";
+            const role = lines[0] || "[MISSING: role]";
+            const company = lines[1] || "[MISSING: company]";
+            const dates = lines.find((l) => /\d{4}/.test(l)) || "[MISSING: dates]";
+            const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai/i.test(l)) || "";
             const duties = lines.slice(2).filter((l) => l !== dates && l !== location);
 
-            workSec.content = `${role}\n${company} [ ${dates} ]\nLocation: ${location}\n${
-              duties.length > 0
-                ? duties.map((d) => `• ${d}`).join("\n")
-                : "• Performed core technical implementation and cross-border analytical reporting\n• Automated documentation and test coverage"
-            }`;
+            workSec.content = [
+              role,
+              `${company} [ ${dates} ]`,
+              location && `Location: ${location}`,
+              ...duties.map((d) => `• ${d}`),
+            ].filter(Boolean).join("\n");
             appliedFeedback = `Typed out **Work Experience** at **${company}** as **${role}**.`;
           }
 
@@ -1196,12 +1197,7 @@ export function DocumentStudioDashboard() {
           }
 
           if (isSampleRequest || customPrompt.trim().length < 25) {
-            if (isTech) {
-              eduSec.content = "Bachelor of Technology in Computer Science and Engineering\nVellore Institute of Technology [ 2020 – 2024 ]\nLocation: Vellore, India | Final grade: CGPA 8.8/10";
-            } else {
-              eduSec.content = "Bachelor of Commerce (Honours in Finance)\nUniversity of Mumbai [ 2020 – 2023 ]\nLocation: Mumbai, India | Final grade: CGPA 8.7/10";
-            }
-            appliedFeedback = "Typed out verified **Education and Training** entry with degree, institution, and grades.";
+            appliedFeedback = "No change made — I won't invent education details. Paste the student's actual details, e.g. \"Education: B.Com, University of Mumbai, 2020 – 2023, CGPA 8.2/10\".";
           } else {
             const cleanEdu = customPrompt
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(education(\s+and\s+training)?|degree|qualification)[:\s-]*/i, "")
@@ -1226,8 +1222,7 @@ export function DocumentStudioDashboard() {
             updated.sections.unshift(aboutSec);
           }
           if (isSampleRequest || customPrompt.trim().length < 20) {
-            aboutSec.content = `Ambitious and analytical ${updated.targetCourse} applicant with a verified academic background in quantitative problem solving and research. Eager to contribute to collaborative projects and academic inquiries at ${updated.targetUniversity}.`;
-            appliedFeedback = "Typed out a tailored **About Me** academic summary aligned with your university programme.";
+            appliedFeedback = "No change made — I won't invent a profile summary. Paste the student's actual details, e.g. \"About me: <two or three sentences in the student's own words>\".";
           } else {
             aboutSec.content = customPrompt
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(about\s+me|bio|profile(\s+summary)?|summary)[:\s-]*/i, "")
@@ -1246,12 +1241,7 @@ export function DocumentStudioDashboard() {
             updated.sections.splice(Math.min(5, updated.sections.length), 0, skillsSec);
           }
           if (isSampleRequest || customPrompt.trim().length < 20) {
-            if (isTech) {
-              skillsSec.content = "Python / Machine Learning / Data Structures / SQL / React.js / Node.js / Git / Docker";
-            } else {
-              skillsSec.content = "Financial Modeling / Data Analysis / Advanced Excel / Corporate Strategy / Tableau / Quantitative Research";
-            }
-            appliedFeedback = "Typed out curated **Skills** proficiencies aligned with your degree programme.";
+            appliedFeedback = "No change made — I won't invent skills. Paste the student's actual details, e.g. \"Skills: Excel / SQL / Tableau\".";
           } else {
             const cleanSkills = customPrompt
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(skills?|technologies|tools)[:\s-]*/i, "")
@@ -1276,22 +1266,13 @@ export function DocumentStudioDashboard() {
           }
 
           if (isSampleRequest || customPrompt.trim().length < 32) {
-            if (isTech) {
-              certSec.content = "• Deep Learning & Neural Networks Specialization – Coursera (DeepLearning.AI) [ 2023 ]\n• AWS Certified Cloud Practitioner – Amazon Web Services [ 2024 ]";
-              appliedFeedback = "Typed out verified accredited **Certifications** in Deep Learning (Coursera) and Cloud Architecture (AWS).";
-            } else {
-              certSec.content = "• Financial Modeling & Valuation Analyst (FMVA)® – Corporate Finance Institute [ 2023 ]\n• Business Analytics & Decision Making – Coursera (Wharton) [ 2024 ]";
-              appliedFeedback = "Typed out verified accredited **Certifications** in Financial Modeling (CFI) and Business Analytics (Coursera/Wharton).";
-            }
+            appliedFeedback = "No change made — I won't invent certifications. Paste the student's actual details, e.g. \"Certifications: Google Data Analytics – Coursera, 2024\".";
           } else {
-            let cleanCert = customPrompt
+            const cleanCert = customPrompt
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(certifications?|certificates?|credentials?)[:\s-]*/i, "")
               .trim();
-            if (!cleanCert.includes("–") && !cleanCert.includes("-") && !cleanCert.includes("by") && !cleanCert.includes("from") && !cleanCert.includes("|")) {
-              cleanCert = `${cleanCert} – Accredited Online Certification [ 2024 ]`;
-            }
             certSec.content = cleanCert.startsWith("•") ? cleanCert : `• ${cleanCert}`;
-            appliedFeedback = "Updated **Certifications** section with verified credentials.";
+            appliedFeedback = "Updated **Certifications** section with the provided credentials.";
           }
 
           sectionUpdated = "CERTIFICATIONS";
@@ -1306,8 +1287,7 @@ export function DocumentStudioDashboard() {
             updated.sections.push(hobbySec);
           }
           if (isSampleRequest || customPrompt.trim().length < 20) {
-            hobbySec.content = "Open-source software contributing / Competitive chess / Long-distance running / Technical blogging";
-            appliedFeedback = "Typed out verified **Hobbies and Interests** section.";
+            appliedFeedback = "No change made — I won't invent hobbies. Paste the student's actual details, e.g. \"Hobbies: badminton / photography\".";
           } else {
             const cleanHobbies = customPrompt
               .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(hobbies|interests)[:\s-]*/i, "")
@@ -1337,11 +1317,11 @@ export function DocumentStudioDashboard() {
               const newPnr = pnrMatch[1].trim();
               travelSec.content = travelSec.content.replace(/PNR:\s*[\w\d[\]-]+/i, `PNR: ${newPnr}`);
             } else {
-              travelSec.content = `Additionally, I have confirmed my travel arrangements by booking an **Emirates** flight from **Mumbai (BOM)** to **Venice Marco Polo Airport (VCE)** via **Dubai (DXB)** for **20 September 2026** under **PNR: PCNXKF**, ensuring my timely arrival in Italy before the commencement of my studies.`;
+              appliedFeedback = "No change made — I won't invent travel details. Paste the student's actual details, e.g. \"PNR: ABC123\".";
             }
             sectionUpdated = "Travel Logistics";
             actionType = "typed_section";
-            appliedFeedback = "Updated Travel Logistics (Flight, Itinerary & PNR).";
+            if (!appliedFeedback) appliedFeedback = "Updated Travel Logistics (Flight, Itinerary & PNR).";
           }
         }
 
@@ -1362,11 +1342,11 @@ export function DocumentStudioDashboard() {
               const newCert = certMatch[1].trim();
               insSec.content = insSec.content.replace(/Certificate No\.\s*[\w\d[\]-]+/i, `Certificate No. ${newCert}`);
             } else {
-              insSec.content = `I have also obtained a **365-day ICICI Lombard General Insurance Overseas Student Travel Insurance Policy (Certificate No. IC512370)**, valid from **01 September 2026 to 31 August 2027**, in compliance with the visa requirements.`;
+              appliedFeedback = "No change made — I won't invent insurance details. Paste the student's actual details, e.g. \"Policy number: POL-123456\".";
             }
             sectionUpdated = "Travel & Health Insurance";
             actionType = "typed_section";
-            appliedFeedback = "Updated Travel & Health Insurance Policy details.";
+            if (!appliedFeedback) appliedFeedback = "Updated Travel & Health Insurance Policy details.";
           }
         }
 
@@ -1383,11 +1363,11 @@ export function DocumentStudioDashboard() {
             if (customPrompt.length > 50 && customPrompt.toLowerCase().includes("temporary accommodation")) {
               accSec.content = customPrompt.trim();
             } else {
-              accSec.content = `I have made all the necessary arrangements for my stay in Italy. I have secured temporary accommodation at **Dimora in Prato, Padova, Italy**, from **20 September 2026 to 20 October 2026**, which will provide me with sufficient time to settle in and arrange my long-term accommodation after my arrival.`;
+              appliedFeedback = "No change made — I won't invent accommodation details. Paste the student's actual details, e.g. \"I have secured temporary accommodation at <residence>, <city>, from <date> to <date>.\".";
             }
             sectionUpdated = "Accommodation Arrangements";
             actionType = "typed_section";
-            appliedFeedback = "Updated Accommodation Arrangements (Dimora in Prato).";
+            if (!appliedFeedback) appliedFeedback = "Updated Accommodation Arrangements.";
           }
         }
 
@@ -1410,11 +1390,11 @@ export function DocumentStudioDashboard() {
             if (customPrompt.length > 80 && customPrompt.toLowerCase().includes("sponsored")) {
               finSec.content = customPrompt.trim();
             } else {
-              finSec.content = `My higher education and living expenses in Italy will be fully sponsored by my father, Mr. Amin Jamali. To finance my studies, he has obtained an education loan of **INR 39,00,000 (Indian Rupees Thirty-Nine Lakh Only)** from Credila Financial Services Limited, of which **INR 38,11,848** has been disbursed into his HSBC Bank Savings Account No. **053-059036-006** after the applicable insurance deductions. As of **23 July 2026**, the account reflects an available balance of **INR 38,11,848.00** (approximately **EUR 34,719.44**, based on the exchange rate of **1 EUR = INR 109.79**). My father has undertaken full financial responsibility for my tuition fees, accommodation, living expenses, travel, medical insurance, and all other costs associated with my education and stay in Italy. He also has a CA-certified net worth of **INR 2,32,44,511** and is a regular income tax assessee. In support of my application, I have enclosed the education loan sanction letter, bank statement, CA-certified net worth certificate, notarized sponsorship affidavit, and his Income Tax Returns for Assessment Years **2024–25, 2025–26, and 2026–27** as evidence of his financial capacity and commitment to sponsoring my education.`;
+              appliedFeedback = "No change made — I won't invent sponsorship or loan details. Paste the student's actual details, e.g. \"My studies will be sponsored by my father, <name>, ...\".";
             }
             sectionUpdated = "Financial Sponsorship";
             actionType = "typed_section";
-            appliedFeedback = "Updated Financial Sponsorship & Banking Verification details.";
+            if (!appliedFeedback) appliedFeedback = "Updated Financial Sponsorship details.";
           }
         }
 

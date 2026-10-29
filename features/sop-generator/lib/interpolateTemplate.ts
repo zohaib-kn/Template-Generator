@@ -5,11 +5,13 @@
  *
  * Syntax: {{namespace.field}} or {{namespace.nested.field}}
  *
- * Behaviour (Solution 1 — Smart Natural Fallbacks):
+ * Behaviour:
  *   - If the value exists in CRM context → replaced with the verified string value.
- *   - If the value is missing / not yet in CRM → replaced with a graceful, natural
- *     fallback phrase so the document remains professional, grammatically sound,
- *     and free of raw developer error tokens like [MISSING: ...].
+ *   - If it is missing and the field is purely descriptive (see NEUTRAL_FALLBACKS) →
+ *     replaced with neutral wording that asserts no fact about the student.
+ *   - Otherwise → a visible `[MISSING: path]` marker. Embassy and admissions letters must
+ *     never contain invented scores, sponsors, insurance, nationality or other facts; the
+ *     marker keeps the gap visible to the counsellor and is caught by pre-export checks.
  *
  * This function is intentionally pure and side-effect free.
  * It only resolves values from the provided context object — it
@@ -52,254 +54,28 @@ export function isPlaceholderMissing(ctx: StudentDocumentContext, path: string):
 }
 
 /**
- * Smart, natural fallback phrases when CRM data is not yet available.
- * Keeps sentences grammatically correct, professional, and free of developer error tokens.
+ * Fields whose absence may be bridged with neutral wording. Everything else is a
+ * factual claim (identity, scores, money, sponsor, logistics, institution facts) and is
+ * rendered as a `[MISSING: path]` marker instead of an invented value.
  */
-export function getNaturalFallback(path: string, ctx: StudentDocumentContext): string {
-  const country = ctx.destination?.country || "Italy";
-  const currentYear = new Date().getFullYear();
-
-  switch (path) {
-    // ── Destination & Embassy ───────────────────────────────────────────
-    case "destination.consulate":
-      return `Embassy of ${country} / Consulate General`;
-
-    case "destination.consulateAddress":
-      return ctx.destination?.consulateCity ? `${ctx.destination.consulateCity}, India` : "Mumbai, India";
-
-    case "destination.consulateCity":
-      return country === "Italy" ? "Mumbai" : country;
-
-    case "destination.university":
-      return `designated university in ${country}`;
-
-    case "destination.course":
-      return "chosen academic field";
-
-    case "destination.city":
-      return country;
-
-    case "destination.country":
-      return country;
-
-    case "destination.degreeLevel":
-      return "Master's Degree";
-
-    case "destination.duration":
-      return "full-time academic period";
-
-    case "destination.intakeMonth":
-      return "the upcoming";
-
-    case "destination.intakeYear":
-      return ctx.destination?.intakeYear ? String(ctx.destination.intakeYear) : "academic session";
-
-    // ── Student Identity ────────────────────────────────────────────────
-    case "student.fullName":
-      return "the applicant";
-
-    case "student.city":
-      return "India";
-
-    case "student.country":
-      return "India";
-
-    case "student.nationality":
-      return "Indian";
-
-    case "student.passportNumber":
-      return "valid passport as per enclosed document";
-
-    case "student.address":
-      return ctx.student?.city ? `${ctx.student.city}, India` : "India";
-
-    case "student.email":
-      return "applicant contact email";
-
-    case "student.phone":
-      return "registered contact number";
-
-    // ── Academics ───────────────────────────────────────────────────────
-    case "academics.latestQualification":
-      return "undergraduate degree";
-
-    case "academics.institution":
-      return "my accredited university";
-
-    case "academics.board":
-      return "the University Examination Board";
-
-    case "academics.completionYear":
-      return String(currentYear - 1);
-
-    case "academics.subjects":
-      return "core academic disciplines";
-
-    case "academics.percentage":
-      return "First Class / Merit";
-
-    // ── Tests / Language ────────────────────────────────────────────────
-    case "tests.ielts.overall":
-      return "6.5";
-
-    case "tests.ielts.listening":
-      return "6.5";
-
-    case "tests.ielts.reading":
-      return "6.5";
-
-    case "tests.ielts.writing":
-      return "6.0";
-
-    case "tests.ielts.speaking":
-      return "6.5";
-
-    // ── Sponsorship & Finance ───────────────────────────────────────────
-    case "sponsor.name":
-      return "my family sponsor";
-
-    case "sponsor.relationship":
-      return "Father";
-
-    case "sponsor.occupation":
-      return "Professional";
-
-    case "sponsor.annualIncome":
-      return "adequate annual revenue";
-
-    case "finance.educationLoanAmount":
-      return "the approved educational funding";
-
-    case "finance.loanProvider":
-      return "our banking institution";
-
-    case "finance.availableBalance":
-      return "family savings";
-
-    case "finance.totalFundsAvailable":
-      return "sufficient funds as per visa guidelines";
-
-    case "finance.disbursedAmount":
-      return "the disbursed loan proceeds";
-
-    case "finance.bankAccount":
-      return "our designated savings account";
-
-    case "finance.statementDate":
-      return "the latest statement date";
-
-    case "finance.availableBalanceEur":
-      return "equivalent funds in Euros";
-
-    // ── Logistics: Accommodation, Insurance, Travel ─────────────────────
-    case "accommodation.name":
-      return "the student university residence";
-
-    case "accommodation.address":
-      return "near the university campus";
-
-    case "accommodation.fromDate":
-      return "course commencement";
-
-    case "accommodation.toDate":
-      return "the end of the first semester";
-
-    case "accommodation.bookingReference":
-      return "Confirmation letter attached";
-
-    case "insurance.provider":
-      return "an authorized international student health insurer";
-
-    case "insurance.policyNumber":
-      return "Policy certificate enclosed";
-
-    case "insurance.coverageAmount":
-      return "€30,000 minimum statutory coverage";
-
-    case "insurance.fromDate":
-      return "departure date";
-
-    case "insurance.toDate":
-      return "duration of study";
-
-    case "travel.airline":
-      return "scheduled commercial carrier";
-
-    case "travel.flightNumber":
-      return "confirmed flight";
-
-    case "travel.origin":
-      return ctx.student?.city || "New Delhi";
-
-    case "travel.destination":
-      return country;
-
-    case "travel.travelDate":
-      return "the scheduled travel date";
-
-    case "insurance.policyType":
-      return "365-day Comprehensive Overseas Student Travel Insurance Policy";
-
-    case "accommodation.nameAndAddress":
-      return "convenient student accommodation in Padova, Italy";
-
-    case "tests.ielts.type":
-      return "IELTS Academic";
-
-    case "tests.additionalTestsText":
-      return "";
-
-    case "family.count":
-      return "four";
-
-    case "family.fatherOccupation":
-      return "Corporate Executive";
-
-    case "family.motherOccupation":
-      return "Senior Professional";
-
-    case "family.siblingText":
-      return "supportive siblings";
-
-    case "student.returnFamilyReason":
-      return "Being close to my family and rooted in India";
-
-    case "academics.favoriteSubjects":
-      return "Mathematics and Analytical Problem Solving";
-
-    case "destination.courseDisciplines":
-      return "core theoretical engineering, computational algorithms, and applied automation";
-
-    case "destination.universityHistory":
-      return "800 years";
-
-    case "destination.distinguishedScholars":
-      return "Galileo Galilei, Nicolaus Copernicus, and William Harvey";
-
-    case "destination.masterSpecialization":
-      return "advanced engineering and technology specializations";
-
-    case "finance.netWorth":
-      return "INR 2,00,00,000";
-
-    case "finance.itrYears":
-      return "2024–25, 2025–26, and 2026–27";
-
-    case "finance.exchangeRate":
-      return "1 EUR = INR 109.79";
-
-    case "travel.transit":
-      return "Dubai (DXB)";
-
-    default: {
-      const leaf = path.split(".").pop() || path;
-      return leaf.replace(/([A-Z])/g, " $1").toLowerCase().trim();
-    }
-  }
+const NEUTRAL_FALLBACKS: Record<string, string> = {
+  // Optional trailing sentence about extra entrance tests; omitted entirely when absent.
+  "tests.additionalTestsText": "",
+};
+
+/** Matches the visible marker emitted for unresolved factual placeholders. */
+export const MISSING_MARKER_RE = /\[MISSING:\s*([^\]]+)\]/g;
+
+/**
+ * Neutral wording for a missing descriptive field, or `null` when the field is factual
+ * and must be shown as missing rather than filled in.
+ */
+export function getNaturalFallback(path: string): string | null {
+  return Object.prototype.hasOwnProperty.call(NEUTRAL_FALLBACKS, path) ? NEUTRAL_FALLBACKS[path] : null;
 }
 
 export interface InterpolateOptions {
-  /** If true, returns [MISSING: path] instead of smart natural fallback. */
+  /** If true, every missing value (including neutral fields) renders as [MISSING: path]. */
   rawMissingTokens?: boolean;
 }
 
@@ -309,7 +85,8 @@ export interface InterpolateOptions {
  * @param template  Raw template string with `{{ns.field}}` tokens.
  * @param ctx       The resolved StudentDocumentContext.
  * @param options   Optional configuration flags.
- * @returns         Rendered string with verified values or natural, professional fallbacks.
+ * @returns         Rendered string with verified values, neutral wording for descriptive
+ *                  fields, and `[MISSING: path]` for any missing factual field.
  */
 export function interpolate(
   template: string,
@@ -321,10 +98,8 @@ export function interpolate(
     if (value !== undefined) {
       return value;
     }
-    if (options?.rawMissingTokens) {
-      return `[MISSING: ${path}]`;
-    }
-    return getNaturalFallback(path, ctx);
+    const neutral = options?.rawMissingTokens ? null : getNaturalFallback(path);
+    return neutral !== null ? neutral : `[MISSING: ${path}]`;
   });
 }
 
@@ -344,4 +119,11 @@ export function extractPlaceholders(template: string): string[] {
   }
 
   return found;
+}
+
+/** Unique placeholder paths still shown as `[MISSING: …]` in rendered text. */
+export function findMissingMarkers(rendered: string): string[] {
+  const found = new Set<string>();
+  for (const m of rendered.matchAll(MISSING_MARKER_RE)) found.add(m[1].trim());
+  return [...found];
 }

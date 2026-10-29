@@ -54,12 +54,6 @@ export function hydrateDocumentFromSnapshot(
 
   const studentName = p.fullName || "Candidate";
   const firstName = studentName.split(" ")[0] || "Candidate";
-  const passport = p.passportNumber || "";
-  const email = p.email || "";
-  const mobile = p.phone || "";
-  const dob = p.dateOfBirth || "";
-  const nationality = p.nationality || "";
-  const addressLine = p.address || (p.city ? `${p.city}, India` : "");
 
   const targetCourse = prog?.course || "";
   const targetUniversity = prog?.university || "";
@@ -119,171 +113,77 @@ export function hydrateDocumentFromSnapshot(
       const rawVisa = (snapshot as any).visaLogistics || rawStudent.visaLogistics || {};
       const rawFinance = (snapshot as any).finance || rawStudent.finance || {};
 
-      // Enrich destination & academic disciplines dynamically
-      const courseLower = targetCourse.toLowerCase();
-      const isBachelor = courseLower.includes("bachelor") || courseLower.includes("b.") || courseLower.includes("undergraduate");
-
-      if (!sopContext.destination.courseDisciplines) {
-        if (courseLower.includes("data") || courseLower.includes("analytics") || courseLower.includes("business")) {
-          sopContext.destination.courseDisciplines = "data science, predictive analytics, statistical modelling, and strategic enterprise intelligence";
-        } else if (courseLower.includes("computer") || courseLower.includes("software") || courseLower.includes("information")) {
-          sopContext.destination.courseDisciplines = "software architecture, distributed systems, network security, and computational intelligence";
-        } else if (courseLower.includes("law") || courseLower.includes("legal")) {
-          sopContext.destination.courseDisciplines = "international jurisprudence, comparative constitutional governance, corporate compliance, and commercial dispute resolution";
-        } else if (courseLower.includes("mechanical") || courseLower.includes("mechatronics") || courseLower.includes("automotive")) {
-          sopContext.destination.courseDisciplines = "computational mechanics, robotics, automated control systems, and precision thermodynamics";
-        } else {
-          sopContext.destination.courseDisciplines = "empirical methodology, advanced domain theories, and innovative professional applications";
-        }
-      }
-
-      if (!sopContext.academics.favoriteSubjects) {
-        if (courseLower.includes("data") || courseLower.includes("analytics") || courseLower.includes("math")) {
-          sopContext.academics.favoriteSubjects = "Quantitative Methods and Applied Statistical Analysis";
-        } else if (courseLower.includes("law")) {
-          sopContext.academics.favoriteSubjects = "Jurisprudence and Comparative Commercial Law";
-        } else {
-          sopContext.academics.favoriteSubjects = "analytical reasoning and foundational domain coursework";
-        }
-      }
-
-      if (!sopContext.destination.masterSpecialization) {
-        if (isBachelor) {
-          sopContext.destination.masterSpecialization = `advanced Master's specialization in ${targetCourse.replace(/bachelor('?s)?\s*(degree)?\s*(in)?/i, "").trim() || "Applied Engineering and Technology"}`;
-        } else {
-          sopContext.destination.masterSpecialization = "advanced executive certifications, industrial research, and corporate leadership programs";
-        }
-      }
-
+      // Publicly verifiable facts for well-known institutions only; otherwise left missing
       if (!sopContext.destination.universityHistory) {
-        if (targetUniversity.toLowerCase().includes("padova") || targetUniversity.toLowerCase().includes("padua")) {
+        const uni = targetUniversity.toLowerCase();
+        if (uni.includes("padova") || uni.includes("padua")) {
           sopContext.destination.universityHistory = "800 years";
           sopContext.destination.distinguishedScholars = "Galileo Galilei, Nicolaus Copernicus, and William Harvey";
-        } else if (targetUniversity.toLowerCase().includes("bologna")) {
+        } else if (uni.includes("bologna")) {
           sopContext.destination.universityHistory = "over 900 years";
           sopContext.destination.distinguishedScholars = "Petrarch, Erasmus, and Umberto Eco";
-        } else if (targetUniversity.toLowerCase().includes("politecnico di milano")) {
+        } else if (uni.includes("politecnico di milano")) {
           sopContext.destination.universityHistory = "over 160 years";
           sopContext.destination.distinguishedScholars = "Giulio Natta (Nobel Laureate) and Renzo Piano";
-        } else if (targetUniversity.toLowerCase().includes("politecnico di torino")) {
-          sopContext.destination.universityHistory = "over 160 years";
-          sopContext.destination.distinguishedScholars = "renowned engineering pioneers and industrial leaders";
-        } else {
-          sopContext.destination.universityHistory = "distinguished decades of scholarly excellence";
-          sopContext.destination.distinguishedScholars = "eminent academic faculty and world-class researchers";
         }
       }
 
-      // Family & Sponsor
-      if (!sopContext.family) {
+      // Family & sponsor — only what the student's own CRM record states
+      if (!sopContext.family && (rawFamily.count || rawFamily.father || rawFamily.mother || rawFamily.sibling)) {
         sopContext.family = {
-          count: rawFamily.count || "four",
-          fatherOccupation: rawFamily.father?.occupation || normalized.family?.father?.occupation || "Professional Executive",
-          motherOccupation: rawFamily.mother?.occupation || normalized.family?.mother?.occupation || "Senior Associate",
-          siblingText: rawFamily.sibling ? `an ${rawFamily.sibling}` : "supportive family members",
+          count: rawFamily.count || "",
+          fatherOccupation: rawFamily.father?.occupation || normalized.family?.father?.occupation || "",
+          motherOccupation: rawFamily.mother?.occupation || normalized.family?.mother?.occupation || "",
+          siblingText: rawFamily.sibling ? `an ${rawFamily.sibling}` : "",
         };
       }
-
-      if (!sopContext.sponsor.relationship) {
-        sopContext.sponsor.relationship = rawFamily.father?.name ? "father" : "family sponsor";
+      if (!sopContext.sponsor.name && rawFamily.father?.name) {
+        sopContext.sponsor.name = rawFamily.father.name;
+        sopContext.sponsor.relationship = sopContext.sponsor.relationship || "father";
       }
-      if (!sopContext.sponsor.name) {
-        sopContext.sponsor.name = rawFamily.father?.name || `Mr. ${p.lastName || "Sponsor"}`;
-      }
-
-      // Student return reason
-      if (!sopContext.student.returnFamilyReason) {
-        sopContext.student.returnFamilyReason = rawFamily.returnReason || "Given my close family bonds and strong personal commitment to India";
+      if (!sopContext.student.returnFamilyReason && rawFamily.returnReason) {
+        sopContext.student.returnFamilyReason = rawFamily.returnReason;
       }
 
       // Tests
-      if (!sopContext.tests.ielts.type) {
-        sopContext.tests.ielts.type = normalized.tests.english?.type || "IELTS Academic";
-      }
-      if (!sopContext.tests.ielts.overall) {
-        sopContext.tests.ielts.overall = normalized.tests.english?.overallScore || "7.5";
+      if (!sopContext.tests.ielts.type && normalized.tests.english?.type) {
+        sopContext.tests.ielts.type = normalized.tests.english.type;
       }
 
-      // Logistics: Accommodation
-      if (!sopContext.accommodation.nameAndAddress) {
-        sopContext.accommodation.nameAndAddress =
-          rawVisa.accommodation?.address ||
-          (rawVisa.accommodation?.name ? `${rawVisa.accommodation.name}, ${targetCountry}` : `verified student accommodation near ${targetUniversity}`);
-      }
-      if (!sopContext.accommodation.fromDate) {
-        sopContext.accommodation.fromDate = rawVisa.accommodation?.fromDate || "commencement of the academic term";
-      }
-      if (!sopContext.accommodation.toDate) {
-        sopContext.accommodation.toDate = rawVisa.accommodation?.toDate || "completion of the initial settling-in period";
-      }
+      // Logistics — copied from the snapshot when present, never invented
+      const fill = (current: string | undefined, value: unknown): string =>
+        current || (typeof value === "string" ? value : "");
 
-      // Logistics: Insurance
-      if (!sopContext.insurance.policyType) {
-        sopContext.insurance.policyType =
-          rawVisa.insurance?.type ||
-          `365-day Comprehensive Overseas Student Travel and Health Insurance Policy`;
-      }
-      if (!sopContext.insurance.policyNumber) {
-        sopContext.insurance.policyNumber = rawVisa.insurance?.policyNumber || "Pending Issuance";
-      }
-      if (!sopContext.insurance.fromDate) {
-        sopContext.insurance.fromDate = rawVisa.insurance?.fromDate || "prior to travel departure";
-      }
-      if (!sopContext.insurance.toDate) {
-        sopContext.insurance.toDate = rawVisa.insurance?.toDate || "one full year of academic residency";
-      }
+      sopContext.accommodation.nameAndAddress = fill(
+        sopContext.accommodation.nameAndAddress,
+        rawVisa.accommodation?.address ||
+          (rawVisa.accommodation?.name ? `${rawVisa.accommodation.name}, ${targetCountry}` : "")
+      );
+      sopContext.accommodation.fromDate = fill(sopContext.accommodation.fromDate, rawVisa.accommodation?.fromDate);
+      sopContext.accommodation.toDate = fill(sopContext.accommodation.toDate, rawVisa.accommodation?.toDate);
 
-      // Logistics: Travel
-      if (!sopContext.travel.airline) {
-        sopContext.travel.airline = rawVisa.travel?.airline || "scheduled international carrier";
-      }
-      if (!sopContext.travel.origin) {
-        sopContext.travel.origin = rawVisa.travel?.origin || (p.city ? `${p.city} International Airport` : "Mumbai (BOM)");
-      }
-      if (!sopContext.travel.destination) {
-        sopContext.travel.destination = rawVisa.travel?.destination || `${targetCountry} International Airport`;
-      }
-      if (!sopContext.travel.transit) {
-        sopContext.travel.transit = rawVisa.travel?.transit || "connecting international hub";
-      }
-      if (!sopContext.travel.travelDate) {
-        sopContext.travel.travelDate = rawVisa.travel?.travelDate || "prior to semester orientation";
-      }
-      if (!sopContext.travel.pnr) {
-        sopContext.travel.pnr = rawVisa.travel?.pnr || "Pending Booking Confirmation";
-      }
+      sopContext.insurance.policyType = fill(sopContext.insurance.policyType, rawVisa.insurance?.type);
+      sopContext.insurance.policyNumber = fill(sopContext.insurance.policyNumber, rawVisa.insurance?.policyNumber);
+      sopContext.insurance.fromDate = fill(sopContext.insurance.fromDate, rawVisa.insurance?.fromDate);
+      sopContext.insurance.toDate = fill(sopContext.insurance.toDate, rawVisa.insurance?.toDate);
 
-      // Finance & Loan
-      if (!sopContext.finance.educationLoanAmount) {
-        sopContext.finance.educationLoanAmount = rawFinance.loanAmountSanctioned || "INR 35,00,000";
-      }
-      if (!sopContext.finance.loanProvider) {
-        sopContext.finance.loanProvider = rawFinance.bankName || "approved nationalized financial institution";
-      }
-      if (!sopContext.finance.disbursedAmount) {
-        sopContext.finance.disbursedAmount = rawFinance.disbursedAmount || "INR 30,00,000";
-      }
-      if (!sopContext.finance.bankAccount) {
-        sopContext.finance.bankAccount = rawFinance.bankAccount || "designated bank savings account";
-      }
-      if (!sopContext.finance.statementDate) {
-        sopContext.finance.statementDate = rawFinance.statementDate || todayStr;
-      }
-      if (!sopContext.finance.availableBalance) {
-        sopContext.finance.availableBalance = rawFinance.availableBalance || "INR 35,00,000.00";
-      }
-      if (!sopContext.finance.availableBalanceEur) {
-        sopContext.finance.availableBalanceEur = rawFinance.availableBalanceEur || "EUR 32,000.00";
-      }
-      if (!sopContext.finance.exchangeRate) {
-        sopContext.finance.exchangeRate = rawFinance.exchangeRate || "1 EUR = INR 109.79";
-      }
-      if (!sopContext.finance.netWorth) {
-        sopContext.finance.netWorth = rawFinance.netWorth || "INR 2,00,00,000";
-      }
-      if (!sopContext.finance.itrYears) {
-        sopContext.finance.itrYears = rawFinance.itrYears || "2024–25, 2025–26, and 2026–27";
-      }
+      sopContext.travel.airline = fill(sopContext.travel.airline, rawVisa.travel?.airline);
+      sopContext.travel.origin = fill(sopContext.travel.origin, rawVisa.travel?.origin);
+      sopContext.travel.destination = fill(sopContext.travel.destination, rawVisa.travel?.destination);
+      sopContext.travel.transit = fill(sopContext.travel.transit, rawVisa.travel?.transit);
+      sopContext.travel.travelDate = fill(sopContext.travel.travelDate, rawVisa.travel?.travelDate);
+      sopContext.travel.pnr = fill(sopContext.travel.pnr, rawVisa.travel?.pnr);
+
+      sopContext.finance.educationLoanAmount = fill(sopContext.finance.educationLoanAmount, rawFinance.loanAmountSanctioned);
+      sopContext.finance.loanProvider = fill(sopContext.finance.loanProvider, rawFinance.bankName);
+      sopContext.finance.disbursedAmount = fill(sopContext.finance.disbursedAmount, rawFinance.disbursedAmount);
+      sopContext.finance.bankAccount = fill(sopContext.finance.bankAccount, rawFinance.bankAccount);
+      sopContext.finance.statementDate = fill(sopContext.finance.statementDate, rawFinance.statementDate);
+      sopContext.finance.availableBalance = fill(sopContext.finance.availableBalance, rawFinance.availableBalance);
+      sopContext.finance.availableBalanceEur = fill(sopContext.finance.availableBalanceEur, rawFinance.availableBalanceEur);
+      sopContext.finance.exchangeRate = fill(sopContext.finance.exchangeRate, rawFinance.exchangeRate);
+      sopContext.finance.netWorth = fill(sopContext.finance.netWorth, rawFinance.netWorth);
+      sopContext.finance.itrYears = fill(sopContext.finance.itrYears, rawFinance.itrYears);
     }
 
     const title = isVisa
@@ -503,7 +403,7 @@ export function hydrateDocumentFromSnapshot(
     },
     {
       heading: "1. Relationship & Context",
-      content: `It gives me immense pleasure to write this letter of recommendation for ${studentName}, who graduated from our institution with a ${qualTitle} in ${qualYear}, securing ${qualScore}. As a Senior Professor and Academic Guide, I have closely observed ${firstName}'s scholarly dedication, critical thinking faculties, and classroom participation over multiple academic semesters.`,
+      content: `It gives me immense pleasure to write this letter of recommendation for ${studentName}, who graduated from our institution with a ${qualTitle} in ${qualYear}, securing ${qualScore}. As [MISSING: recommender.designation], I have closely observed ${firstName}'s scholarly dedication, critical thinking faculties, and classroom participation over multiple academic semesters.`,
     },
     {
       heading: "2. Intellectual Capacity & Scholarly Performance",
@@ -515,7 +415,7 @@ export function hydrateDocumentFromSnapshot(
     },
     {
       heading: "4. Final Endorsement",
-      content: `I am confident that ${studentName} will prove to be an invaluable asset to the ${targetCourse} program at ${targetUniversity}. I recommend their application with the utmost enthusiasm and without reservation.\n\nSincerely,\nDr. A. K. Sharma\nHead of Department & Professor of Law\n${qualInst}\nEmail: admissions-reference@academics.edu.in`,
+      content: `I am confident that ${studentName} will prove to be an invaluable asset to the ${targetCourse} program at ${targetUniversity}. I recommend their application with the utmost enthusiasm and without reservation.\n\nSincerely,\n[MISSING: recommender.name]\n[MISSING: recommender.designation]\n${qualInst}\nEmail: [MISSING: recommender.email]`,
     },
   ];
 
