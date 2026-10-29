@@ -789,6 +789,15 @@ export function DocumentStudioDashboard() {
     setRedoHistory([]);
     setIsAiCooking(true);
 
+    if (actionKey === "custom" && customPrompt?.trim()) {
+      void runAiEdit(customPrompt.trim());
+      return;
+    }
+    if (AI_ACTION_INSTRUCTIONS[actionKey]) {
+      void runAiEdit(AI_ACTION_INSTRUCTIONS[actionKey]);
+      return;
+    }
+
     setTimeout(() => {
       const updated = JSON.parse(JSON.stringify(editableDocContent)) as HydratedDocumentData;
       let appliedFeedback = "";
@@ -1282,42 +1291,118 @@ export function DocumentStudioDashboard() {
         }
       }
 
-      // Sync Europass layout if active document is CV
-      if (updated.docType === "CV") {
-        const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
-        const syncedCv = syncSectionsToCvData(updated.sections, baseCv);
-        setCvDocumentData(syncedCv);
-      }
-
-      // Recalculate word count
-      const totalWords = updated.sections.reduce(
-        (acc, s) => acc + s.content.trim().split(/\s+/).filter(Boolean).length,
-        0
-      );
-      updated.wordCount = totalWords;
-
-      setEditableDocContent(updated);
-      syncDocumentToRecent(updated, "Edited just now");
-      const html = docSectionsToHtml(updated.sections, updated.docType, updated.title);
-      setTiptapHtml(html);
-      if (tiptapEditor) {
-        tiptapEditor.commands.setContent(html);
-      }
-
-      // Append Assistant Response to Chat Thread
-      const assistantMsg: ChatMessage = {
-        id: `asst-${Date.now()}`,
-        sender: "assistant",
-        text: appliedFeedback || "Document updated successfully.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        sectionUpdated,
-        actionType,
-      };
-      setChatMessages((prev) => [...prev, assistantMsg]);
-      setAiToast({ message: `✨ AI Assistant: ${appliedFeedback.replace(/\*\*/g, "")}`, type: "success" });
-      setAiPromptText("");
-      setIsAiCooking(false);
+      commitAssistantEdit(updated, appliedFeedback, sectionUpdated, actionType);
     }, 550);
+  };
+
+  // Applies an assistant edit to the document, editor, Europass view, recents and chat
+  const commitAssistantEdit = (
+    updated: HydratedDocumentData,
+    feedback: string,
+    sectionUpdated: string | undefined,
+    actionType: ChatMessage["actionType"]
+  ) => {
+    // Sync Europass layout if active document is CV
+    if (updated.docType === "CV") {
+      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const syncedCv = syncSectionsToCvData(updated.sections, baseCv);
+      setCvDocumentData(syncedCv);
+    }
+
+    // Recalculate word count
+    updated.wordCount = updated.sections.reduce(
+      (acc, s) => acc + s.content.trim().split(/\s+/).filter(Boolean).length,
+      0
+    );
+
+    setEditableDocContent(updated);
+    syncDocumentToRecent(updated, "Edited just now");
+    const html = docSectionsToHtml(updated.sections, updated.docType, updated.title);
+    setTiptapHtml(html);
+    if (tiptapEditor) {
+      tiptapEditor.commands.setContent(html);
+    }
+
+    // Append Assistant Response to Chat Thread
+    const assistantMsg: ChatMessage = {
+      id: `asst-${Date.now()}`,
+      sender: "assistant",
+      text: feedback || "Document updated successfully.",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      sectionUpdated,
+      actionType,
+    };
+    setChatMessages((prev) => [...prev, assistantMsg]);
+    setAiToast({ message: `✨ AI Assistant: ${feedback.replace(/\*\*/g, "")}`, type: "success" });
+    setAiPromptText("");
+    setIsAiCooking(false);
+  };
+
+  // Instructions the real AI handles (chat box, Polish, Trim). Other quick actions stay built-in.
+  const AI_ACTION_INSTRUCTIONS: Record<string, string> = {
+    academic_polish:
+      "Polish the academic tone and wording of the whole document. Keep every fact, number and [MISSING: …] marker unchanged.",
+    trim_budget:
+      "Tighten the whole document by about 15% so it fits one page: remove repetition and filler. Keep every fact, number and [MISSING: …] marker.",
+  };
+
+  const runAiEdit = async (instruction: string) => {
+    if (!editableDocContent) return;
+    const doc = editableDocContent;
+    const history = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
+
+    const reportFailure = (text: string) => {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `asst-${Date.now()}`,
+          sender: "assistant",
+          text,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionType: "general",
+        },
+      ]);
+      setDocHistory((prev) => prev.slice(0, -1));
+      setIsAiCooking(false);
+    };
+
+    try {
+      const res = await fetch("/api/ai/studio-edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: doc.studentId,
+          docType: doc.docType,
+          title: doc.title,
+          sections: doc.sections,
+          instruction,
+          history,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        reportFailure(`⚠️ ${json?.error?.message || "The AI request failed."} No changes were made.`);
+        return;
+      }
+
+      const changed: string[] = json.changedHeadings || [];
+      const unverified: string[] = json.unverifiedValues || [];
+      if (changed.length === 0) {
+        // Question or not possible without inventing facts: answer only, document untouched
+        reportFailure(json.reply);
+        return;
+      }
+
+      const updated: HydratedDocumentData = { ...doc, sections: json.sections };
+      const feedback =
+        json.reply +
+        (unverified.length
+          ? `\n\n⚠️ Please verify these values — they weren't in the document or your message: ${unverified.join(", ")}`
+          : "");
+      commitAssistantEdit(updated, feedback, changed[0], "typed_section");
+    } catch {
+      reportFailure("⚠️ Could not reach the AI service. No changes were made.");
+    }
   };
 
   // Chat message submission handler
