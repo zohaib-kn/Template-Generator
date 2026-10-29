@@ -98,15 +98,6 @@ export async function GET() {
         email: s.email ?? null,
       }));
 
-    // Ensure verified benchmark sample students are present
-    if (!students.some((s) => s.id === "sample-mirza-farhan-zaid")) {
-      students.unshift({
-        id: "sample-mirza-farhan-zaid",
-        name: "***REMOVED***",
-        email: "***REMOVED***",
-      });
-    }
-
     // Sort alphabetically
     students.sort((a, b) => a.name.localeCompare(b.name));
 
