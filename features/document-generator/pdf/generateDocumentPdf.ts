@@ -36,46 +36,58 @@ export interface PdfNamingOptions {
   year?: number | string;
   /** Document type label (defaults to "Resume"). */
   documentType?: string;
+  /** Optional explicit filename (e.g. "Angad_Deep_CV.pdf"). */
+  customFilename?: string;
 }
 
 /**
- * Sanitise a string segment so it can be safely used in an underscore-delimited filename.
- * Replaces spaces, slashes, and non-alphanumeric punctuation with underscores,
- * collapses multiple underscores, and strips leading/trailing underscores.
+ * Sanitise a string segment so it can be safely used in a hyphen-delimited filename.
+ * Strips title prefixes, non-alphanumeric punctuation, collapses multiple hyphens,
+ * and strips leading/trailing hyphens.
  */
 export function safeFilenamePart(part: string): string {
   return part
     .trim()
-    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "_")
-    .replace(/_{2,}/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/^(?:mr|ms|mrs|dr|prof)\.?\s+/i, "")
+    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 /**
  * Derive a human-readable PDF filename following the format:
- *   [Name]_[DocumentType]_[Country]_[Year].pdf
+ *   [Name]-[DocumentType]-[Country]-[Year].pdf
  *
  * Example:
- *   Zohaib_Resume_Italy_2026.pdf
+ *   zohaib-Khan-Resume-Italy-2026.pdf
  */
 export function buildFilename(
   data: DocumentData,
   options?: PdfNamingOptions
 ): string {
+  if (options?.customFilename && typeof options.customFilename === "string" && options.customFilename.trim()) {
+    const fn = options.customFilename.trim();
+    return fn.toLowerCase().endsWith(".pdf") ? fn : `${fn}.pdf`;
+  }
   const rawName = data.personal?.fullName?.trim() || "";
   const namePart = safeFilenamePart(rawName) || "Candidate";
 
-  const docTypePart = safeFilenamePart(options?.documentType || "Resume");
+  const rawDocType = options?.documentType || "Resume";
+  const docTypePart =
+    rawDocType.toUpperCase() === "CV" ? "Resume" : safeFilenamePart(rawDocType);
 
   const rawCountry =
-    options?.country?.trim() || data.personal?.nationality?.trim() || "";
-  const countryPart = safeFilenamePart(rawCountry);
+    options?.country?.trim() ||
+    data.personal?.targetCountry?.trim() ||
+    data.personal?.nationality?.trim() ||
+    "Italy";
+  const countryPart = safeFilenamePart(rawCountry) || "Italy";
 
   const yearPart =
     options?.year?.toString().trim() || new Date().getFullYear().toString();
 
   const parts = [namePart, docTypePart, countryPart, yearPart].filter(Boolean);
-  return `${parts.join("_")}.pdf`;
+  return `${parts.join("-")}.pdf`;
 }
 
 /**

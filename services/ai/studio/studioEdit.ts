@@ -43,6 +43,8 @@ Rules — follow all of them:
 3. SCOPE: Change only what the instruction asks for. Leave every other section's content byte-for-byte identical. Keep section headings unless asked to rename, add or delete a section.
 4. FORMAT: Keep **bold** markdown and line breaks style. Write in the student's first-person voice for letters/SOPs; plain, professional, natural English.
 5. If the instruction is a question or cannot be done without inventing facts, do not edit — explain in "reply" what information you need.
+6. CV CONTACT & HEADER INFO: In CV documents, personal contact details (Home Address, Phone Number, Email Address, Mother Tongue, Nationality, Date of Birth) belong exclusively in the student contact header, NOT inside "ABOUT ME" or narrative body sections. NEVER append or insert home address, phone numbers, or emails into the "ABOUT ME" section.
+7. SECTION PRESERVATION: You must return the EXACT same list of sections provided in the input. Return each section as a separate object in the "sections" array with its original "heading". NEVER merge or collapse multiple sections into a single section. NEVER embed "### Heading" or section titles inside the "content" text.
 
 Respond with ONE JSON object only:
 {"reply": "<one or two sentences telling the counsellor what you changed or what you need>",
@@ -57,6 +59,7 @@ export function buildStudioPrompt(req: StudioEditRequest): string {
     .join("\n");
   return [
     `Document type: ${req.docType}${req.title ? ` — "${req.title}"` : ""}`,
+    `IMPORTANT: This document has ${req.sections.length} distinct sections. In your JSON response, you MUST return all ${req.sections.length} sections separately in the "sections" array with their original headings. Do NOT merge them into one section. Do NOT write "###" in section content.`,
     history ? `Recent conversation:\n${history}` : "",
     `Current document:\n${doc}`,
     `Counsellor instruction:\n<<<\n${req.instruction}\n>>>`,
@@ -91,14 +94,53 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   if (!Array.isArray(json.sections) || json.sections.length === 0 || json.sections.length > 80) {
     throw new Error("Model returned no usable sections.");
   }
+  // Auto-unbundle: If input had multiple sections but model collapsed into 1 section with ### markers
+  let unbundledJsonSections = json.sections as Partial<StudioSection>[];
+  if (
+    req.sections.length > 1 &&
+    unbundledJsonSections.length === 1 &&
+    typeof unbundledJsonSections[0]?.content === "string" &&
+    unbundledJsonSections[0].content.includes("###")
+  ) {
+    const rawSingle = unbundledJsonSections[0].content;
+    const lines = rawSingle.split(/\r?\n/);
+    const splitSections: { heading: string; content: string }[] = [];
+    let curHeading = unbundledJsonSections[0].heading || req.sections[0]?.heading || "Recipient / Consulate";
+    let curLines: string[] = [];
+
+    for (const line of lines) {
+      const match = line.match(/^\s*#{1,6}\s+(.+)$/);
+      if (match) {
+        if (curLines.length > 0 || splitSections.length > 0) {
+          splitSections.push({ heading: curHeading, content: curLines.join("\n").trim() });
+          curLines = [];
+        }
+        curHeading = match[1].trim();
+      } else {
+        curLines.push(line);
+      }
+    }
+    if (curLines.length > 0) {
+      splitSections.push({ heading: curHeading, content: curLines.join("\n").trim() });
+    }
+
+    if (splitSections.length > 1) {
+      unbundledJsonSections = splitSections;
+    }
+  }
+
   // Headings are template keys (exports map sections by them), so a returned heading that
   // matches an original one after cleanup is restored to the exact original text.
   const originalByKey = new Map(req.sections.map((s) => [cleanHeading(s.heading).toLowerCase(), s.heading]));
-  const sections: StudioSection[] = json.sections.map((s) => {
+  const sections: StudioSection[] = unbundledJsonSections.map((s) => {
     const sec = s as Partial<StudioSection>;
     if (typeof sec?.heading !== "string" || typeof sec?.content !== "string") throw new Error("Malformed section.");
     const cleaned = cleanHeading(sec.heading);
-    return { heading: originalByKey.get(cleaned.toLowerCase()) ?? cleaned, content: sec.content };
+    let content = sec.content;
+    // Strip echoed markdown heading prefixes at start of content
+    content = content.replace(new RegExp(`^\\s*#{1,6}\\s*${cleaned}\\s*\\n?`, "i"), "").trim();
+    content = content.replace(/^#+\s+[^\n]+\n/, "").trim();
+    return { heading: originalByKey.get(cleaned.toLowerCase()) ?? cleaned, content };
   });
 
   const before = new Map(req.sections.map((s) => [s.heading, s.content]));
@@ -109,14 +151,29 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
     ...(req.history ?? []).filter((t) => t.sender === "user").map((t) => t.text),
   ]);
 
-  return {
-    reply: typeof json.reply === "string" && json.reply.trim() ? json.reply.trim() : "Done.",
-    sections,
-    changedHeadings: Array.isArray(json.changedHeadings)
+  // Clean unwanted address pollution from ABOUT ME for CV documents
+  const sanitizedSections = sections.map((sec) => {
+    if (req.docType === "CV" && sec.heading.toLowerCase().includes("about me")) {
+      const cleanContent = sec.content
+        .replace(/(?:\r?\n|\s+)(?:Home\s+Address|Address)\s*[:\-]\s*[^\n.]+(?:\.)?/gi, "")
+        .trim();
+      return { ...sec, content: cleanContent };
+    }
+    return sec;
+  });
+
+  const changedSections = sanitizedSections.filter((s) => before.get(s.heading) !== s.content);
+  const changedHeadings =
+    Array.isArray(json.changedHeadings) && json.changedHeadings.length > 0
       ? json.changedHeadings
           .filter((h): h is string => typeof h === "string")
           .map((h) => originalByKey.get(cleanHeading(h).toLowerCase()) ?? cleanHeading(h))
-      : [],
+      : changedSections.map((s) => s.heading);
+
+  return {
+    reply: typeof json.reply === "string" && json.reply.trim() ? json.reply.trim() : "Done.",
+    sections: sanitizedSections,
+    changedHeadings,
     unverifiedValues,
   };
 }

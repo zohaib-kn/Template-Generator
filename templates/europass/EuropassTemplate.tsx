@@ -400,7 +400,7 @@ export function EuropassTemplate({
       } else {
         pIdx++;
         pages[pIdx] = [item];
-        remH = 1040 - estH;
+        remH = 1000 - estH;
       }
     }
 
@@ -713,13 +713,15 @@ export function EuropassTemplate({
 
     // A4 height is 297mm. Measured padding is 7.3mm top + 11.2mm bottom = 18.5mm.
     // Usable height inside padding: 278.5mm (~1052.6px at 96 DPI).
-    // Reserve minimal 8px safety buffer for sub-pixel text rendering.
-    const A4_USABLE_HEIGHT_PX = 278.5 * (96 / 25.4) - 8;
+    // Reserve 28px safety buffer (~7.4mm) to account for sub-pixel text rendering,
+    // interactive focus borders, and avoid clipping near the bottom page decoration.
+    const PAGE_SAFETY_BUFFER = 28;
+    const A4_USABLE_HEIGHT_PX = 278.5 * (96 / 25.4) - PAGE_SAFETY_BUFFER;
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
     ) as HTMLElement | null;
     const measuredPageH = pageContentEl?.offsetHeight ?? 0;
-    const usableHeight = measuredPageH > 500 ? measuredPageH - 8 : A4_USABLE_HEIGHT_PX;
+    const usableHeight = measuredPageH > 500 ? measuredPageH - PAGE_SAFETY_BUFFER : A4_USABLE_HEIGHT_PX;
 
     const headerEl = container.querySelector(
       '[data-measure="header"]'
@@ -740,14 +742,14 @@ export function EuropassTemplate({
       remainingHeight = maxPageN;
     };
 
-    // Helper: place an atomic section with 6px sub-pixel tolerance
+    // Helper: place an atomic section with strict height check
     const placeAtomic = (key: string, defaultTitle?: string) => {
       const el = container.querySelector(
         `[data-measure="${key}"]`
       ) as HTMLElement | null;
       const h = el ? getElementHeightWithMargins(el) : 80;
 
-      if (h <= remainingHeight + 6 || computedPages[pageIdx].length === 0) {
+      if (h <= remainingHeight || computedPages[pageIdx].length === 0) {
         computedPages[pageIdx].push({ key, secKey: key, title: defaultTitle });
         remainingHeight -= h;
       } else {
@@ -781,8 +783,8 @@ export function EuropassTemplate({
       const totalHeight =
         titleHeight + entryHeights.reduce((acc, val) => acc + val, 0);
 
-      // 1. Entire section fits on current page (with 6px sub-pixel tolerance)
-      if (totalHeight <= remainingHeight + 6) {
+      // 1. Entire section fits on current page cleanly
+      if (totalHeight <= remainingHeight) {
         computedPages[pageIdx].push({
           key: `${secKey}_all`,
           secKey,
@@ -920,7 +922,7 @@ export function EuropassTemplate({
           const remHeights = entryHeights.slice(k);
           const remTotal = remHeights.reduce((acc, val) => acc + val, 0);
 
-          if (remTotal <= maxPageN + 6) {
+          if (remTotal <= maxPageN) {
             computedPages[pageIdx].push({
               key: `${secKey}_part2`,
               secKey,

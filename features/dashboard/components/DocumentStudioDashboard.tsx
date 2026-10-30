@@ -1,21 +1,34 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
 import {
   hydrateDocumentFromSnapshot,
   type HydratedDocumentData,
   RECENT_DOCS_STORAGE_KEY,
+  ensureDocumentIdentity,
+  syncDocumentToRecentList,
+  generateDocumentId,
+  getEuropassData,
 } from "../utils/documentHydrator";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import type { Editor } from "@tiptap/react";
 import { TiptapEditor, type FormattingState } from "./TiptapEditor";
 import { DocumentThumbnailPreview } from "./DocumentThumbnailPreview";
-import { EuropassTemplate } from "@/templates/europass/EuropassTemplate";
-import { mapCrmToNormalizedStudent, mapNormalizedToResume } from "@/services/normalization";
-import { createEmptyDocumentData } from "@/features/document-generator/utils/documentDefaults";
+import { EuropassTemplate, EUROPASS_DEFAULT_SECTION_ORDER } from "@/templates/europass/EuropassTemplate";
+import { mapCrmToNormalizedStudent, mapNormalizedToResume, mapNormalizedToSop } from "@/services/normalization";
+import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
+import {
+  getMissingValidationGroups,
+  getTotalMissingCount,
+  parseDirectFieldInstruction,
+  updateCoverLetterSectionWithField,
+  cleanCoverLetterText,
+  type ValidationFieldDefinition,
+  type ValidationCategoryGroup,
+} from "../utils/coverLetterCleaner";
+import { CoverLetterValidationPanel } from "./CoverLetterValidationPanel";
 import {
   getSampleRohanIyerSnapshot,
   getSampleAaravMehtaSnapshot,
@@ -29,6 +42,24 @@ import { docSectionsToHtml } from "../utils/docSectionsToHtml";
 
 export { RECENT_DOCS_STORAGE_KEY, syncSectionsToCvData };
 
+function generateUniqueId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+function getFormattedTimestamp(): string {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Fictional demo students, clearly labelled; always listed after the live CRM roster
+const SAMPLE_ROSTER = SAMPLE_STUDENTS.map((s) => ({
+  id: s.id,
+  name: `${s.name} (Sample)`,
+  email: s.email,
+}));
+
 export interface ChatMessage {
   id: string;
   sender: "user" | "assistant";
@@ -36,6 +67,72 @@ export interface ChatMessage {
   timestamp: string;
   sectionUpdated?: string;
   actionType?: "typed_section" | "deleted_section" | "polished" | "trimmed" | "outline" | "general";
+}
+
+/**
+ * Standardized PDF/document export filename builder:
+ * Format: [Student-Name]-[Document-Type]-[Target-Country]-[Target-Year].pdf
+ * Example: zohaib-Khan-Resume-Italy-2026.pdf
+ */
+export function buildStandardizedPdfFilename(
+  studentName: string,
+  docType: string,
+  targetCountry?: string,
+  targetYear?: string | number
+): string {
+  const cleanName = (studentName || "Candidate")
+    .replace(/^(?:mr|ms|mrs|dr|prof)\.?\s+/i, "")
+    .trim()
+    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeName = cleanName || "Candidate";
+
+  const typeMap: Record<string, string> = {
+    CV: "Resume",
+    COVER_LETTER: "Cover-Letter",
+    SOP: "SOP",
+    LOR: "LOR",
+  };
+  const safeDocType =
+    typeMap[docType?.toUpperCase()] ||
+    (docType ? docType.replace(/[^a-zA-Z0-9]+/g, "-") : "Document");
+
+  const cleanCountry = (targetCountry || "Italy")
+    .trim()
+    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeCountry = cleanCountry || "Italy";
+
+  const safeYear = targetYear ? String(targetYear).trim() : String(new Date().getFullYear());
+
+  return `${safeName}-${safeDocType}-${safeCountry}-${safeYear}.pdf`;
+}
+
+/**
+ * Generates an initial welcoming greeting message for the AI Admissions Assistant.
+ */
+export function getDefaultGreetingMessage(studentName: string, docType: string): ChatMessage {
+  const isCv = docType === "CV";
+  const isCoverLetter = docType === "COVER_LETTER";
+
+  let intro = `Hello! I'm your AI Admissions Assistant for **${studentName}**.`;
+  if (isCv) {
+    intro += `\n\nYou can ask me to polish text, trim content, or directly share details to update this CV:\n• *"Add IELTS 7.5 (TRF 26IA...)"*\n• *"Add work experience: Frontend Intern at Acme Corp from June 2023 to Dec 2023"*\n• *"Add skills: React, TypeScript, Node.js"*\n• *"Add education: Bachelor of Technology at Delhi University"*\n• *"delete [section name]"* to remove any section`;
+  } else if (isCoverLetter) {
+    intro += `\n\nYou can ask me to polish academic tone, audit visa compliance, or directly type missing details to verify them:\n• *"Add student city Bhopal"*\n• *"Set father's occupation to businessman"*\n• *"Update education loan amount to ₹20,00,000"*`;
+  } else {
+    intro += `\n\nYou can ask me to polish academic tone, create an architectural outline, trim verbosity, or draft new paragraphs.`;
+  }
+
+  return {
+    id: `welcome-${docType}-${studentName.replace(/[^a-zA-Z0-9]/g, "_")}`,
+    sender: "assistant",
+    text: intro,
+    timestamp: getFormattedTimestamp(),
+    actionType: "general",
+  };
 }
 
 // Default recent documents shown in the Studio dashboard, hydrated from authoritative templates
@@ -47,6 +144,7 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
       "sample-aafia-ameen",
       "italy-type-d-student-visa-cover-letter"
     ),
+    id: "sample-doc-aafia-cover-letter",
     title: "Aafia Ameen – Italy Visa Cover Letter",
     updatedAt: "Opened Just now",
   },
@@ -56,6 +154,7 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
       getSampleRohanIyerSnapshot(),
       "sample-rohan-iyer"
     ),
+    id: "sample-doc-rohan-cv",
     title: "Rohan Iyer – Europass CV",
     updatedAt: "Opened 10m ago",
   },
@@ -65,6 +164,7 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
       getSampleRohanIyerSnapshot(),
       "sample-rohan-iyer"
     ),
+    id: "sample-doc-rohan-sop",
     title: "Rohan Iyer – Statement of Purpose",
     updatedAt: "Opened Oct 26, 2026",
   },
@@ -75,6 +175,7 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
       "sample-aarav-mehta",
       "italy-type-d-student-visa-cover-letter"
     ),
+    id: "sample-doc-aarav-cover-letter",
     title: "Aarav Mehta – Italy Visa Cover Letter",
     updatedAt: "Opened Oct 24, 2026",
   },
@@ -84,10 +185,12 @@ const INITIAL_RECENT_DOCS: HydratedDocumentData[] = [
       getSampleAaravMehtaSnapshot(),
       "sample-aarav-mehta"
     ),
+    id: "sample-doc-aarav-cv",
     title: "Aarav Mehta – Europass Academic CV",
     updatedAt: "Opened Jul 24, 2024",
   },
   {
+    id: "sample-doc-aafia-lor",
     title: "Aafia Ameen – Academic LOR",
     docType: "LOR",
     docTypeName: "Academic Letter of Recommendation",
@@ -190,30 +293,315 @@ export const AVAILABLE_FONTS: FontOption[] = [
 ];
 
 
-function getEuropassData(
-  studentId: string,
-  studentName?: string,
-  globalStudentData?: any
-): DocumentData {
-  // Only the selected student's own CRM snapshot, or an exact sample ID, may populate a CV.
-  const ownSnapshot =
-    globalStudentData && globalStudentData.student ? globalStudentData : getSampleSnapshotById(studentId);
-  if (ownSnapshot) {
-    try {
-      const norm = mapCrmToNormalizedStudent(ownSnapshot);
-      const proj = mapNormalizedToResume(norm);
-      if (proj.student && proj.student.personal?.fullName) return proj.student;
-    } catch { }
+export { getEuropassData };
+
+export interface CvSectionPrompt {
+  heading: string;
+  sectionKey: string;
+  label: string;
+  question: string;
+  placeholder: string;
+  isExisting?: boolean;
+}
+
+export interface CvSectionPromptDef {
+  sectionKey: string;
+  label: string;
+  heading: string;
+  createQuestion: string;
+  updateQuestion: string;
+  placeholder: string;
+}
+
+export const CV_SECTION_PROMPTS: Record<string, CvSectionPromptDef> = {
+  "WORK EXPERIENCE": {
+    sectionKey: "workExperience",
+    label: "Work Experience",
+    heading: "WORK EXPERIENCE",
+    createQuestion: "Let's add Work Experience for {studentName}. Please share:\n• Position / Role (e.g. Software Developer Intern)\n• Company (e.g. Amazon)\n• Duration (e.g. June 2023 – December 2023)\n• Responsibilities: (Key responsibilities)",
+    updateQuestion: "Work Experience already exists in your CV. What additional role or internship would you like to add for {studentName}?\n\nPlease share:\n• Position / Role (e.g. Software Developer Intern)\n• Company (e.g. Amazon)\n• Duration (e.g. June 2023 – December 2023)\n• Responsibilities: (Key responsibilities)",
+    placeholder: "e.g. Software Developer Intern at Amazon, June 2023 – December 2023...",
+  },
+  "INTERNSHIPS": {
+    sectionKey: "workExperience",
+    label: "Work Experience",
+    heading: "WORK EXPERIENCE",
+    createQuestion: "Let's add an internship or job entry for {studentName}. Please share:\n• Position / Role (e.g. Software Developer Intern)\n• Company (e.g. Amazon)\n• Duration (e.g. June 2023 – December 2023)\n• Responsibilities",
+    updateQuestion: "What additional internship or job role would you like to add for {studentName}?\n\nPlease share:\n• Position / Role (e.g. Software Developer Intern)\n• Company (e.g. Amazon)\n• Duration (e.g. June 2023 – December 2023)\n• Responsibilities",
+    placeholder: "e.g. Software Developer Intern at Amazon, June 2023 – December 2023...",
+  },
+  "EDUCATION AND TRAINING": {
+    sectionKey: "education",
+    label: "Education",
+    heading: "EDUCATION AND TRAINING",
+    createQuestion: "Please provide the degree or school qualification, institution, and duration for {studentName} (e.g. B.Tech in Computer Science, University of Cassino, 2020 – 2024, Final grade: 8.5/10).",
+    updateQuestion: "Education already exists in your CV. What additional degree or qualification would you like to add for {studentName}? (e.g. High School Diploma, Delhi Public School, 2018 – 2020)",
+    placeholder: "e.g. B.Tech in CS, University of Cassino [2020 - 2024]...",
+  },
+  "EDUCATION": {
+    sectionKey: "education",
+    label: "Education",
+    heading: "EDUCATION AND TRAINING",
+    createQuestion: "Please provide the degree or school qualification, institution, and duration for {studentName} (e.g. B.Tech in Computer Science, University of Cassino, 2020 – 2024, Final grade: 8.5/10).",
+    updateQuestion: "Education already exists in your CV. What additional degree or qualification would you like to add for {studentName}?",
+    placeholder: "e.g. B.Tech in CS, University of Cassino [2020 - 2024]...",
+  },
+  "TRAINING AND WORKSHOPS": {
+    sectionKey: "training",
+    label: "Training",
+    heading: "TRAINING AND WORKSHOPS",
+    createQuestion: "What professional training program, workshop, or technical course would you like to add for {studentName}? (e.g. Full-Stack Web Development Boot Camp, 2024)",
+    updateQuestion: "What additional training program or professional workshop would you like to add for {studentName}?",
+    placeholder: "e.g. Full-Stack Web Development Bootcamp [2024]...",
+  },
+  "TRAINING": {
+    sectionKey: "training",
+    label: "Training",
+    heading: "TRAINING AND WORKSHOPS",
+    createQuestion: "What professional training program, workshop, or technical course would you like to add for {studentName}? (e.g. Full-Stack Web Development Boot Camp, 2024)",
+    updateQuestion: "What additional training program or professional workshop would you like to add for {studentName}?",
+    placeholder: "e.g. Full-Stack Web Development Bootcamp [2024]...",
+  },
+  "DIGITAL SKILLS": {
+    sectionKey: "skills",
+    label: "Technical Skills",
+    heading: "DIGITAL SKILLS",
+    createQuestion: "Which technical or digital skills would you like to add for {studentName}? (e.g. Python, React, Next.js, Docker, SQL)",
+    updateQuestion: "Skills already exists in your CV. Which additional technical or digital skills would you like to add for {studentName}? (e.g. Docker, Kubernetes, AWS)",
+    placeholder: "e.g. Python, React, Next.js, SQL...",
+  },
+  "TECHNICAL SKILLS": {
+    sectionKey: "skills",
+    label: "Technical Skills",
+    heading: "DIGITAL SKILLS",
+    createQuestion: "Which technical or digital skills would you like to add for {studentName}? (e.g. Python, React, Next.js, Docker, SQL)",
+    updateQuestion: "Skills already exists in your CV. Which additional technical or digital skills would you like to add for {studentName}? (e.g. Docker, Kubernetes, AWS)",
+    placeholder: "e.g. Python, React, Next.js, SQL...",
+  },
+  "SKILLS": {
+    sectionKey: "skills",
+    label: "Technical Skills",
+    heading: "DIGITAL SKILLS",
+    createQuestion: "Which technical or digital skills would you like to add for {studentName}? (e.g. Python, React, SQL, Problem Solving)",
+    updateQuestion: "Skills already exists in your CV. Which additional technical skills would you like to add for {studentName}?",
+    placeholder: "e.g. Python, React, SQL...",
+  },
+  "CERTIFICATIONS": {
+    sectionKey: "certifications",
+    label: "Certifications",
+    heading: "CERTIFICATIONS",
+    createQuestion: "What certification or license would you like to add for {studentName}? (e.g. AWS Certified Solutions Architect – Amazon [2024])",
+    updateQuestion: "Certifications already exists in your CV. What additional certification or license would you like to add for {studentName}?",
+    placeholder: "e.g. AWS Certified Solutions Architect - Amazon [2024]...",
+  },
+  "HOBBIES AND INTERESTS": {
+    sectionKey: "hobbies",
+    label: "Hobbies",
+    heading: "HOBBIES AND INTERESTS",
+    createQuestion: "Okay, what hobbies would you like to add for {studentName}? (e.g. Gym, Reading, and Writing)",
+    updateQuestion: "Hobbies already exists in your CV. What additional hobbies would you like to add for {studentName}? (e.g. Gym, Reading, and Writing)",
+    placeholder: "e.g. Gym, Reading, and Writing...",
+  },
+  "HOBBIES": {
+    sectionKey: "hobbies",
+    label: "Hobbies",
+    heading: "HOBBIES AND INTERESTS",
+    createQuestion: "Okay, what hobbies would you like to add for {studentName}? (e.g. Gym, Reading, and Writing)",
+    updateQuestion: "Hobbies already exists in your CV. What additional hobbies would you like to add for {studentName}? (e.g. Gym, Reading, and Writing)",
+    placeholder: "e.g. Gym, Reading, and Writing...",
+  },
+  "ACADEMIC PROJECTS": {
+    sectionKey: "academicProjects",
+    label: "Academic Projects",
+    heading: "ACADEMIC PROJECTS",
+    createQuestion: "What academic project would you like to add for {studentName}? Please share the project title and a brief description of what was built.",
+    updateQuestion: "Academic Projects already exists in your CV. What additional project would you like to add for {studentName}?",
+    placeholder: "e.g. AI Portfolio Generator built with Next.js...",
+  },
+  "LEADERSHIP & RESPONSIBILITIES": {
+    sectionKey: "responsibilities",
+    label: "Responsibilities",
+    heading: "LEADERSHIP & RESPONSIBILITIES",
+    createQuestion: "What responsibility or leadership role would you like to add for {studentName}? (e.g. Student Council Representative - Organized inter-college cultural festival)",
+    updateQuestion: "What additional leadership responsibility or extracurricular role would you like to add for {studentName}?",
+    placeholder: "e.g. Head of Coding Club - Organized hackathon...",
+  },
+  "RESPONSIBILITIES": {
+    sectionKey: "responsibilities",
+    label: "Responsibilities",
+    heading: "LEADERSHIP & RESPONSIBILITIES",
+    createQuestion: "What responsibility or leadership role would you like to add for {studentName}? (e.g. Student Council Representative - Organized inter-college cultural festival)",
+    updateQuestion: "What additional leadership responsibility or extracurricular role would you like to add for {studentName}?",
+    placeholder: "e.g. Head of Coding Club - Organized hackathon...",
+  },
+  "ENGLISH LANGUAGE CERTIFICATE": {
+    sectionKey: "englishCertificate",
+    label: "English Certificate (IELTS)",
+    heading: "ENGLISH LANGUAGE CERTIFICATE",
+    createQuestion: "Please share the English language test details for {studentName} (e.g. IELTS Overall 7.5, TRF 26IA004123, or Listening 8.0, Reading 7.5).",
+    updateQuestion: "Please share the updated English language test details for {studentName} (e.g. IELTS Overall 7.5, TRF 26IA004123).",
+    placeholder: "e.g. IELTS Overall 7.5, TRF 26IA004123, L 8.0, R 7.5...",
+  },
+  "IELTS": {
+    sectionKey: "englishCertificate",
+    label: "English Certificate (IELTS)",
+    heading: "ENGLISH LANGUAGE CERTIFICATE",
+    createQuestion: "Please share the English language test details for {studentName} (e.g. IELTS Overall 7.5, TRF 26IA004123).",
+    updateQuestion: "Please share the updated English language test details for {studentName} (e.g. IELTS Overall 7.5, TRF 26IA004123).",
+    placeholder: "e.g. IELTS Overall 7.5, TRF 26IA004123...",
+  },
+  "LANGUAGE SKILLS": {
+    sectionKey: "languageSkills",
+    label: "Language Skills",
+    heading: "LANGUAGE SKILLS",
+    createQuestion: "Which languages and proficiency levels should we add for {studentName}? (e.g. Italian B1, English Fluent, Mother tongue Hindi)",
+    updateQuestion: "What additional languages and proficiency levels should we add for {studentName}?",
+    placeholder: "e.g. Italian (B1), English (Fluent), Mother tongue Hindi...",
+  },
+  "CUSTOM SECTION": {
+    sectionKey: "customSection",
+    label: "Custom Section",
+    heading: "CUSTOM SECTION",
+    createQuestion: "What heading and details should this custom section contain for {studentName}? (e.g. Volunteer Work: Mentored high school students in mathematics)",
+    updateQuestion: "What additional details would you like to add to this section for {studentName}?",
+    placeholder: "e.g. Volunteer Work: Mentored students...",
+  },
+};
+
+export const CV_SECTION_MENU_OPTIONS = [
+  { key: "workExperience", heading: "WORK EXPERIENCE", label: "Work Experience", icon: "💼" },
+  { key: "education", heading: "EDUCATION", label: "Education", icon: "🎓" },
+  { key: "training", heading: "TRAINING AND WORKSHOPS", label: "Training", icon: "🛠️" },
+  { key: "skills", heading: "DIGITAL SKILLS", label: "Technical Skills", icon: "⚡" },
+  { key: "certifications", heading: "CERTIFICATIONS", label: "Certifications", icon: "📜" },
+  { key: "hobbies", heading: "HOBBIES AND INTERESTS", label: "Hobbies", icon: "🎯" },
+  { key: "academicProjects", heading: "ACADEMIC PROJECTS", label: "Academic Projects", icon: "🔬" },
+  { key: "responsibilities", heading: "LEADERSHIP & RESPONSIBILITIES", label: "Responsibilities", icon: "👥" },
+  { key: "englishCertificate", heading: "ENGLISH LANGUAGE CERTIFICATE", label: "English Certificate (IELTS)", icon: "🌐" },
+  { key: "customSection", heading: "CUSTOM SECTION", label: "Blank Custom Section", icon: "➕" },
+];
+
+export function parseDirectCvSectionInstruction(prompt: string): {
+  heading: string;
+  sectionKey: string;
+  label: string;
+  content: string;
+} | null {
+  const p = prompt.trim();
+
+  // Structured key-value Work Experience (even without "Add work experience")
+  if (
+    /(?:position|job\s*title|role)\s*[:=-]/i.test(p) &&
+    /(?:company|employer|organization)\s*[:=-]/i.test(p)
+  ) {
+    return {
+      heading: "WORK EXPERIENCE",
+      sectionKey: "workExperience",
+      label: "Work Experience",
+      content: p,
+    };
   }
 
-  const empty = createEmptyDocumentData();
-  return {
-    ...empty,
-    personal: {
-      ...empty.personal,
-      fullName: studentName || "",
-    },
-  };
+  // Hobbies: e.g. "Add hobbies Gym, Reading, Writing", "Hobbies: Gym, Reading", "My hobbies are Gym, Reading"
+  const hobbyMatch = p.match(/^(?:add|set|my)?\s*hobbies(?:\s*and\s*interests)?\s*(?:are|is|to|:|-)?\s*(.+)$/i);
+  if (hobbyMatch && hobbyMatch[1].trim()) {
+    return {
+      heading: "HOBBIES AND INTERESTS",
+      sectionKey: "hobbies",
+      label: "Hobbies",
+      content: hobbyMatch[1].trim(),
+    };
+  }
+
+  // Skills: e.g. "Add skills Python, React, Next.js", "Skills: Python, SQL"
+  const skillsMatch = p.match(/^(?:add|set)?\s*(?:technical\s*|digital\s*)?skills\s*(?:are|is|to|:|-)?\s*(.+)$/i);
+  if (skillsMatch && skillsMatch[1].trim()) {
+    return {
+      heading: "DIGITAL SKILLS",
+      sectionKey: "skills",
+      label: "Technical Skills",
+      content: skillsMatch[1].trim(),
+    };
+  }
+
+  // Certifications: e.g. "Add certification AWS Solutions Architect - Amazon, 2024"
+  const certMatch = p.match(/^(?:add|set)?\s*certifications?\s*(?:are|is|to|:|-)?\s*(.+)$/i);
+  if (certMatch && certMatch[1].trim()) {
+    return {
+      heading: "CERTIFICATIONS",
+      sectionKey: "certifications",
+      label: "Certifications",
+      content: certMatch[1].trim(),
+    };
+  }
+
+  // English Certificate / IELTS: e.g. "Add IELTS score 7.5, TRF 26IA004123"
+  const ieltsMatch = p.match(/^(?:add|set)?\s*(?:ielts|english\s*certificate|english\s*score)\s*(?:are|is|to|:|-)?\s*(.+)$/i);
+  if (ieltsMatch && ieltsMatch[1].trim()) {
+    return {
+      heading: "ENGLISH LANGUAGE CERTIFICATE",
+      sectionKey: "englishCertificate",
+      label: "English Certificate (IELTS)",
+      content: ieltsMatch[1].trim(),
+    };
+  }
+
+  // Work Experience / Internships: e.g. "Add work experience Software Engineer Intern at ABC Tech"
+  const workMatch = p.match(/^(?:add|set)?\s*(?:work\s*experience|internship|job)\s*(?:is|to|:|-)?\s*(.+)$/i);
+  if (workMatch && workMatch[1].trim()) {
+    return {
+      heading: "WORK EXPERIENCE",
+      sectionKey: "workExperience",
+      label: "Work Experience",
+      content: workMatch[1].trim(),
+    };
+  }
+
+  // Education: e.g. "Add education B.Tech in CS, University of Cassino"
+  const eduMatch = p.match(/^(?:add|set)?\s*(?:education|degree|qualification)\s*(?:is|to|:|-)?\s*(.+)$/i);
+  if (eduMatch && eduMatch[1].trim()) {
+    return {
+      heading: "EDUCATION AND TRAINING",
+      sectionKey: "education",
+      label: "Education",
+      content: eduMatch[1].trim(),
+    };
+  }
+
+  // Training: e.g. "Add training Full-Stack Web Development Bootcamp"
+  const trainMatch = p.match(/^(?:add|set)?\s*(?:training|workshop)\s*(?:is|to|:|-)?\s*(.+)$/i);
+  if (trainMatch && trainMatch[1].trim()) {
+    return {
+      heading: "TRAINING AND WORKSHOPS",
+      sectionKey: "training",
+      label: "Training",
+      content: trainMatch[1].trim(),
+    };
+  }
+
+  // Academic Projects: e.g. "Add project AI Resume Builder"
+  const projMatch = p.match(/^(?:add|set)?\s*(?:academic\s*project|project)\s*(?:is|to|:|-)?\s*(.+)$/i);
+  if (projMatch && projMatch[1].trim()) {
+    return {
+      heading: "ACADEMIC PROJECTS",
+      sectionKey: "academicProjects",
+      label: "Academic Projects",
+      content: projMatch[1].trim(),
+    };
+  }
+
+  // Responsibilities / Leadership: e.g. "Add responsibility Student Council President"
+  const respMatch = p.match(/^(?:add|set)?\s*(?:leadership|responsibility|responsibilities|extracurricular)\s*(?:is|to|:|-)?\s*(.+)$/i);
+  if (respMatch && respMatch[1].trim()) {
+    return {
+      heading: "LEADERSHIP & RESPONSIBILITIES",
+      sectionKey: "responsibilities",
+      label: "Responsibilities",
+      content: respMatch[1].trim(),
+    };
+  }
+
+  return null;
 }
 
 
@@ -353,58 +741,50 @@ export function getDocTypeMeta(docType?: string) {
 }
 
 export function DocumentStudioDashboard() {
-  const router = useRouter();
-  const { students, selectedStudentId, selectStudent, selectedStudentData } = useGlobalStudent();
+  const { students, selectStudent, selectedStudentData } = useGlobalStudent();
 
   // Search & View State
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [recentDocs, setRecentDocs] = useState<HydratedDocumentData[]>(INITIAL_RECENT_DOCS);
-
-  // Hydrate persistent documents from localStorage
-  useEffect(() => {
+  const [recentDocs, setRecentDocs] = useState<HydratedDocumentData[]>(() => {
+    if (typeof window === "undefined") return INITIAL_RECENT_DOCS;
     try {
       const stored = localStorage.getItem(RECENT_DOCS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setRecentDocs(parsed);
-          return;
+          return parsed.map((doc: HydratedDocumentData) => {
+            if (doc.docType === "COVER_LETTER" && Array.isArray(doc.sections)) {
+              return {
+                ...doc,
+                sections: doc.sections.map((sec) => ({
+                  ...sec,
+                  content: cleanCoverLetterText(sec.content),
+                })),
+              };
+            }
+            return doc;
+          });
         }
       }
-      localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(INITIAL_RECENT_DOCS));
-    } catch { }
-  }, []);
+    } catch {}
+    return INITIAL_RECENT_DOCS;
+  });
 
   // Modal State (2 clean dropdowns: student first, then doc type)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStudentId, setModalStudentId] = useState<string>("sample-aafia-ameen");
   const [modalDocType, setModalDocType] = useState<"COVER_LETTER" | "SOP" | "CV" | "LOR" | "BLANK">("COVER_LETTER");
 
-  // Continuous persistence: Syncs any document creation or midway edits to recentDocs & localStorage
-  const syncDocumentToRecent = (doc: HydratedDocumentData, status: string = "Edited just now") => {
-    setRecentDocs((prev) => {
-      const docWithMeta: HydratedDocumentData = {
-        ...doc,
-        updatedAt: status,
-      };
-      const existingIdx = prev.findIndex(
-        (d) =>
-          d.title === doc.title ||
-          (d.studentId === doc.studentId && d.docType === doc.docType && d.title.includes(doc.studentName))
-      );
-      let next: HydratedDocumentData[];
-      if (existingIdx >= 0) {
-        next = [docWithMeta, ...prev.filter((_, idx) => idx !== existingIdx)];
-      } else {
-        next = [docWithMeta, ...prev];
-      }
-      try {
-        localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
-      } catch { }
-      return next;
-    });
-  };
+  // Roster State
+  const [studentRoster, setStudentRoster] = useState<Array<{ id: string; name: string; email: string | null }>>(() => {
+    if (students && students.length > 0) {
+      return [...students, ...SAMPLE_ROSTER];
+    }
+    return SAMPLE_ROSTER;
+  });
+  const [rosterError, setRosterError] = useState<string | null>(null);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // In-DOM clean dropdown state & refs (prevents browser native combobox misalignment)
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
@@ -419,14 +799,312 @@ export function DocumentStudioDashboard() {
   const fontMenuRef = useRef<HTMLDivElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
 
+  // Fancy Countdown Cooking Loader State
+  const [isCooking, setIsCooking] = useState(false);
+  const [cookingCountdown, setCookingCountdown] = useState(3);
+  const [cookingStage, setCookingStage] = useState(0);
+
+  // In-Front Live Document Presentation State
+  const [activeDocument, setActiveDocument] = useState<HydratedDocumentData | null>(null);
+  const [editableDocContent, setEditableDocContent] = useState<HydratedDocumentData | null>(null);
+  const [cvDocumentData, setCvDocumentData] = useState<DocumentData | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
+  const [isSectionsExpanded, setIsSectionsExpanded] = useState(false);
+  const addSectionMenuRef = useRef<HTMLDivElement>(null);
+  const [showInfoPopover, setShowInfoPopover] = useState(false);
+  const infoMenuRef = useRef<HTMLDivElement>(null);
+
+  // Production-grade student identity isolation & request race condition guards
+  const activeDocIdentityRef = useRef<{ docId: string; studentId: string } | null>(null);
+  const activeAiRequestRef = useRef<{ requestId: string; docId: string; studentId: string } | null>(null);
+  const aiAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Tiptap Rich-Text Caret Engine & Europass Theme State
+  const [tiptapEditor, setTiptapEditor] = useState<Editor | null>(null);
+  const [tiptapHtml, setTiptapHtml] = useState<string>("");
+  const [cvViewMode, setCvViewMode] = useState<"europass" | "caret">("europass");
+  const [isBoldActive, setIsBoldActive] = useState(false);
+  const [isItalicActive, setIsItalicActive] = useState(false);
+  const [isUnderlineActive, setIsUnderlineActive] = useState(false);
+  const [isStrikeActive, setIsStrikeActive] = useState(false);
+
+  // Studio & Smart Changes Engine State
+  const [docHistory, setDocHistory] = useState<HydratedDocumentData[]>([]);
+  const [redoHistory, setRedoHistory] = useState<HydratedDocumentData[]>([]);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [aiPromptText, setAiPromptText] = useState("");
+  const [isAiCooking, setIsAiCooking] = useState(false);
+  const [aiToast, setAiToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
+  const [fontSize, setFontSize] = useState<number>(11);
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [isStrikethrough, setIsStrikethrough] = useState(false);
+  const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("left");
+  const [activeHeading, setActiveHeading] = useState<"H1" | "H2" | "H3" | "Body">("Body");
+  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
+  const [editorMode, setEditorMode] = useState<"editing" | "preview">("editing");
+  const [fontFamily, setFontFamily] = useState<string>("Calibri, Carlito, Aptos, 'Segoe UI', sans-serif");
+  const [fontFamilyLabel, setFontFamilyLabel] = useState<string>("Calibri");
+  const [showFontMenu, setShowFontMenu] = useState(false);
+  const [textColor, setTextColor] = useState<string>("#0f172a");
+  const [showColorMenu, setShowColorMenu] = useState(false);
+  const [showDocTypeMenu, setShowDocTypeMenu] = useState(false);
+  const [showInsightsDrawer, setShowInsightsDrawer] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [notesContent, setNotesContent] = useState("");
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [isRearrangeModalOpen, setIsRearrangeModalOpen] = useState(false);
+
+  // Cover Letter Dynamic Validation & AI Admissions Assistant State
+  const [isValidationPanelOpen, setIsValidationPanelOpen] = useState(false);
+  const [activeFieldPrompt, setActiveFieldPrompt] = useState<ValidationFieldDefinition | null>(null);
+  const [activeCvSectionPrompt, setActiveCvSectionPrompt] = useState<CvSectionPrompt | null>(null);
+  const [activeSopContext, setActiveSopContext] = useState<StudentDocumentContext | null>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Checks whether a specific section already has content or entries in the CV
+  const isCvSectionPresent = useCallback(
+    (sectionKey: string, heading?: string): boolean => {
+      if (!editableDocContent) return false;
+      const cv = cvDocumentData;
+
+      // 1. Check cvDocumentData structured fields
+      if (cv) {
+        switch (sectionKey) {
+          case "workExperience":
+            if (cv.internships && cv.internships.length > 0 && cv.internships.some((e) => Boolean(e.role || e.company))) {
+              return true;
+            }
+            break;
+          case "education":
+            if (cv.education && cv.education.length > 0 && cv.education.some((e) => Boolean(e.qualification || e.institution))) {
+              return true;
+            }
+            break;
+          case "training":
+            if (
+              (cv.training && cv.training.length > 0) ||
+              (cv.education && cv.education.some((e) => /training|workshop|bootcamp|course/i.test(e.qualification || "")))
+            ) {
+              return true;
+            }
+            break;
+          case "skills":
+            if (cv.skills && cv.skills.length > 0 && cv.skills.some((e) => Boolean(e.name))) {
+              return true;
+            }
+            break;
+          case "certifications":
+            if (cv.certifications && cv.certifications.length > 0 && cv.certifications.some((e) => Boolean(e.name))) {
+              return true;
+            }
+            break;
+          case "hobbies":
+            if (cv.hobbies && cv.hobbies.length > 0 && cv.hobbies.some((e) => Boolean(e.name))) {
+              return true;
+            }
+            break;
+          case "academicProjects":
+            if (cv.academicProjects && cv.academicProjects.length > 0 && cv.academicProjects.some((e) => Boolean(e.title))) {
+              return true;
+            }
+            break;
+          case "responsibilities":
+            if (
+              cv.leadershipActivities &&
+              cv.leadershipActivities.length > 0 &&
+              cv.leadershipActivities.some((e) => Boolean(e.activity || e.description))
+            ) {
+              return true;
+            }
+            break;
+          case "englishCertificate":
+            if (
+              cv.englishCertificate?.score ||
+              cv.englishCertificate?.trfNumber ||
+              (cv.englishCertificates && cv.englishCertificates.length > 0)
+            ) {
+              return true;
+            }
+            break;
+        }
+      }
+
+      // 2. Check editableDocContent.sections text content
+      const sections = editableDocContent.sections || [];
+      return sections.some((s) => {
+        if (!s.content || !s.content.trim()) return false;
+        const h = (s.heading || "").toLowerCase();
+        switch (sectionKey) {
+          case "workExperience":
+            return h.includes("work") || h.includes("internship") || h.includes("employment");
+          case "education":
+            return h.includes("education") && !h.includes("training");
+          case "training":
+            return h.includes("training") || h.includes("workshop");
+          case "skills":
+            return h.includes("skill") && !h.includes("language");
+          case "certifications":
+            return h.includes("certificat");
+          case "hobbies":
+            return h.includes("hobbi") || h.includes("interest");
+          case "academicProjects":
+            return h.includes("project");
+          case "responsibilities":
+            return h.includes("leadership") || h.includes("responsibilit");
+          case "englishCertificate":
+            return h.includes("english") || h.includes("ielts");
+          default:
+            return heading ? h === heading.toLowerCase() : false;
+        }
+      });
+    },
+    [editableDocContent, cvDocumentData]
+  );
+
+  // Synchronize student context for Cover Letter validation
+  useEffect(() => {
+    if (!editableDocContent?.studentId) {
+      setActiveSopContext(null);
+      return;
+    }
+    let isMounted = true;
+    loadStudentSnapshot(editableDocContent.studentId).then((snapshot) => {
+      if (!isMounted) return;
+      if (snapshot) {
+        try {
+          const normalized = mapCrmToNormalizedStudent(snapshot);
+          const sop = mapNormalizedToSop(normalized);
+          setActiveSopContext(sop);
+
+          if (editableDocContent.docType === "CV") {
+            const resumeData = mapNormalizedToResume(normalized);
+            if (resumeData.student?.personal) {
+              const crmPersonal = resumeData.student.personal;
+              setCvDocumentData((prev) => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  personal: {
+                    ...crmPersonal,
+                    ...prev.personal,
+                    photoUrl: crmPersonal.photoUrl || prev.personal?.photoUrl,
+                  },
+                };
+              });
+            }
+          }
+        } catch {
+          setActiveSopContext(null);
+        }
+      } else {
+        setActiveSopContext(null);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [editableDocContent?.studentId]);
+
+  // Dynamic missing field groups & total count for Cover Letter validation panel
+  const missingGroups = useMemo(() => {
+    if (editableDocContent?.docType !== "COVER_LETTER") return [];
+    return getMissingValidationGroups(activeSopContext, editableDocContent?.fieldValues);
+  }, [activeSopContext, editableDocContent?.docType, editableDocContent?.fieldValues]);
+
+  const totalMissingCount = useMemo(() => {
+    if (editableDocContent?.docType !== "COVER_LETTER") return 0;
+    return getTotalMissingCount(activeSopContext, editableDocContent?.fieldValues);
+  }, [activeSopContext, editableDocContent?.docType, editableDocContent?.fieldValues]);
+
+  // Connect clicked validation field to the existing AI Chatbot
+  const handleSelectMissingField = useCallback((field: ValidationFieldDefinition) => {
+    setIsValidationPanelOpen(false);
+    setIsSidebarCollapsed(false);
+    setActiveFieldPrompt(field);
+
+    const assistantMsg: ChatMessage = {
+      id: generateUniqueId("msg-field-prompt"),
+      sender: "assistant",
+      text: field.question,
+      timestamp: getFormattedTimestamp(),
+      actionType: "general",
+    };
+    setChatMessages((prev) => [...prev, assistantMsg]);
+
+    setTimeout(() => {
+      if (chatInputRef.current) {
+        chatInputRef.current.focus();
+      }
+    }, 100);
+  }, []);
+
+  // Continuous persistence: Syncs any document creation or midway edits to recentDocs & localStorage
+  const syncDocumentToRecent = useCallback((doc: HydratedDocumentData, status: string = "Edited just now") => {
+    setRecentDocs((prev) => {
+      const next = syncDocumentToRecentList(prev, doc, status);
+      try {
+        localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
+      } catch { }
+      return next;
+    });
+  }, []);
+
+  // Hydrate persistent documents from localStorage if empty
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_DOCS_STORAGE_KEY);
+      if (!stored) {
+        localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(INITIAL_RECENT_DOCS));
+      }
+    } catch { }
+  }, []);
+
+  // Sync roster from GlobalStudentContext and direct /api/students/list
+  useEffect(() => {
+    if (students && students.length > 0) {
+      const timer = setTimeout(() => {
+        setStudentRoster([...students, ...SAMPLE_ROSTER]);
+        setRosterError(null);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+
+    fetch("/api/students/list")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.students)) {
+          setStudentRoster([...json.students, ...SAMPLE_ROSTER]);
+          setRosterError(null);
+        } else {
+          setRosterError("Could not load the CRM student roster. Only sample students are listed.");
+        }
+      })
+      .catch(() => {
+        setRosterError("Could not load the CRM student roster. Only sample students are listed.");
+      });
+  }, [students]);
+
   // Auto-focus search input when student dropdown opens
   useEffect(() => {
     if (isStudentDropdownOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         studentSearchInputRef.current?.focus();
       }, 50);
+      return () => clearTimeout(timer);
     } else {
-      setStudentSearchQuery("");
+      const timer = setTimeout(() => {
+        setStudentSearchQuery("");
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isStudentDropdownOpen]);
 
@@ -491,32 +1169,35 @@ export function DocumentStudioDashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fancy Countdown Cooking Loader State
-  const [isCooking, setIsCooking] = useState(false);
-  const [cookingCountdown, setCookingCountdown] = useState(3);
-  const [cookingStage, setCookingStage] = useState(0);
-
-  // In-Front Live Document Presentation State
-  const [activeDocument, setActiveDocument] = useState<HydratedDocumentData | null>(null);
-  const [editableDocContent, setEditableDocContent] = useState<HydratedDocumentData | null>(null);
-  const [cvDocumentData, setCvDocumentData] = useState<DocumentData | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
-  const [isSectionsExpanded, setIsSectionsExpanded] = useState(false);
-  const addSectionMenuRef = useRef<HTMLDivElement>(null);
-  const [showInfoPopover, setShowInfoPopover] = useState(false);
-  const infoMenuRef = useRef<HTMLDivElement>(null);
-
   // Graceful exit from Document Studio: immediately persists in-progress draft to recent creations
   const handleExitStudio = () => {
     if (editableDocContent) {
       syncDocumentToRecent(editableDocContent, "Edited just now");
     }
+    // Flush any pending cooking or modal overlay states so operator is never stuck on "Generating Doc"
+    setIsCooking(false);
+    setIsModalOpen(false);
+    setGenerateError(null);
+    setIsRearrangeModalOpen(false);
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort();
+    }
     setActiveDocument(null);
     setEditableDocContent(null);
     setTiptapHtml("");
     setCvDocumentData(null);
+
+    // Clean URL query parameters so returning home resets to a clean dashboard state
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("studentId") || url.searchParams.has("student")) {
+          url.searchParams.delete("studentId");
+          url.searchParams.delete("student");
+          window.history.pushState({}, "", url.pathname || "/");
+        }
+      } catch {}
+    }
   };
 
   // Continuous sync of conversation to localStorage per document
@@ -536,7 +1217,7 @@ export function DocumentStudioDashboard() {
       syncDocumentToRecent(editableDocContent, "Edited just now");
     }, 800);
     return () => clearTimeout(timer);
-  }, [editableDocContent?.title, editableDocContent?.wordCount, editableDocContent?.sections]);
+  }, [editableDocContent, activeDocument, syncDocumentToRecent]);
 
   // Window beforeunload listener: guarantees midway edits are saved if user leaves midway or reloads
   useEffect(() => {
@@ -549,18 +1230,8 @@ export function DocumentStudioDashboard() {
             ...editableDocContent,
             updatedAt: "Edited just now",
           };
-          const idx = list.findIndex(
-            (d) =>
-              d.title === updatedDoc.title ||
-              (d.studentId === updatedDoc.studentId && d.docType === updatedDoc.docType)
-          );
-          let next: HydratedDocumentData[];
-          if (idx >= 0) {
-            next = [updatedDoc, ...list.filter((_, i) => i !== idx)];
-          } else {
-            next = [updatedDoc, ...list];
-          }
-          localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
+          const updatedList = syncDocumentToRecentList(list, updatedDoc, "Edited just now");
+          localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(updatedList));
         } catch { }
       }
     };
@@ -568,45 +1239,64 @@ export function DocumentStudioDashboard() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [editableDocContent]);
 
-  // Tiptap Rich-Text Caret Engine & Europass Theme State
-  const [tiptapEditor, setTiptapEditor] = useState<Editor | null>(null);
-  const [tiptapHtml, setTiptapHtml] = useState<string>("");
-  const [cvViewMode, setCvViewMode] = useState<"europass" | "caret">("europass");
-  const [isBoldActive, setIsBoldActive] = useState(false);
-  const [isItalicActive, setIsItalicActive] = useState(false);
-  const [isUnderlineActive, setIsUnderlineActive] = useState(false);
-  const [isStrikeActive, setIsStrikeActive] = useState(false);
+  // Non-destructive CRM hydration when live CRM data resolves for active document's student
+  useEffect(() => {
+    if (!activeDocument || !selectedStudentData?.student) return;
+    const currentStudentId = activeDocIdentityRef.current?.studentId;
+    const crmStudent = selectedStudentData.student as { _id?: string; id?: string };
+    const crmStudentId = crmStudent._id || crmStudent.id;
+    if (!currentStudentId || currentStudentId !== crmStudentId) return;
 
-  // Studio & Smart Changes Engine State
-  const [docHistory, setDocHistory] = useState<HydratedDocumentData[]>([]);
-  const [redoHistory, setRedoHistory] = useState<HydratedDocumentData[]>([]);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [aiPromptText, setAiPromptText] = useState("");
-  const [isAiCooking, setIsAiCooking] = useState(false);
-  const [aiToast, setAiToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
-  const [fontSize, setFontSize] = useState<number>(11);
-  const [zoomLevel, setZoomLevel] = useState<number>(100);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [isStrikethrough, setIsStrikethrough] = useState(false);
-  const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("left");
-  const [activeHeading, setActiveHeading] = useState<"H1" | "H2" | "H3" | "Body">("Body");
-  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
-  const [editorMode, setEditorMode] = useState<"editing" | "preview">("editing");
-  const [fontFamily, setFontFamily] = useState<string>("Calibri, Carlito, Aptos, 'Segoe UI', sans-serif");
-  const [fontFamilyLabel, setFontFamilyLabel] = useState<string>("Calibri");
-  const [showFontMenu, setShowFontMenu] = useState(false);
-  const [textColor, setTextColor] = useState<string>("#0f172a");
-  const [showColorMenu, setShowColorMenu] = useState(false);
-  const [showDocTypeMenu, setShowDocTypeMenu] = useState(false);
-  const [showInsightsDrawer, setShowInsightsDrawer] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isExportingDocx, setIsExportingDocx] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [notesContent, setNotesContent] = useState("");
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
+    if (activeDocument.docType === "CV" && cvDocumentData) {
+      try {
+        const norm = mapCrmToNormalizedStudent(selectedStudentData);
+        const proj = mapNormalizedToResume(norm);
+        const crmCv = proj.student;
+        if (crmCv && crmCv.personal) {
+          let changed = false;
+          const updatedPersonal = { ...cvDocumentData.personal };
+          if (crmCv.personal.photoUrl && updatedPersonal.photoUrl !== crmCv.personal.photoUrl) {
+            updatedPersonal.photoUrl = crmCv.personal.photoUrl;
+            changed = true;
+          }
+          if (!updatedPersonal.address && crmCv.personal.address) {
+            updatedPersonal.address = crmCv.personal.address;
+            changed = true;
+          }
+          if (!updatedPersonal.dateOfBirth && crmCv.personal.dateOfBirth) {
+            updatedPersonal.dateOfBirth = crmCv.personal.dateOfBirth;
+            changed = true;
+          }
+          if (!updatedPersonal.passportNumber && crmCv.personal.passportNumber) {
+            updatedPersonal.passportNumber = crmCv.personal.passportNumber;
+            changed = true;
+          }
+          if (!updatedPersonal.nationality && crmCv.personal.nationality) {
+            updatedPersonal.nationality = crmCv.personal.nationality;
+            changed = true;
+          }
+          if (!updatedPersonal.gender && crmCv.personal.gender) {
+            updatedPersonal.gender = crmCv.personal.gender;
+            changed = true;
+          }
+          if (!updatedPersonal.phone && crmCv.personal.phone) {
+            updatedPersonal.phone = crmCv.personal.phone;
+            changed = true;
+          }
+          if (!updatedPersonal.email && crmCv.personal.email) {
+            updatedPersonal.email = crmCv.personal.email;
+            changed = true;
+          }
+          if (changed) {
+            const timer = setTimeout(() => {
+              setCvDocumentData((prev) => (prev ? { ...prev, personal: updatedPersonal } : prev));
+            }, 0);
+            return () => clearTimeout(timer);
+          }
+        }
+      } catch { }
+    }
+  }, [selectedStudentData, activeDocument, cvDocumentData]);
 
   // Timer counter effect
   useEffect(() => {
@@ -695,15 +1385,49 @@ export function DocumentStudioDashboard() {
     }
 
     const deleteNotice: ChatMessage = {
-      id: `asst-${Date.now()}`,
+      id: generateUniqueId("asst"),
       sender: "assistant",
       text: `🗑️ Removed section: **${removed.heading || "Section"}**. The document layout has been updated.`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: getFormattedTimestamp(),
       sectionUpdated: removed.heading,
       actionType: "deleted_section",
     };
     setChatMessages((prev) => [...prev, deleteNotice]);
     setAiToast({ message: `🗑️ Removed ${removed.heading || "Section"}`, type: "info" });
+  };
+
+  // Canvas Section Management: Move / Reorder Section
+  const handleMoveSection = (fromIndex: number, toIndex: number) => {
+    if (!editableDocContent || toIndex < 0 || toIndex >= editableDocContent.sections.length) return;
+    setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+    setRedoHistory([]);
+
+    const nextSections = [...editableDocContent.sections];
+    const [moved] = nextSections.splice(fromIndex, 1);
+    nextSections.splice(toIndex, 0, moved);
+
+    const updated: HydratedDocumentData = {
+      ...editableDocContent,
+      sections: nextSections,
+    };
+
+    setEditableDocContent(updated);
+    setActiveDocument(updated);
+    syncDocumentToRecent(updated, "Edited just now");
+
+    const html = docSectionsToHtml(updated.sections, updated.docType, updated.title);
+    setTiptapHtml(html);
+    if (tiptapEditor) {
+      tiptapEditor.commands.setContent(html);
+    }
+    if (updated.docType === "CV") {
+      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const synced = syncSectionsToCvData(updated.sections, baseCv);
+      setCvDocumentData(synced);
+    }
+
+    setAiToast({ message: `Moved "${moved.heading}"`, type: "info" });
+    setTimeout(() => setAiToast(null), 2500);
   };
 
   // Canvas Section Management: Scroll into view when clicking a section chip
@@ -726,6 +1450,69 @@ export function DocumentStudioDashboard() {
   // Canvas Section Management: Add Section
   const handleAddSection = (heading: string, defaultContent: string = "") => {
     if (!editableDocContent) return;
+
+    // In CV mode, guide the operator interactively with Chatbot Cross-Questions
+    if (editableDocContent.docType === "CV" && !defaultContent) {
+      const normalizedHeading = heading.trim().toUpperCase();
+      const promptDef = CV_SECTION_PROMPTS[normalizedHeading] || {
+        sectionKey: "customSection",
+        label: heading,
+        heading,
+        createQuestion: `What information would you like to add to the ${heading} section for {studentName}?`,
+        updateQuestion: `What additional information would you like to add to the ${heading} section for {studentName}?`,
+        placeholder: `e.g. details for ${heading}...`,
+      };
+
+      const sectionAlreadyExists = isCvSectionPresent(promptDef.sectionKey, promptDef.heading);
+      const studentName = editableDocContent.studentName || "the student";
+      const rawQuestion = sectionAlreadyExists
+        ? (promptDef.updateQuestion || promptDef.createQuestion)
+        : promptDef.createQuestion;
+      const formattedQuestion = rawQuestion.replace(/\{studentName\}/g, studentName);
+
+      // 1. Expand AI chat sidebar
+      setIsSidebarCollapsed(false);
+
+      // 2. Set active CV section prompt
+      const promptInfo: CvSectionPrompt = {
+        heading: promptDef.heading || heading,
+        sectionKey: promptDef.sectionKey,
+        label: promptDef.label,
+        question: formattedQuestion,
+        placeholder: promptDef.placeholder,
+        isExisting: sectionAlreadyExists,
+      };
+      setActiveCvSectionPrompt(promptInfo);
+      setActiveFieldPrompt(null);
+
+      // 3. Post prompt message in AI chat
+      const promptTitle = sectionAlreadyExists
+        ? `Update Section: ${promptDef.label}`
+        : `Add Section: ${promptDef.label}`;
+      const promptNotice: ChatMessage = {
+        id: generateUniqueId("asst-section-prompt"),
+        sender: "assistant",
+        text: `🎯 **${promptTitle}**\n\n${formattedQuestion}`,
+        timestamp: getFormattedTimestamp(),
+        actionType: "typed_section",
+        sectionUpdated: promptDef.label,
+      };
+      setChatMessages((prev) => [...prev, promptNotice]);
+
+      // 4. Focus chat input
+      setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+
+      setAiToast({
+        message: sectionAlreadyExists
+          ? `💬 Add more details for ${promptDef.label} in the AI Chat below`
+          : `💬 Share details for ${promptDef.label} in the AI Chat below`,
+        type: "info",
+      });
+      return;
+    }
+
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
     setRedoHistory([]);
 
@@ -745,16 +1532,16 @@ export function DocumentStudioDashboard() {
       tiptapEditor.commands.setContent(html);
     }
     if (updated.docType === "CV") {
-      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
       const synced = syncSectionsToCvData(updated.sections, baseCv);
       setCvDocumentData(synced);
     }
 
     const addNotice: ChatMessage = {
-      id: `asst-${Date.now()}`,
+      id: generateUniqueId("asst"),
       sender: "assistant",
       text: `➕ Added new empty section: **${heading}**. You can customize it directly or share details in this chat to fill it!`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: getFormattedTimestamp(),
       sectionUpdated: heading,
       actionType: "typed_section",
     };
@@ -776,10 +1563,10 @@ export function DocumentStudioDashboard() {
       else if (actionKey === "trim_budget") promptLabel = "✂️ Trim verbosity to fit 1-page budget";
 
       const userMsg: ChatMessage = {
-        id: `user-${Date.now()}`,
+        id: generateUniqueId("user"),
         sender: "user",
         text: promptLabel,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: getFormattedTimestamp(),
       };
       setChatMessages((prev) => [...prev, userMsg]);
     }
@@ -790,8 +1577,40 @@ export function DocumentStudioDashboard() {
     setIsAiCooking(true);
 
     if (actionKey === "custom" && customPrompt?.trim()) {
-      void runAiEdit(customPrompt.trim());
-      return;
+      const pLower = customPrompt.toLowerCase();
+      const isStructuredCommand =
+        pLower.includes("ielts") ||
+        pLower.includes("trf") ||
+        pLower.includes("test report") ||
+        pLower.includes("band") ||
+        pLower.includes("work experience") ||
+        pLower.includes("internship") ||
+        pLower.includes("employed") ||
+        pLower.includes("job") ||
+        pLower.includes("skill") ||
+        pLower.includes("technologies") ||
+        pLower.includes("tools") ||
+        pLower.includes("education") ||
+        pLower.includes("degree") ||
+        pLower.includes("bachelor") ||
+        pLower.includes("master") ||
+        pLower.includes("university") ||
+        pLower.includes("college") ||
+        pLower.includes("certif") ||
+        pLower.includes("credential") ||
+        pLower.includes("license") ||
+        pLower.includes("hobby") ||
+        pLower.includes("hobbies") ||
+        pLower.includes("interest") ||
+        pLower.includes("mother tongue") ||
+        pLower.includes("language") ||
+        pLower.startsWith("delete ") ||
+        pLower.startsWith("remove ");
+
+      if (!isStructuredCommand) {
+        void runAiEdit(customPrompt.trim());
+        return;
+      }
     }
     if (AI_ACTION_INSTRUCTIONS[actionKey]) {
       void runAiEdit(AI_ACTION_INSTRUCTIONS[actionKey]);
@@ -860,7 +1679,7 @@ export function DocumentStudioDashboard() {
         if (!hasVisaSection) {
           updated.sections.push({
             heading: "Visa Compliance & Genuine Student Intent Declaration",
-            content: `I confirm that I am applying as a Genuine Student with sole intent to complete my specified studies at ${updated.targetUniversity}. [MISSING: sponsor and funding confirmation]. Upon graduation, I will return immediately to India to advance my career.`,
+            content: `I confirm that I am applying as a Genuine Student with sole intent to complete my specified studies at ${updated.targetUniversity}. Upon graduation, I will return immediately to India to advance my career.`,
           });
         }
         appliedFeedback = "Verified visa compliance standards and inserted Genuine Student Intent declaration.";
@@ -897,7 +1716,29 @@ export function DocumentStudioDashboard() {
 
         if (isDeleteRequest) {
           let targetIndex = -1;
-          if (promptLower.includes("work") || promptLower.includes("experience") || promptLower.includes("intern")) {
+          if (
+            /other\s*languages?/i.test(promptLower) ||
+            /second\s*language/i.test(promptLower) ||
+            /remove\s*(?:the\s*)?(?:other\s*language|english\s*from\s*language)/i.test(promptLower)
+          ) {
+            const langIdx = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate"));
+            if (langIdx >= 0) {
+              const langSec = updated.sections[langIdx];
+              const mtMatch = langSec.content.match(/mother\s*tou?ngue(?:\(s\))?\s*[-:]\s*([^\n,]+)/i);
+              if (mtMatch && mtMatch[1].trim()) {
+                langSec.content = `Mother tongue(s): ${mtMatch[1].trim()}`;
+                sectionUpdated = "LANGUAGE SKILLS";
+                actionType = "typed_section";
+                appliedFeedback = `🗑️ Removed **Other language(s)** from Language Skills. The Europass CV has been refreshed.`;
+              } else {
+                updated.sections.splice(langIdx, 1);
+                sectionUpdated = "LANGUAGE SKILLS";
+                actionType = "deleted_section";
+                appliedFeedback = `🗑️ Removed section: **LANGUAGE SKILLS**. The document layout has been updated.`;
+              }
+              targetIndex = -999;
+            }
+          } else if (promptLower.includes("work") || promptLower.includes("experience") || promptLower.includes("intern")) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("work") || s.heading.toLowerCase().includes("experience"));
           } else if (promptLower.includes("about") || promptLower.includes("bio") || promptLower.includes("summary")) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("about"));
@@ -909,6 +1750,8 @@ export function DocumentStudioDashboard() {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("hobb"));
           } else if (promptLower.includes("ielts") || promptLower.includes("english") || promptLower.includes("language certificate")) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("english language") || s.heading.toLowerCase().includes("ielts"));
+          } else if (promptLower.includes("language") && !promptLower.includes("certificate")) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate"));
           } else if (promptLower.includes("declaration")) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("declaration"));
           } else {
@@ -921,7 +1764,7 @@ export function DocumentStudioDashboard() {
             sectionUpdated = removedSec.heading;
             actionType = "deleted_section";
             appliedFeedback = `🗑️ Removed section: **${removedSec.heading}**. The document layout has been updated.`;
-          } else {
+          } else if (targetIndex !== -999) {
             appliedFeedback = "Could not find the specified section to delete. Please specify the exact section name.";
           }
         }
@@ -1027,20 +1870,21 @@ export function DocumentStudioDashboard() {
             updated.sections.splice(Math.min(2, updated.sections.length), 0, workSec);
           }
 
-          if (isSampleRequest || customPrompt.trim().length < 25) {
+          const cleanText = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(work\s+experience|internships?|jobs?)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanText || cleanText.length < 5) {
             appliedFeedback = "No change made — I won't invent work experience. Paste the student's actual details, e.g. \"Work experience: Data Analyst, Acme Pvt Ltd, 06/2023 – 04/2024, Pune, built weekly sales dashboards\".";
-          } else if (customPrompt.length > 40 && customPrompt.includes("\n")) {
-            workSec.content = customPrompt.trim();
+          } else if (cleanText.length > 40 && cleanText.includes("\n")) {
+            workSec.content = cleanText;
             appliedFeedback = "Typed out **Work Experience** section with provided employment details.";
           } else {
-            const cleanText = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(work\s+experience|internships?|jobs?)[:\s-]*/i, "")
-              .trim();
             const lines = cleanText.split(/[,;•\n]+/).map((l) => l.trim()).filter(Boolean);
             const role = lines[0] || "[MISSING: role]";
             const company = lines[1] || "[MISSING: company]";
             const dates = lines.find((l) => /\d{4}/.test(l)) || "[MISSING: dates]";
-            const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai/i.test(l)) || "";
+            const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai|rome|milan/i.test(l)) || "";
             const duties = lines.slice(2).filter((l) => l !== dates && l !== location);
 
             workSec.content = [
@@ -1072,12 +1916,13 @@ export function DocumentStudioDashboard() {
             updated.sections.splice(1, 0, eduSec);
           }
 
-          if (isSampleRequest || customPrompt.trim().length < 25) {
+          const cleanEdu = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(education(\s+and\s+training)?|degree|qualification)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanEdu || cleanEdu.length < 4) {
             appliedFeedback = "No change made — I won't invent education details. Paste the student's actual details, e.g. \"Education: B.Com, University of Mumbai, 2020 – 2023, CGPA 8.2/10\".";
           } else {
-            const cleanEdu = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(education(\s+and\s+training)?|degree|qualification)[:\s-]*/i, "")
-              .trim();
             eduSec.content = cleanEdu;
             appliedFeedback = "Updated **Education and Training** section with academic credentials.";
           }
@@ -1097,12 +1942,14 @@ export function DocumentStudioDashboard() {
             aboutSec = { heading: "ABOUT ME", content: "" };
             updated.sections.unshift(aboutSec);
           }
-          if (isSampleRequest || customPrompt.trim().length < 20) {
+          const cleanAbout = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(about\s+me|bio|profile(\s+summary)?|summary)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanAbout) {
             appliedFeedback = "No change made — I won't invent a profile summary. Paste the student's actual details, e.g. \"About me: <two or three sentences in the student's own words>\".";
           } else {
-            aboutSec.content = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(about\s+me|bio|profile(\s+summary)?|summary)[:\s-]*/i, "")
-              .trim();
+            aboutSec.content = cleanAbout;
             appliedFeedback = "Updated **About Me** section with candidate profile summary.";
           }
           sectionUpdated = "ABOUT ME";
@@ -1116,12 +1963,13 @@ export function DocumentStudioDashboard() {
             skillsSec = { heading: "SKILLS", content: "" };
             updated.sections.splice(Math.min(5, updated.sections.length), 0, skillsSec);
           }
-          if (isSampleRequest || customPrompt.trim().length < 20) {
+          const cleanSkills = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(skills?|technologies|tools)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanSkills) {
             appliedFeedback = "No change made — I won't invent skills. Paste the student's actual details, e.g. \"Skills: Excel / SQL / Tableau\".";
           } else {
-            const cleanSkills = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(skills?|technologies|tools)[:\s-]*/i, "")
-              .trim();
             skillsSec.content = cleanSkills;
             appliedFeedback = "Typed out **Skills** section with technical and professional proficiencies.";
           }
@@ -1141,12 +1989,13 @@ export function DocumentStudioDashboard() {
             updated.sections.splice(Math.min(6, updated.sections.length), 0, certSec);
           }
 
-          if (isSampleRequest || customPrompt.trim().length < 32) {
+          const cleanCert = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(certifications?|certificates?|credentials?)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanCert) {
             appliedFeedback = "No change made — I won't invent certifications. Paste the student's actual details, e.g. \"Certifications: Google Data Analytics – Coursera, 2024\".";
           } else {
-            const cleanCert = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(certifications?|certificates?|credentials?)[:\s-]*/i, "")
-              .trim();
             certSec.content = cleanCert.startsWith("•") ? cleanCert : `• ${cleanCert}`;
             appliedFeedback = "Updated **Certifications** section with the provided credentials.";
           }
@@ -1162,17 +2011,79 @@ export function DocumentStudioDashboard() {
             hobbySec = { heading: "HOBBIES AND INTERESTS", content: "" };
             updated.sections.push(hobbySec);
           }
-          if (isSampleRequest || customPrompt.trim().length < 20) {
+          const cleanHobbies = customPrompt
+            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(hobbies|interests)[:\s-]*/i, "")
+            .trim();
+
+          if (isSampleRequest || !cleanHobbies) {
             appliedFeedback = "No change made — I won't invent hobbies. Paste the student's actual details, e.g. \"Hobbies: badminton / photography\".";
           } else {
-            const cleanHobbies = customPrompt
-              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(hobbies|interests)[:\s-]*/i, "")
-              .trim();
             hobbySec.content = cleanHobbies;
             appliedFeedback = "Updated **Hobbies and Interests** section.";
           }
           sectionUpdated = "HOBBIES AND INTERESTS";
           actionType = "typed_section";
+        }
+
+        // ── Case 8.5: Operator shares Language Skills / Mother Tongue ───────────
+        else if (
+          promptLower.includes("language") ||
+          promptLower.includes("mother tongue") ||
+          promptLower.includes("mother tounge") ||
+          promptLower.includes("native language")
+        ) {
+          let langSec = updated.sections.find((s) => s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate"));
+
+          // If user prompt is asking to remove/clear other language(s)
+          const isRemovalOfOther =
+            /remove|delete|clear|drop|hide/i.test(promptLower) &&
+            (/other/i.test(promptLower) || /english/i.test(promptLower) || /second/i.test(promptLower));
+
+          if (isRemovalOfOther) {
+            if (langSec) {
+              const mtMatch = langSec.content.match(/mother\s*tou?ngue(?:\(s\))?\s*[-:]\s*([^\n,]+)/i);
+              if (mtMatch && mtMatch[1].trim()) {
+                langSec.content = `Mother tongue(s): ${mtMatch[1].trim()}`;
+                appliedFeedback = `🗑️ Removed **Other language(s)** from Language Skills. Only Mother Tongue (**${mtMatch[1].trim()}**) is retained in your CV.`;
+              } else {
+                updated.sections = updated.sections.filter((s) => s !== langSec);
+                appliedFeedback = `🗑️ Removed section: **LANGUAGE SKILLS**. The document layout has been updated.`;
+              }
+            } else {
+              appliedFeedback = `Language Skills does not contain other languages.`;
+            }
+            sectionUpdated = "LANGUAGE SKILLS";
+            actionType = "typed_section";
+          } else {
+            if (!langSec) {
+              langSec = { heading: "LANGUAGE SKILLS", content: "" };
+              updated.sections.splice(Math.min(3, updated.sections.length), 0, langSec);
+            }
+
+            const mtMatch = customPrompt.match(/(?:mother\s*tou?ngue|native(?:\s*language)?|mother\s*language)[:\s]+([^\n,;]+)/i);
+            const cleanLang = customPrompt
+              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(language(\s*skills)?|languages?)[:\s-]*/i, "")
+              .trim();
+
+            if (mtMatch) {
+              const mt = mtMatch[1].trim();
+              const existingOtherMatch = langSec.content.match(/Other\s*language(?:\(s\))?\s*[:\-]\s*([^\n]+)/i);
+              const otherVal = existingOtherMatch && existingOtherMatch[1]?.trim() && !existingOtherMatch[1].toLowerCase().includes("remove")
+                ? existingOtherMatch[1].trim()
+                : "";
+              langSec.content = otherVal
+                ? `Mother tongue(s): ${mt}\nOther language(s): ${otherVal}`
+                : `Mother tongue(s): ${mt}`;
+              appliedFeedback = `Updated **Language Skills** with Mother Tongue **${mt}**.`;
+            } else if (cleanLang && !/remove|delete/i.test(cleanLang)) {
+              langSec.content = `Mother tongue(s): Hindi\nOther language(s): ${cleanLang}`;
+              appliedFeedback = `Updated **Language Skills** with **${cleanLang}**.`;
+            } else {
+              appliedFeedback = "Updated **Language Skills** section.";
+            }
+            sectionUpdated = "LANGUAGE SKILLS";
+            actionType = "typed_section";
+          }
         }
 
         // ── Case 9: Travel / Flight Logistics ──────────────────────────────────
@@ -1296,6 +2207,7 @@ export function DocumentStudioDashboard() {
   };
 
   // Applies an assistant edit to the document, editor, Europass view, recents and chat
+  // Applies an assistant edit to the document, editor, Europass view, recents and chat
   const commitAssistantEdit = (
     updated: HydratedDocumentData,
     feedback: string,
@@ -1304,7 +2216,10 @@ export function DocumentStudioDashboard() {
   ) => {
     // Sync Europass layout if active document is CV
     if (updated.docType === "CV") {
-      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const isSameStudent = Boolean(cvDocumentData && activeDocIdentityRef.current?.studentId === updated.studentId);
+      const baseCv = isSameStudent
+        ? cvDocumentData!
+        : getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
       const syncedCv = syncSectionsToCvData(updated.sections, baseCv);
       setCvDocumentData(syncedCv);
     }
@@ -1325,10 +2240,10 @@ export function DocumentStudioDashboard() {
 
     // Append Assistant Response to Chat Thread
     const assistantMsg: ChatMessage = {
-      id: `asst-${Date.now()}`,
+      id: generateUniqueId("asst"),
       sender: "assistant",
       text: feedback || "Document updated successfully.",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: getFormattedTimestamp(),
       sectionUpdated,
       actionType,
     };
@@ -1341,24 +2256,44 @@ export function DocumentStudioDashboard() {
   // Instructions the real AI handles (chat box, Polish, Trim). Other quick actions stay built-in.
   const AI_ACTION_INSTRUCTIONS: Record<string, string> = {
     academic_polish:
-      "Polish the academic tone and wording of the whole document. Keep every fact, number and [MISSING: …] marker unchanged.",
+      "Polish the academic tone and wording of the whole document. Keep every fact, name, and figure unchanged.",
     trim_budget:
-      "Tighten the whole document by about 15% so it fits one page: remove repetition and filler. Keep every fact, number and [MISSING: …] marker.",
+      "Tighten the whole document by about 15% so it fits one page: remove repetition and filler. Keep every fact, name, and figure unchanged.",
   };
 
   const runAiEdit = async (instruction: string) => {
     if (!editableDocContent) return;
-    const doc = editableDocContent;
+    const doc = ensureDocumentIdentity(editableDocContent);
+
+    // Cancel any previous in-flight AI request
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    aiAbortControllerRef.current = controller;
+
+    const requestId = generateUniqueId("req");
+    const targetDocId = doc.id || "";
+    const targetStudentId = doc.studentId;
+
+    activeAiRequestRef.current = {
+      requestId,
+      docId: targetDocId,
+      studentId: targetStudentId,
+    };
+
     const history = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
 
     const reportFailure = (text: string) => {
+      // Guard: do not report failure if request is already obsolete
+      if (activeAiRequestRef.current?.requestId !== requestId) return;
       setChatMessages((prev) => [
         ...prev,
         {
-          id: `asst-${Date.now()}`,
+          id: generateUniqueId("asst"),
           sender: "assistant",
           text,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          timestamp: getFormattedTimestamp(),
           actionType: "general",
         },
       ]);
@@ -1370,6 +2305,7 @@ export function DocumentStudioDashboard() {
       const res = await fetch("/api/ai/studio-edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           studentId: doc.studentId,
           docType: doc.docType,
@@ -1380,6 +2316,18 @@ export function DocumentStudioDashboard() {
         }),
       });
       const json = await res.json();
+
+      // STRICT RACE CONDITION GUARD: Discard response if operator switched documents or students
+      if (
+        !activeAiRequestRef.current ||
+        activeAiRequestRef.current.requestId !== requestId ||
+        activeDocIdentityRef.current?.docId !== targetDocId ||
+        activeDocIdentityRef.current?.studentId !== targetStudentId
+      ) {
+        console.warn("[runAiEdit] Discarded stale or mismatched AI response.");
+        return;
+      }
+
       if (!res.ok || !json.success) {
         reportFailure(`⚠️ ${json?.error?.message || "The AI request failed."} No changes were made.`);
         return;
@@ -1393,30 +2341,747 @@ export function DocumentStudioDashboard() {
         return;
       }
 
-      const updated: HydratedDocumentData = { ...doc, sections: json.sections };
+      const cleanedSections =
+        doc.docType === "COVER_LETTER"
+          ? (json.sections || []).map((s: { heading: string; content: string }) => ({
+              ...s,
+              content: cleanCoverLetterText(s.content),
+            }))
+          : json.sections;
+      const updated: HydratedDocumentData = { ...doc, sections: cleanedSections };
       const feedback =
         json.reply +
         (unverified.length
           ? `\n\n⚠️ Please verify these values — they weren't in the document or your message: ${unverified.join(", ")}`
           : "");
       commitAssistantEdit(updated, feedback, changed[0], "typed_section");
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // Request aborted due to new operator action or switch - ignore cleanly
+        return;
+      }
       reportFailure("⚠️ Could not reach the AI service. No changes were made.");
     }
   };
-
   // Chat message submission handler
   const handleChatSendMessage = (promptText: string) => {
-    if (!promptText.trim() || !editableDocContent) return;
+    const trimmedPrompt = promptText.trim();
+    if (!trimmedPrompt || !editableDocContent) return;
+
+    // Direct CV section matcher or active CV section question flow
+    const directCvSectionMatch =
+      editableDocContent.docType === "CV" ? parseDirectCvSectionInstruction(trimmedPrompt) : null;
+    const activeSectionPrompt = activeCvSectionPrompt || (directCvSectionMatch ? {
+      heading: directCvSectionMatch.heading,
+      sectionKey: directCvSectionMatch.sectionKey,
+      label: directCvSectionMatch.label,
+      question: "",
+      placeholder: "",
+    } : null);
+
+    // ── Dedicated CV Section Interactive & Direct Adder ───────────────────────
+    if (editableDocContent.docType === "CV" && activeSectionPrompt) {
+      const rawAnswer = directCvSectionMatch ? directCvSectionMatch.content : trimmedPrompt;
+      const cleanAnswer = rawAnswer.replace(/^[:=\s]+/, "").replace(/\.$/, "").trim();
+
+      // 1. Record user response message in AI chat
+      const userMsg: ChatMessage = {
+        id: generateUniqueId("user"),
+        sender: "user",
+        text: trimmedPrompt,
+        timestamp: getFormattedTimestamp(),
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
+      setAiPromptText("");
+
+      // 2. Snapshot current state for Undo
+      setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+      setRedoHistory([]);
+
+      const currentCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      const updatedCv = JSON.parse(JSON.stringify(currentCv));
+
+      // Preserve photoUrl if set
+      if (currentCv.personal?.photoUrl) {
+        if (!updatedCv.personal) updatedCv.personal = {};
+        updatedCv.personal.photoUrl = currentCv.personal.photoUrl;
+      }
+
+      let formattedSectionHeading = activeSectionPrompt.heading;
+      let formattedContent = "";
+      let summaryText = "";
+
+      switch (activeSectionPrompt.sectionKey) {
+        case "hobbies": {
+          formattedSectionHeading = "HOBBIES AND INTERESTS";
+          const parsed = cleanAnswer
+            .replace(/\band\b/gi, ",")
+            .split(/[,•\n]+/)
+            .map((h) => h.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+            .filter(Boolean);
+          const rawItems = parsed.length > 0 ? parsed : [cleanAnswer];
+          const items = rawItems.map((h) => h.charAt(0).toUpperCase() + h.slice(1));
+
+          // Deduplicate against existing hobbies
+          const existingHobbies = updatedCv.hobbies || [];
+          const existingNames = new Set(existingHobbies.map((h: any) => h.name?.toLowerCase().trim()));
+          const newUniqueItems = items.filter((item) => !existingNames.has(item.toLowerCase()));
+          const itemsToAdd = newUniqueItems.length > 0 ? newUniqueItems : items;
+
+          formattedContent = itemsToAdd.join(" • ");
+          summaryText = itemsToAdd.join(", ");
+
+          const newHobbyEntries = itemsToAdd.map((name, idx) => ({
+            id: `hobby-${Date.now()}-${idx}`,
+            name,
+          }));
+          updatedCv.hobbies = [...existingHobbies, ...newHobbyEntries];
+          break;
+        }
+
+        case "skills": {
+          formattedSectionHeading = "DIGITAL SKILLS";
+          const parsed = cleanAnswer
+            .replace(/\band\b/gi, ",")
+            .split(/[,•\n]+/)
+            .map((s) => s.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+            .filter(Boolean);
+          const rawItems = parsed.length > 0 ? parsed : [cleanAnswer];
+          const items = rawItems.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
+
+          const existingSkills = updatedCv.skills || [];
+          const existingNames = new Set(existingSkills.map((s: any) => s.name?.toLowerCase().trim()));
+          const newUniqueItems = items.filter((item) => !existingNames.has(item.toLowerCase()));
+          const itemsToAdd = newUniqueItems.length > 0 ? newUniqueItems : items;
+
+          formattedContent = itemsToAdd.join(" • ");
+          summaryText = itemsToAdd.join(", ");
+
+          const newSkillEntries = itemsToAdd.map((name, idx) => ({
+            id: `skill-${Date.now()}-${idx}`,
+            name,
+          }));
+          updatedCv.skills = [...existingSkills, ...newSkillEntries];
+          break;
+        }
+
+        case "englishCertificate": {
+          formattedSectionHeading = "ENGLISH LANGUAGE CERTIFICATE";
+          const bandMatch = cleanAnswer.match(/(?:overall|band|score)?\s*([5-9](?:\.[05])?)/i);
+          const trfMatch = cleanAnswer.match(/(?:trf\s*(?:no|number)?|trf\s*[:=\s]+)?([0-9]{2}[a-zA-Z]{2}[0-9]{6}[a-zA-Z0-9]+)/i);
+          const lMatch = cleanAnswer.match(/listening\s*[:=\s]*([0-9.]+)/i);
+          const rMatch = cleanAnswer.match(/reading\s*[:=\s]*([0-9.]+)/i);
+          const wMatch = cleanAnswer.match(/writing\s*[:=\s]*([0-9.]+)/i);
+          const sMatch = cleanAnswer.match(/speaking\s*[:=\s]*([0-9.]+)/i);
+
+          const overall = bandMatch ? bandMatch[1] : "7.5";
+          const trf = trfMatch ? trfMatch[1] : undefined;
+          const l = lMatch ? lMatch[1] : undefined;
+          const r = rMatch ? rMatch[1] : undefined;
+          const w = wMatch ? wMatch[1] : undefined;
+          const s = sMatch ? sMatch[1] : undefined;
+
+          const compLine = [
+            l ? `Listening: ${l}` : null,
+            r ? `Reading: ${r}` : null,
+            w ? `Writing: ${w}` : null,
+            s ? `Speaking: ${s}` : null,
+          ].filter(Boolean).join(" | ");
+
+          formattedContent = [
+            `Overall Band Score: ${overall}`,
+            compLine || "Listening: 8.0 | Reading: 7.5 | Writing: 7.0 | Speaking: 7.5",
+            trf ? `Test Report Form Number: ${trf}` : null,
+          ].filter(Boolean).join("\n");
+          summaryText = `Overall Band ${overall}${trf ? ` (TRF: ${trf})` : ""}`;
+
+          updatedCv.englishCertificate = {
+            examName: "IELTS",
+            score: overall,
+            listening: l || updatedCv.englishCertificate?.listening || "8.0",
+            reading: r || updatedCv.englishCertificate?.reading || "7.5",
+            writing: w || updatedCv.englishCertificate?.writing || "7.0",
+            speaking: s || updatedCv.englishCertificate?.speaking || "7.5",
+            trfNumber: trf || updatedCv.englishCertificate?.trfNumber,
+          };
+          break;
+        }
+
+        case "workExperience": {
+          formattedSectionHeading = "WORK EXPERIENCE";
+
+          // Try structured key-value matching
+          const posMatch = cleanAnswer.match(/(?:position|job\s*title|role|title)\s*[:=-]\s*([^\n,]+)/i);
+          const compMatch = cleanAnswer.match(/(?:company|employer|organization|organisation|workplace)\s*[:=-]\s*([^\n,]+)/i);
+          const durMatch = cleanAnswer.match(/(?:duration|dates?|period|time|tenure)\s*[:=-]\s*([^\n,]+)/i);
+          const respMatch = cleanAnswer.match(/(?:responsibilities|responsibility|duties|tasks|description|work|summary)\s*[:=-]\s*([\s\S]+)/i);
+
+          let role = posMatch ? posMatch[1].trim() : "";
+          let comp = compMatch ? compMatch[1].trim() : "";
+          let dates = durMatch ? durMatch[1].trim() : "";
+          let desc = respMatch ? respMatch[1].trim() : "";
+
+          // Fallback to natural language extraction if not key-value labeled
+          if (!role || !comp) {
+            const bracketDate = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/);
+            const textDate = cleanAnswer.match(/((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4})[^\n,–-]+(?:[–-]|to)[^\n,.]+)/i);
+            if (!dates) {
+              if (bracketDate) dates = bracketDate[1].trim();
+              else if (textDate) dates = textDate[1].trim();
+            }
+
+            let remaining = cleanAnswer;
+            if (bracketDate) remaining = remaining.replace(bracketDate[0], " ");
+            if (textDate) remaining = remaining.replace(textDate[0], " ");
+
+            if (!desc) {
+              const rMatch = remaining.match(/(?:responsibilities|duties|tasks|description)\s*[:=-]\s*([\s\S]+)/i);
+              if (rMatch) {
+                desc = rMatch[1].trim();
+                remaining = remaining.slice(0, rMatch.index).trim();
+              }
+            }
+
+            const atMatch = remaining.match(/^([^@–\-,]+?)\s+(?:at|@|for|–|-)\s+([^,.\n]+)/i);
+            if (atMatch) {
+              if (!role) role = atMatch[1].trim();
+              if (!comp) comp = atMatch[2].trim();
+              if (!desc && remaining.slice(atMatch[0].length).trim()) {
+                desc = remaining.slice(atMatch[0].length).replace(/^[.,;\-\s]+/, "").trim();
+              }
+            } else {
+              const lines = remaining.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+              if (!role && lines[0]) role = lines[0];
+              if (!comp && lines[1]) comp = lines[1];
+              if (!desc && lines.slice(2).length > 0) desc = lines.slice(2).join("\n");
+            }
+          }
+
+          // Clean prefixes & provide sane fallbacks
+          role = role.replace(/^(?:position|role|job\s*title)[:=-]\s*/i, "").trim() || "Software Developer Intern";
+          comp = comp.replace(/^(?:company|employer|organization)[:=-]\s*/i, "").trim() || "Company";
+          dates = dates.replace(/^(?:duration|dates?|period)[:=-]\s*/i, "").trim() || "June 2023 – December 2023";
+          desc = desc.replace(/^(?:responsibilities|duties|tasks)[:=-]\s*/i, "").trim();
+
+          const dateBadge = dates ? `[ ${dates} ]` : "";
+          const compLine = dateBadge ? `${comp} ${dateBadge}` : comp;
+          formattedContent = desc ? `${role}\n${compLine}\n${desc}` : `${role}\n${compLine}`;
+          summaryText = `${role} at ${comp} (${dates})`;
+
+          const newInternEntry = {
+            id: `intern-${Date.now()}`,
+            role,
+            company: comp,
+            startDate: dates.split(/[–-]|to/i)[0]?.trim() || "",
+            endDate: dates.split(/[–-]|to/i)[1]?.trim() || "",
+            description: desc,
+          };
+          const existingInterns = (updatedCv.internships || []).filter((e: any) => e.role || e.company);
+          updatedCv.internships = [...existingInterns, newInternEntry];
+          break;
+        }
+
+        case "education": {
+          formattedSectionHeading = "EDUCATION AND TRAINING";
+
+          const qualMatch = cleanAnswer.match(/(?:degree|qualification|program|course|grade)\s*[:=-]\s*([^\n,]+)/i);
+          const instMatch = cleanAnswer.match(/(?:institution|university|college|school)\s*[:=-]\s*([^\n,]+)/i);
+          const durMatch = cleanAnswer.match(/(?:duration|dates?|period|years?)\s*[:=-]\s*([^\n,]+)/i);
+          const gradeMatch = cleanAnswer.match(/(?:grade|cgpa|gpa|score|percentage|marks)\s*[:=-]\s*([^\n,]+)/i);
+
+          let qual = qualMatch ? qualMatch[1].trim() : "";
+          let inst = instMatch ? instMatch[1].trim() : "";
+          let dates = durMatch ? durMatch[1].trim() : "";
+          let grade = gradeMatch ? gradeMatch[1].trim() : "";
+
+          if (!qual || !inst) {
+            const dateMatch = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/) || cleanAnswer.match(/((?:19|20)\d\d\s*[–-]\s*(?:(?:19|20)\d\d|Present))/i);
+            if (!dates && dateMatch) dates = dateMatch[1].trim();
+
+            const parts = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").split(/[,–-]/).map((p) => p.trim()).filter(Boolean);
+            if (!qual) qual = parts[0] || "Degree / Qualification";
+            if (!inst) inst = parts[1] || "Institution";
+            if (!grade && parts[2]) {
+              const g = parts[2].match(/(?:final\s*grade|grade|cgpa)[:=\s]*([^\n,]+)/i);
+              if (g) grade = g[1].trim();
+            }
+          }
+
+          qual = qual.replace(/^(?:degree|qualification)[:=-]\s*/i, "").trim() || "Degree";
+          inst = inst.replace(/^(?:institution|university|college)[:=-]\s*/i, "").trim() || "Institution";
+          dates = dates.replace(/^(?:duration|dates?)[:=-]\s*/i, "").trim();
+          grade = grade.replace(/^(?:grade|cgpa)[:=-]\s*/i, "").trim();
+
+          const instLine = dates ? `${inst} [ ${dates} ]` : inst;
+          const gradeLine = grade ? `Final grade: ${grade}` : "";
+          formattedContent = [qual, instLine, gradeLine].filter(Boolean).join("\n");
+          summaryText = `${qual} at ${inst}${dates ? ` (${dates})` : ""}`;
+
+          const newEdu = {
+            id: `edu-${Date.now()}`,
+            qualification: qual,
+            institution: inst,
+            startDate: dates ? dates.split(/[–-]|to/i)[0]?.trim() || "" : "",
+            endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
+            finalGrade: grade || undefined,
+          };
+          const existingEdu = (updatedCv.education || []).filter((e: any) => e.qualification || e.institution);
+          updatedCv.education = [...existingEdu, newEdu];
+          break;
+        }
+
+        case "training": {
+          formattedSectionHeading = "EDUCATION AND TRAINING";
+
+          const courseMatch = cleanAnswer.match(/(?:course|program|training|workshop)\s*[:=-]\s*([^\n,]+)/i);
+          const provMatch = cleanAnswer.match(/(?:provider|institution|platform|by|from)\s*[:=-]\s*([^\n,]+)/i);
+          const durMatch = cleanAnswer.match(/(?:duration|dates?|year)\s*[:=-]\s*([^\n,]+)/i);
+
+          let course = courseMatch ? courseMatch[1].trim() : "";
+          let provider = provMatch ? provMatch[1].trim() : "";
+          let dates = durMatch ? durMatch[1].trim() : "";
+
+          if (!course) {
+            const dateMatch = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/) || cleanAnswer.match(/\((20\d\d)\)/);
+            if (dateMatch) dates = dateMatch[1].trim();
+            const parts = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").split(/[,–-]/).map((p) => p.trim()).filter(Boolean);
+            course = parts[0] || cleanAnswer;
+            if (!provider && parts[1]) provider = parts[1];
+          }
+
+          course = course.replace(/^(?:training|course|workshop)[:=-]\s*/i, "").trim() || "Professional Training";
+          provider = provider.replace(/^(?:provider|institution)[:=-]\s*/i, "").trim() || "Training Institute";
+
+          const provLine = dates ? `${provider} [ ${dates} ]` : provider;
+          formattedContent = `${course}\n${provLine}`;
+          summaryText = `${course} (${provider})`;
+
+          const newTrainEdu = {
+            id: `train-${Date.now()}`,
+            qualification: course,
+            institution: provider,
+            startDate: dates ? dates.split(/[–-]|to/i)[0]?.trim() || "" : "",
+            endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
+          };
+          const existingEdu = (updatedCv.education || []).filter((e: any) => e.qualification || e.institution);
+          updatedCv.education = [...existingEdu, newTrainEdu];
+          break;
+        }
+
+        case "certifications": {
+          formattedSectionHeading = "CERTIFICATIONS";
+
+          const dateMatch = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/) || cleanAnswer.match(/\((20\d\d)\)/);
+          const completionDate = dateMatch ? dateMatch[1].trim() : undefined;
+          const cleanLine = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").trim();
+
+          let name = cleanLine;
+          let provider: string | undefined = undefined;
+          const delimiterMatch = cleanLine.match(/\s*(?:–|—|-|\||\bby\b|\bfrom\b)\s*/i);
+          if (delimiterMatch && delimiterMatch.index !== undefined) {
+            name = cleanLine.slice(0, delimiterMatch.index).trim();
+            provider = cleanLine.slice(delimiterMatch.index + delimiterMatch[0].length).trim();
+          }
+
+          name = name.replace(/^(?:certification|name|certificate)[:=-]\s*/i, "").trim() || cleanAnswer;
+          provider = provider?.replace(/^(?:provider|issued by)[:=-]\s*/i, "").trim();
+
+          const formattedCert = provider
+            ? `${name} – ${provider}${completionDate ? ` [ ${completionDate} ]` : ""}`
+            : `${name}${completionDate ? ` [ ${completionDate} ]` : ""}`;
+          formattedContent = formattedCert;
+          summaryText = formattedCert;
+
+          const newCert = {
+            id: `cert-${Date.now()}`,
+            name,
+            provider,
+            completionDate,
+          };
+          const existingCerts = (updatedCv.certifications || []).filter((c: any) => c.name);
+          updatedCv.certifications = [...existingCerts, newCert];
+          break;
+        }
+
+        case "academicProjects": {
+          formattedSectionHeading = "ACADEMIC PROJECTS";
+
+          const titleMatch = cleanAnswer.match(/(?:title|project\s*title|project|name)\s*[:=-]\s*([^\n,]+)/i);
+          const descMatch = cleanAnswer.match(/(?:description|details|built|summary)\s*[:=-]\s*([\s\S]+)/i);
+
+          let title = titleMatch ? titleMatch[1].trim() : "";
+          let desc = descMatch ? descMatch[1].trim() : "";
+
+          if (!title) {
+            const splitMatch = cleanAnswer.split(/[:–-]\s+/);
+            title = splitMatch[0]?.trim() || "Academic Project";
+            desc = splitMatch.slice(1).join(" ").trim() || cleanAnswer;
+          }
+
+          title = title.replace(/^(?:project|title)[:=-]\s*/i, "").trim() || "Academic Project";
+          desc = desc.replace(/^(?:description|details)[:=-]\s*/i, "").trim();
+
+          formattedContent = desc ? `${title}\n${desc}` : title;
+          summaryText = title;
+
+          const newProj = {
+            id: `proj-${Date.now()}`,
+            title,
+            description: desc,
+          };
+          const existingProj = (updatedCv.academicProjects || []).filter((p: any) => p.title);
+          updatedCv.academicProjects = [...existingProj, newProj];
+          break;
+        }
+
+        case "responsibilities": {
+          formattedSectionHeading = "LEADERSHIP & RESPONSIBILITIES";
+
+          const roleMatch = cleanAnswer.match(/(?:role|activity|responsibility|position)\s*[:=-]\s*([^\n,]+)/i);
+          const orgMatch = cleanAnswer.match(/(?:organization|organisation|club|school|council)\s*[:=-]\s*([^\n,]+)/i);
+          const durMatch = cleanAnswer.match(/(?:duration|dates?|period)\s*[:=-]\s*([^\n,]+)/i);
+          const descMatch = cleanAnswer.match(/(?:responsibilities|duties|description|details)\s*[:=-]\s*([\s\S]+)/i);
+
+          let role = roleMatch ? roleMatch[1].trim() : "";
+          let org = orgMatch ? orgMatch[1].trim() : "";
+          let duration = durMatch ? durMatch[1].trim() : "";
+          let desc = descMatch ? descMatch[1].trim() : "";
+
+          if (!role) {
+            const bracketDate = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/);
+            if (bracketDate) duration = bracketDate[1].trim();
+            const cleanNoDate = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").trim();
+            const parts = cleanNoDate.split(/[:–-]\s+/);
+            role = parts[0]?.trim() || "Leadership Role";
+            desc = parts.slice(1).join(" ").trim() || cleanAnswer;
+          }
+
+          role = role.replace(/^(?:role|position|responsibility)[:=-]\s*/i, "").trim() || "Leadership Role";
+          org = org.replace(/^(?:organization|club)[:=-]\s*/i, "").trim();
+          duration = duration.replace(/^(?:duration|dates?)[:=-]\s*/i, "").trim();
+          desc = desc.replace(/^(?:responsibilities|description)[:=-]\s*/i, "").trim();
+
+          const orgLine = [org, duration ? `[ ${duration} ]` : null].filter(Boolean).join(" ");
+          formattedContent = [role, orgLine, desc].filter(Boolean).join("\n");
+          summaryText = `${role}${org ? ` at ${org}` : ""}`;
+
+          const newLead = {
+            id: `leader-${Date.now()}`,
+            activity: role,
+            organisation: org || undefined,
+            duration: duration || undefined,
+            description: desc || undefined,
+          };
+          const existingLead = (updatedCv.leadershipActivities || []).filter((l: any) => l.activity || l.description);
+          updatedCv.leadershipActivities = [...existingLead, newLead];
+          break;
+        }
+
+        default: {
+          formattedSectionHeading = activeSectionPrompt.heading;
+          formattedContent = cleanAnswer;
+          summaryText = cleanAnswer;
+          break;
+        }
+      }
+
+      // Update editableDocContent.sections:
+      const existingSectionIdx = editableDocContent.sections.findIndex((s) =>
+        s.heading.trim().toLowerCase() === formattedSectionHeading.toLowerCase() ||
+        (activeSectionPrompt.sectionKey === "hobbies" && s.heading.toLowerCase().includes("hobbies")) ||
+        (activeSectionPrompt.sectionKey === "skills" && s.heading.toLowerCase().includes("skill") && !s.heading.toLowerCase().includes("language")) ||
+        (activeSectionPrompt.sectionKey === "certifications" && s.heading.toLowerCase().includes("certificat")) ||
+        (activeSectionPrompt.sectionKey === "workExperience" && (s.heading.toLowerCase().includes("work") || s.heading.toLowerCase().includes("internship"))) ||
+        (activeSectionPrompt.sectionKey === "education" && s.heading.toLowerCase().includes("education")) ||
+        (activeSectionPrompt.sectionKey === "training" && (s.heading.toLowerCase().includes("training") || s.heading.toLowerCase().includes("education"))) ||
+        (activeSectionPrompt.sectionKey === "academicProjects" && s.heading.toLowerCase().includes("project")) ||
+        (activeSectionPrompt.sectionKey === "responsibilities" && (s.heading.toLowerCase().includes("leadership") || s.heading.toLowerCase().includes("responsibilit"))) ||
+        (activeSectionPrompt.sectionKey === "englishCertificate" && (s.heading.toLowerCase().includes("english") || s.heading.toLowerCase().includes("ielts")))
+      );
+
+      // Determine proper entry separator
+      const sectionSeparator =
+        activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies"
+          ? " • "
+          : activeSectionPrompt.sectionKey === "certifications"
+          ? "\n"
+          : activeSectionPrompt.sectionKey === "englishCertificate"
+          ? "REPLACE"
+          : "\n\n";
+
+      let updatedSections = [...editableDocContent.sections];
+      if (existingSectionIdx >= 0) {
+        const existingSec = updatedSections[existingSectionIdx];
+        let mergedContent = formattedContent;
+        if (existingSec.content?.trim()) {
+          if (sectionSeparator === "REPLACE") {
+            mergedContent = formattedContent;
+          } else {
+            mergedContent = `${existingSec.content.trim()}${sectionSeparator}${formattedContent}`;
+          }
+        }
+        updatedSections[existingSectionIdx] = {
+          ...existingSec,
+          heading: existingSec.heading || formattedSectionHeading,
+          content: mergedContent,
+        };
+      } else {
+        updatedSections.push({
+          heading: formattedSectionHeading,
+          content: formattedContent,
+        });
+      }
+
+      // Ensure updatedCv.sectionOrder has this section
+      const secIdMap: Record<string, string> = {
+        hobbies: "hobbies",
+        skills: "skills",
+        englishCertificate: "englishCertificate",
+        workExperience: "internships",
+        certifications: "certifications",
+        education: "education",
+        training: "education",
+        academicProjects: "academicProjects",
+        responsibilities: "leadershipActivities",
+      };
+      const mappedId = secIdMap[activeSectionPrompt.sectionKey];
+      if (mappedId) {
+        if (!updatedCv.sectionOrder) {
+          updatedCv.sectionOrder = [...EUROPASS_DEFAULT_SECTION_ORDER];
+        } else if (!updatedCv.sectionOrder.includes(mappedId)) {
+          updatedCv.sectionOrder.push(mappedId);
+        }
+      }
+
+      // Bi-directionally sync CV data
+      const syncedCv = syncSectionsToCvData(updatedSections, updatedCv);
+      if (currentCv.personal?.photoUrl && !syncedCv.personal?.photoUrl) {
+        if (!syncedCv.personal) syncedCv.personal = {};
+        syncedCv.personal.photoUrl = currentCv.personal.photoUrl;
+      }
+      setCvDocumentData(syncedCv);
+
+      const updatedDoc: HydratedDocumentData = {
+        ...editableDocContent,
+        sections: updatedSections,
+        wordCount: updatedSections.reduce(
+          (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+          0
+        ),
+      };
+
+      setEditableDocContent(updatedDoc);
+      setActiveDocument(updatedDoc);
+      syncDocumentToRecent(updatedDoc, "Edited just now");
+
+      const newHtml = docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
+      setTiptapHtml(newHtml);
+      if (tiptapEditor) {
+        tiptapEditor.commands.setContent(newHtml);
+      }
+
+      // Clear active prompt
+      setActiveCvSectionPrompt(null);
+
+      // Post Assistant confirmation
+      const isExisting = Boolean(activeSectionPrompt.isExisting || existingSectionIdx >= 0);
+      const assistantMsg: ChatMessage = {
+        id: generateUniqueId("assistant-cv-section-success"),
+        sender: "assistant",
+        text: isExisting
+          ? `✅ Updated **${activeSectionPrompt.label}** in CV with new entry:\n\n**${summaryText}**\n\nThe Europass CV canvas has been updated and your new entry is now visible.`
+          : `✅ Added **${activeSectionPrompt.label}** section to CV:\n\n**${summaryText}**\n\nThe Europass CV canvas has been updated and this section is now visible.`,
+        timestamp: getFormattedTimestamp(),
+        actionType: "typed_section",
+        sectionUpdated: activeSectionPrompt.label,
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+
+      setAiToast({
+        message: `✨ Added ${activeSectionPrompt.label}`,
+        type: "success",
+      });
+      setTimeout(() => setAiToast(null), 3000);
+
+      // Scroll to the new section
+      setTimeout(() => {
+        handleScrollToSection(formattedSectionHeading);
+      }, 350);
+
+      return;
+    }
+
+    // Direct AI instruction matcher or active validation field prompt
+    const directMatch = parseDirectFieldInstruction(trimmedPrompt);
+    let targetFieldKey: string | null = null;
+    let targetFieldLabel: string | null = null;
+    let targetValue: string | null = null;
+
+    if (directMatch) {
+      targetFieldKey = directMatch.key;
+      targetFieldLabel = directMatch.label;
+      targetValue = directMatch.value;
+    } else if (activeFieldPrompt) {
+      targetFieldKey = activeFieldPrompt.key;
+      targetFieldLabel = activeFieldPrompt.label;
+      targetValue = trimmedPrompt.replace(/^[:=\s]+/, "").replace(/\.$/, "").trim();
+    }
+
+    // ── Dedicated Cover Letter Field-Level Instant Updater ─────────────────────
+    if (editableDocContent.docType === "COVER_LETTER" && targetFieldKey && targetValue) {
+      // 1. Record user response message in AI chat
+      const userMsg: ChatMessage = {
+        id: generateUniqueId("user"),
+        sender: "user",
+        text: trimmedPrompt,
+        timestamp: getFormattedTimestamp(),
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
+      setAiPromptText("");
+
+      // 2. Snapshot current state for Undo
+      setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+      setRedoHistory([]);
+
+      // 3. Update field overrides
+      const updatedFieldValues: Record<string, string> = {
+        ...(editableDocContent.fieldValues || {}),
+        [targetFieldKey]: targetValue,
+      };
+
+      // 4. Update the targeted section cleanly while preserving all other custom edits
+      const updatedSections = updateCoverLetterSectionWithField(
+        editableDocContent.sections,
+        targetFieldKey,
+        targetValue,
+        activeSopContext,
+        updatedFieldValues
+      );
+
+      // 5. Construct updated document
+      const updatedDoc: HydratedDocumentData = {
+        ...editableDocContent,
+        sections: updatedSections,
+        fieldValues: updatedFieldValues,
+        wordCount: updatedSections.reduce(
+          (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+          0
+        ),
+      };
+
+      // 6. Update document state & Tiptap editor
+      setEditableDocContent(updatedDoc);
+      setActiveDocument(updatedDoc);
+      const newHtml = docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
+      setTiptapHtml(newHtml);
+      if (tiptapEditor) {
+        tiptapEditor.commands.setContent(newHtml);
+      }
+
+      // 7. Persist immediately to recentDocs & localStorage
+      syncDocumentToRecent(updatedDoc, "Edited just now");
+
+      // 8. Clear active field prompt
+      setActiveFieldPrompt(null);
+
+      // 9. Post AI assistant confirmation message
+      const assistantMsg: ChatMessage = {
+        id: generateUniqueId("assistant-field-update"),
+        sender: "assistant",
+        text: `✅ Updated **${targetFieldLabel}** to **${targetValue}**. The Cover Letter preview has been refreshed and this detail is now verified.`,
+        timestamp: getFormattedTimestamp(),
+        actionType: "typed_section",
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+
+      // 10. Show confirmation toast
+      setAiToast({
+        message: `✨ Updated ${targetFieldLabel}`,
+        type: "success",
+      });
+      setTimeout(() => setAiToast(null), 3000);
+      return;
+    }
+
+    // ── Dedicated CV Contact/Personal Field-Level Instant Updater ───────────────
+    if (editableDocContent.docType === "CV" && targetFieldKey && targetValue) {
+      const userMsg: ChatMessage = {
+        id: generateUniqueId("user"),
+        sender: "user",
+        text: trimmedPrompt,
+        timestamp: getFormattedTimestamp(),
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
+      setAiPromptText("");
+
+      setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+      setRedoHistory([]);
+
+      const updatedFieldValues: Record<string, string> = {
+        ...(editableDocContent.fieldValues || {}),
+        [targetFieldKey]: targetValue,
+      };
+
+      const currentCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      const updatedCv = JSON.parse(JSON.stringify(currentCv));
+      if (!updatedCv.personal) updatedCv.personal = {};
+
+      let fieldConfirmedName = targetFieldLabel || targetFieldKey;
+
+      if (targetFieldKey.includes("city") || targetFieldKey.includes("address")) {
+        updatedCv.personal.address = targetValue;
+        fieldConfirmedName = "Address / City";
+      } else if (targetFieldKey.includes("phone")) {
+        updatedCv.personal.phone = targetValue;
+        fieldConfirmedName = "Phone Number";
+      } else if (targetFieldKey.includes("email")) {
+        updatedCv.personal.email = targetValue;
+        fieldConfirmedName = "Email Address";
+      } else if (targetFieldKey.includes("nationality") || targetFieldKey.includes("country")) {
+        updatedCv.personal.nationality = targetValue;
+        fieldConfirmedName = "Nationality";
+      } else if (targetFieldKey.includes("dob") || targetFieldKey.includes("birth")) {
+        updatedCv.personal.dateOfBirth = targetValue;
+        fieldConfirmedName = "Date of Birth";
+      } else if (targetFieldKey.includes("motherTongue") || targetFieldKey.includes("language")) {
+        updatedCv.motherTongue = targetValue;
+        fieldConfirmedName = "Mother Tongue";
+      }
+
+      setCvDocumentData(updatedCv);
+
+      const updatedDoc: HydratedDocumentData = {
+        ...editableDocContent,
+        fieldValues: updatedFieldValues,
+      };
+      setEditableDocContent(updatedDoc);
+      setActiveDocument(updatedDoc);
+      syncDocumentToRecent(updatedDoc, "Edited just now");
+      setActiveFieldPrompt(null);
+
+      const assistantMsg: ChatMessage = {
+        id: generateUniqueId("assistant-cv-field"),
+        sender: "assistant",
+        text: `✅ Updated **${fieldConfirmedName}** to **${targetValue}**. The Europass CV has been refreshed.`,
+        timestamp: getFormattedTimestamp(),
+        actionType: "typed_section",
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+      setAiToast({ message: `✨ Updated ${fieldConfirmedName}`, type: "success" });
+      setTimeout(() => setAiToast(null), 3000);
+      return;
+    }
+
+    // ── Standard AI / Smart Changes Fallback ───────────────────────────────────
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: generateUniqueId("user"),
       sender: "user",
-      text: promptText.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      text: trimmedPrompt,
+      timestamp: getFormattedTimestamp(),
     };
     setChatMessages((prev) => [...prev, userMsg]);
     setAiPromptText("");
-    handleRunSmartChange("custom", promptText.trim(), userMsg);
+    handleRunSmartChange("custom", trimmedPrompt, userMsg);
   };
 
   // Tiptap Content & Formatting Listeners
@@ -1472,12 +3137,17 @@ export function DocumentStudioDashboard() {
     try {
       const savedChat = localStorage.getItem(storageKey);
       if (savedChat) {
-        setChatMessages(JSON.parse(savedChat));
+        const parsed = JSON.parse(savedChat);
+        setChatMessages(
+          Array.isArray(parsed) && parsed.length > 0
+            ? parsed
+            : [getDefaultGreetingMessage(newDoc.studentName, newType)]
+        );
       } else {
-        setChatMessages([]);
+        setChatMessages([getDefaultGreetingMessage(newDoc.studentName, newType)]);
       }
     } catch {
-      setChatMessages([]);
+      setChatMessages([getDefaultGreetingMessage(newDoc.studentName, newType)]);
     }
 
     setIsAiCooking(false);
@@ -1511,9 +3181,11 @@ export function DocumentStudioDashboard() {
       if (!response.ok) throw new Error("Failed to generate DOCX document");
 
       const blob = await response.blob();
-      const safeName = editableDocContent.studentName.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const safeDocType = editableDocContent.docType;
-      const fileName = `${safeName}_${safeDocType}.docx`;
+      const fileName = buildStandardizedPdfFilename(
+        editableDocContent.studentName,
+        editableDocContent.docType,
+        editableDocContent.targetCountry
+      ).replace(/\.pdf$/i, ".docx");
 
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1532,56 +3204,85 @@ export function DocumentStudioDashboard() {
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!editableDocContent) return;
+    setIsExportingPdf(true);
     setShowExportMenu(false);
 
-    const safeName = editableDocContent.studentName.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const safeDocType = editableDocContent.docType;
-    const safeUni = (editableDocContent.targetUniversity || "").replace(/[^a-zA-Z0-9_-]/g, "_");
-    const targetTitle = `${safeName}_${safeDocType}_${safeUni}`;
+    try {
+      const fileName = buildStandardizedPdfFilename(
+        editableDocContent.studentName,
+        editableDocContent.docType,
+        editableDocContent.targetCountry
+      );
 
-    const prevTitle = document.title;
-    document.title = targetTitle;
-    window.print();
-    setTimeout(() => {
-      document.title = prevTitle;
-    }, 1500);
+      if (editableDocContent.docType === "CV") {
+        if (cvViewMode !== "europass") {
+          setCvViewMode("europass");
+          for (let i = 0; i < 5; i++) {
+            await new Promise((r) => setTimeout(r, 100));
+            if (document.querySelector('[data-pdf-page="true"]')) break;
+          }
+        }
+
+        const activeCv =
+          cvDocumentData ||
+          getEuropassData(
+            editableDocContent.studentId,
+            editableDocContent.studentName,
+            selectedStudentData
+          );
+
+        const { generateDocumentPdf } = await import(
+          "@/features/document-generator/pdf/generateDocumentPdf"
+        );
+
+        await generateDocumentPdf(activeCv, {
+          country: editableDocContent.targetCountry || undefined,
+          documentType: "CV",
+          customFilename: fileName,
+        });
+
+        setAiToast({ message: `📥 Exported ${fileName}`, type: "success" });
+      } else {
+        const response = await fetch("/api/export/pdf", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: editableDocContent.title,
+            studentName: editableDocContent.studentName,
+            studentId: editableDocContent.studentId,
+            documentType: editableDocContent.docType,
+            sections: editableDocContent.sections.map((s) => ({
+              title: s.heading || "",
+              content: s.content || "",
+            })),
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to generate PDF document");
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+        setAiToast({ message: `📥 Exported ${fileName}`, type: "success" });
+      }
+    } catch (err) {
+      console.error("[handleExportPdf] Export failed:", err);
+      setAiToast({ message: "Failed to export PDF document. Please try again.", type: "info" });
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
-  // Fictional demo students, clearly labelled; always listed after the live CRM roster
-  const SAMPLE_ROSTER = useMemo(
-    () => SAMPLE_STUDENTS.map((s) => ({ id: s.id, name: `${s.name} (Sample)`, email: s.email })),
-    []
-  );
 
-  const [studentRoster, setStudentRoster] = useState<Array<{ id: string; name: string; email: string | null }>>(SAMPLE_ROSTER);
-  const [rosterError, setRosterError] = useState<string | null>(null);
-  const [generateError, setGenerateError] = useState<string | null>(null);
-
-
-  // Sync roster from GlobalStudentContext and direct /api/students/list
-  useEffect(() => {
-    if (students && students.length > 0) {
-      setStudentRoster([...students, ...SAMPLE_ROSTER]);
-      setRosterError(null);
-      return;
-    }
-
-    fetch("/api/students/list")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && Array.isArray(json.students)) {
-          setStudentRoster([...json.students, ...SAMPLE_ROSTER]);
-          setRosterError(null);
-        } else {
-          setRosterError("Could not load the CRM student roster. Only sample students are listed.");
-        }
-      })
-      .catch(() => {
-        setRosterError("Could not load the CRM student roster. Only sample students are listed.");
-      });
-  }, [students, SAMPLE_ROSTER]);
 
 
   // Filter recent documents by global search
@@ -1633,23 +3334,40 @@ export function DocumentStudioDashboard() {
 
   // Unified Document Opener (Syncs Tiptap HTML, Europass Mode & Student Context)
   const handleOpenDocument = (doc: HydratedDocumentData) => {
-    setActiveDocument(doc);
-    setEditableDocContent(JSON.parse(JSON.stringify(doc)));
+    const safeDoc = ensureDocumentIdentity(doc);
+    if (aiAbortControllerRef.current) {
+      aiAbortControllerRef.current.abort();
+    }
+    activeDocIdentityRef.current = {
+      docId: safeDoc.id || "",
+      studentId: safeDoc.studentId,
+    };
+    setActiveDocument(safeDoc);
+    setEditableDocContent(JSON.parse(JSON.stringify(safeDoc)));
     setDocHistory([]);
     setRedoHistory([]);
-    const html = docSectionsToHtml(doc.sections, doc.docType, doc.title);
+    const html = docSectionsToHtml(safeDoc.sections, safeDoc.docType, safeDoc.title);
     setTiptapHtml(html);
     if (tiptapEditor) {
       tiptapEditor.commands.setContent(html);
     }
-    if (doc.docType === "COVER_LETTER") {
+    if (safeDoc.docType === "COVER_LETTER") {
+      if (Array.isArray(safeDoc.sections)) {
+        safeDoc.sections = safeDoc.sections.map((sec) => ({
+          ...sec,
+          content: cleanCoverLetterText(sec.content),
+        }));
+      }
       setFontFamily("Calibri, Carlito, Aptos, 'Segoe UI', sans-serif");
       setFontFamilyLabel("Calibri");
       setFontSize(11);
     }
-    if (doc.docType === "CV") {
-      const baseCv = getEuropassData(doc.studentId, doc.studentName, selectedStudentData);
-      const syncedCv = syncSectionsToCvData(doc.sections, baseCv);
+    setIsValidationPanelOpen(false);
+    setActiveFieldPrompt(null);
+    setActiveCvSectionPrompt(null);
+    if (safeDoc.docType === "CV") {
+      const baseCv = getEuropassData(safeDoc.studentId, safeDoc.studentName, selectedStudentData);
+      const syncedCv = syncSectionsToCvData(safeDoc.sections, baseCv);
       setCvDocumentData(syncedCv);
       setCvViewMode("europass");
     } else {
@@ -1658,19 +3376,24 @@ export function DocumentStudioDashboard() {
     }
 
     // Load persisted chat conversation for this specific document
-    const storageKey = `antigravity_studio_chat_${doc.studentId}_${doc.docType}`;
+    const storageKey = `antigravity_studio_chat_${safeDoc.studentId}_${safeDoc.docType}`;
     try {
       const savedChat = localStorage.getItem(storageKey);
       if (savedChat) {
-        setChatMessages(JSON.parse(savedChat));
+        const parsed = JSON.parse(savedChat);
+        setChatMessages(
+          Array.isArray(parsed) && parsed.length > 0
+            ? parsed
+            : [getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]
+        );
       } else {
-        setChatMessages([]);
+        setChatMessages([getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]);
       }
     } catch {
-      setChatMessages([]);
+      setChatMessages([getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]);
     }
 
-    selectStudent(doc.studentId);
+    selectStudent(safeDoc.studentId);
   };
 
   // Cooking Countdown & In-Front Document Generator
@@ -1727,8 +3450,8 @@ export function DocumentStudioDashboard() {
           studentName,
           studentId: modalStudentId,
           updatedAt: "Created just now",
-          targetUniversity: (targetStudent as any)?.university || "University",
-          targetCourse: (targetStudent as any)?.course || "Degree Programme",
+          targetUniversity: (targetStudent as { university?: string } | undefined)?.university || "University",
+          targetCourse: (targetStudent as { course?: string } | undefined)?.course || "Degree Programme",
           targetCountry: "Global",
           wordCount: 0,
           route: `/studio?student=${modalStudentId}`,
@@ -1741,6 +3464,7 @@ export function DocumentStudioDashboard() {
         };
       } else {
         generatedDoc = hydrateDocumentFromSnapshot(modalDocType, snapshot as CrmSnapshot, modalStudentId);
+        generatedDoc.id = generateDocumentId(modalStudentId, modalDocType);
         generatedDoc.updatedAt = "Created just now";
       }
 
@@ -2208,8 +3932,8 @@ export function DocumentStudioDashboard() {
                             setIsStudentDropdownOpen(false);
                           }}
                           className={`px-3.5 py-2.5 text-sm cursor-pointer transition flex items-center justify-between ${s.id === modalStudentId
-                              ? "bg-indigo-50 text-indigo-700 font-semibold"
-                              : "text-slate-800 hover:bg-slate-50"
+                            ? "bg-indigo-50 text-indigo-700 font-semibold"
+                            : "text-slate-800 hover:bg-slate-50"
                             }`}
                         >
                           <span className="truncate font-medium">{s.name}</span>
@@ -2269,8 +3993,8 @@ export function DocumentStudioDashboard() {
                           setIsDocTypeDropdownOpen(false);
                         }}
                         className={`px-3.5 py-2.5 text-sm cursor-pointer transition ${modalDocType === type
-                            ? "bg-indigo-50 text-indigo-700 font-semibold"
-                            : "text-slate-800 hover:bg-slate-50"
+                          ? "bg-indigo-50 text-indigo-700 font-semibold"
+                          : "text-slate-800 hover:bg-slate-50"
                           }`}
                       >
                         {docTypeLabels[type]}
@@ -2312,7 +4036,20 @@ export function DocumentStudioDashboard() {
       {/* ── 5. Unified Countdown Cooking Loader ───────────────────────────────── */}
       {isCooking && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-150">
+          <div className="relative bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-slate-200 flex flex-col items-center text-center animate-in zoom-in-95 duration-150">
+            {/* Top-Right Dismiss Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsCooking(false);
+                setIsModalOpen(false);
+              }}
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              title="Cancel document generation"
+            >
+              ✕
+            </button>
+
             {/* Animated Countdown Ring */}
             <div className="relative w-28 h-28 flex items-center justify-center mb-5">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -2366,6 +4103,17 @@ export function DocumentStudioDashboard() {
                 {cookingStages[cookingStage] || "Finalizing document..."}
               </span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsCooking(false);
+                setIsModalOpen(false);
+              }}
+              className="mt-3 text-xs text-slate-400 hover:text-slate-700 underline transition cursor-pointer"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -2441,8 +4189,8 @@ export function DocumentStudioDashboard() {
                           handleSwitchDocType(type);
                         }}
                         className={`px-3.5 py-2.5 cursor-pointer font-medium hover:bg-indigo-50 transition flex items-center justify-between ${editableDocContent.docType === type
-                            ? "text-indigo-700 font-bold bg-indigo-50/70"
-                            : "text-slate-700"
+                          ? "text-indigo-700 font-bold bg-indigo-50/70"
+                          : "text-slate-700"
                           }`}
                       >
                         <div>
@@ -2469,8 +4217,8 @@ export function DocumentStudioDashboard() {
                 type="button"
                 onClick={() => setEditorMode(editorMode === "editing" ? "preview" : "editing")}
                 className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer transition border shrink-0 ${editorMode === "preview"
-                    ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
-                    : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
+                  ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
+                  : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
                   }`}
                 title={editorMode === "editing" ? "Switch to Clean Print Preview" : "Switch to Inline Editing"}
               >
@@ -2566,8 +4314,8 @@ export function DocumentStudioDashboard() {
                 type="button"
                 onClick={() => setShowInsightsDrawer(!showInsightsDrawer)}
                 className={`px-2 sm:px-2.5 py-1.5 rounded-lg cursor-pointer transition flex items-center gap-1.5 text-xs font-semibold border shrink-0 ${showInsightsDrawer
-                    ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
-                    : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
+                  ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
+                  : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
                   }`}
                 title="Open Document Analytics & Compliance Insights"
               >
@@ -2588,7 +4336,7 @@ export function DocumentStudioDashboard() {
                   className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-2.5 sm:px-3.5 py-1.5 rounded-lg shadow-xs cursor-pointer transition flex items-center gap-1 sm:gap-1.5 shrink-0"
                   title="Export options: PDF or Microsoft Word DOCX"
                 >
-                  {isExportingDocx ? (
+                  {isExportingDocx || isExportingPdf ? (
                     <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2597,7 +4345,7 @@ export function DocumentStudioDashboard() {
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
                   )}
-                  <span className="hidden xs:inline">Export</span>
+                  <span className="hidden xs:inline">{isExportingPdf ? "Exporting PDF..." : isExportingDocx ? "Exporting DOCX..." : "Export"}</span>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M6 9l6 6 6-6" />
                   </svg>
@@ -2615,10 +4363,14 @@ export function DocumentStudioDashboard() {
                       </span>
                       <div>
                         <div className="font-semibold text-slate-900 group-hover:text-indigo-600">
-                          Export as PDF (.pdf)
+                          {isExportingPdf ? "Generating PDF..." : "Export as PDF (.pdf)"}
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {editableDocContent.studentName.replace(/[^a-zA-Z0-9_-]/g, "_")}_{editableDocContent.docType}.pdf
+                          {buildStandardizedPdfFilename(
+                            editableDocContent.studentName,
+                            editableDocContent.docType,
+                            editableDocContent.targetCountry
+                          )}
                         </div>
                       </div>
                     </button>
@@ -2636,7 +4388,11 @@ export function DocumentStudioDashboard() {
                           Export as Word (.docx)
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {editableDocContent.studentName.replace(/[^a-zA-Z0-9_-]/g, "_")}_{editableDocContent.docType}.docx
+                          {buildStandardizedPdfFilename(
+                            editableDocContent.studentName,
+                            editableDocContent.docType,
+                            editableDocContent.targetCountry
+                          ).replace(/\.pdf$/i, ".docx")}
                         </div>
                       </div>
                     </button>
@@ -2670,200 +4426,65 @@ export function DocumentStudioDashboard() {
 
             {/* ── Left Sidebar: AI Assistant Chat & Dynamic Suggestions ──────────────────── */}
             <aside
-              className={`bg-white border-r border-slate-200 flex-col justify-between p-4 sm:p-5 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
-                  ? "hidden"
-                  : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[350px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[340px] md:min-w-[340px] md:max-w-[340px] md:shadow-none shrink-0"
+              className={`bg-white border-r border-slate-200 flex flex-col justify-between p-4 sm:p-5 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
+                ? "hidden"
+                : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[350px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[340px] md:min-w-[340px] md:max-w-[340px] md:shadow-none shrink-0"
                 }`}
             >
-              {chatMessages.length === 0 ? (
-                /* ── State A: Starter Suggestions (Visible before conversation starts) ── */
-                <div className="space-y-5 overflow-y-auto pr-1">
-                  {/* Unified Studio Brand Heading with Collapse Button */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h2 className="text-lg font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
-                        <span>What will we write today?</span>
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        AI-powered composition &amp; admissions intelligence
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsSidebarCollapsed(true)}
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0"
-                      title="Collapse AI Sidebar"
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </button>
+              {/* ── 1. Top Assistant Header ── */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white text-sm font-bold shadow-xs shrink-0">
+                    ✨
                   </div>
-
-                  {/* Purpose-Built Document Generation Action Pills */}
-                  <div className="flex flex-col gap-2">
-                    {/* 1. Write / Expand Section */}
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("write_for_me")}
-                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-indigo-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/70 shadow-2xs text-xs font-semibold text-slate-800 transition cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-600 font-bold group-hover:scale-110 transition-transform">
-                          ✨
-                        </span>
-                        <span>Write for me</span>
-                      </div>
-                      <span className="text-[10px] text-indigo-500 font-bold">Auto</span>
-                    </button>
-
-                    {/* 2. Create structured outline */}
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("create_outline")}
-                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-indigo-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/70 shadow-2xs text-xs font-semibold text-slate-800 transition cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#4F46E5"
-                          strokeWidth="2.2"
-                          className="group-hover:scale-110 transition-transform"
-                        >
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                        <span>Create an outline</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400">Pillars</span>
-                    </button>
-
-                    {/* 3. Dynamic Link to Student's Live CRM Profile */}
-                    <a
-                      href={process.env.NEXT_PUBLIC_CRM_VIEWER_URL || "https://crm.digi-wire.com/student-data-viewer"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 shadow-2xs text-xs font-semibold text-slate-700 transition cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-2">
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#475569"
-                          strokeWidth="2.5"
-                          className="group-hover:scale-110 transition-transform"
-                        >
-                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                        </svg>
-                        <span>View CRM Record</span>
-                      </div>
-                      <span className="text-[10px] text-slate-400">External ↗</span>
-                    </a>
-
-                    {/* Targeted Admissions Refinement Engine */}
-                    <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-1.5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Admissions Smart Refinements
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRunSmartChange("academic_polish")}
-                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-indigo-100 bg-indigo-50/60 hover:bg-indigo-100/80 hover:border-indigo-300 text-[11px] font-medium text-indigo-800 transition cursor-pointer"
-                      >
-                        <span>🎯 Academic Tone Polish</span>
-                        <span className="text-[9.5px] text-indigo-500 font-bold">Refine</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRunSmartChange("visa_compliance")}
-                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/80 hover:border-emerald-300 text-[11px] font-medium text-emerald-800 transition cursor-pointer"
-                      >
-                        <span>🛡️ Visa Compliance Check</span>
-                        <span className="text-[9.5px] text-emerald-600 font-bold">Audit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRunSmartChange("trim_budget")}
-                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50/60 hover:bg-blue-100/80 hover:border-blue-300 text-[11px] font-medium text-blue-800 transition cursor-pointer"
-                      >
-                        <span>✂️ Trim to 1-Page Budget</span>
-                        <span className="text-[9.5px] text-blue-600 font-bold">-15%</span>
-                      </button>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-900 truncate">AI Admissions Assistant</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Online & ready" />
                     </div>
-
-                    {/* Operator Guidance Card */}
-                    <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl text-[11px] text-slate-600 space-y-1">
-                      <div className="font-bold text-indigo-900 flex items-center gap-1.5">
-                        <span>💬</span>
-                        <span>Operator Chat Typing</span>
-                      </div>
-                      <p className="leading-relaxed">
-                        Share student details in the chat (e.g. IELTS scores, TRF, work experience, education) and the AI will type out that section. Or type &quot;delete [section]&quot; to delete any section!
-                      </p>
+                    <div className="text-[10px] text-slate-500 truncate">
+                      {editableDocContent.studentName} · {editableDocContent.docType === "CV" ? "Europass CV" : editableDocContent.docTypeName || editableDocContent.docType}
                     </div>
                   </div>
                 </div>
-              ) : (
-                /* ── State B: Active Conversation Stream (Suggestions Disappear When Convo Begins) ── */
-                <div className="flex-1 flex flex-col min-h-0">
-                  {/* Active Header with Clear / Restart Thread */}
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
-                        ✨
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-900 truncate">AI Admissions Assistant</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                        </div>
-                        <div className="text-[10px] text-slate-500 truncate">
-                          {editableDocContent.studentName} · {editableDocContent.docType}
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChatMessages([]);
-                          if (activeDocument) {
-                            localStorage.removeItem(
-                              `antigravity_studio_chat_${activeDocument.studentId}_${activeDocument.docType}`
-                            );
-                          }
-                        }}
-                        className="text-[10.5px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-2 py-0.5 rounded transition cursor-pointer"
-                        title="Clear conversation and show starter suggestions"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsSidebarCollapsed(true)}
-                        className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
-                        title="Collapse AI Sidebar"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeDocument) {
+                        localStorage.removeItem(
+                          `antigravity_studio_chat_${activeDocument.studentId}_${activeDocument.docType}`
+                        );
+                      }
+                      setActiveCvSectionPrompt(null);
+                      setActiveFieldPrompt(null);
+                      setChatMessages([getDefaultGreetingMessage(editableDocContent.studentName, editableDocContent.docType)]);
+                    }}
+                    className="text-[10.5px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-2 py-0.5 rounded transition cursor-pointer"
+                    title="Reset conversation thread"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarCollapsed(true)}
+                    className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    title="Collapse AI Sidebar"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
-                  {/* Scrollable Message Thread */}
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-3 text-xs">
-                    {chatMessages.map((msg) => (
+              {/* ── 2. Unified Scrollable Conversation Stream ── */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-3 text-xs min-h-0">
+                {(chatMessages.length === 0
+                  ? [getDefaultGreetingMessage(editableDocContent.studentName, editableDocContent.docType)]
+                  : chatMessages
+                ).map((msg) => (
                       <div
                         key={msg.id}
                         className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
@@ -2880,7 +4501,7 @@ export function DocumentStudioDashboard() {
                                 <span>{msg.sectionUpdated}</span>
                               </div>
                             )}
-                            <div className="whitespace-pre-wrap text-slate-700">
+                            <div className="whitespace-pre-wrap text-slate-700 break-words">
                               {msg.text.split("**").map((part, idx) =>
                                 idx % 2 === 1 ? (
                                   <strong key={idx} className="font-semibold text-slate-900">
@@ -2905,36 +4526,105 @@ export function DocumentStudioDashboard() {
                     <div ref={chatEndRef} />
                   </div>
 
-                  {/* Quick Action Chips */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("academic_polish")}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 border border-slate-200 cursor-pointer shrink-0 transition"
-                    >
-                      🎯 Polish
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("trim_budget")}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 cursor-pointer shrink-0 transition"
-                    >
-                      ✂️ Trim
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("create_outline")}
-                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-600 border border-slate-200 cursor-pointer shrink-0 transition"
-                    >
-                      📝 Outline
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* ── 3. Persistent Quick-Action Chips Strip ── */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 border-t border-slate-100 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("academic_polish")}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>🎯</span>
+                  <span>Polish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("trim_budget")}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>✂️</span>
+                  <span>Trim</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("create_outline")}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>📝</span>
+                  <span>Outline</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("visa_compliance")}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>🛡️</span>
+                  <span>Visa Check</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("write_for_me")}
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>✨</span>
+                  <span>Write</span>
+                </button>
+                <a
+                  href={process.env.NEXT_PUBLIC_CRM_VIEWER_URL || "https://crm.digi-wire.com/student-data-viewer"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                >
+                  <span>↗</span>
+                  <span>CRM</span>
+                </a>
+              </div>
 
               {/* Minimal AI Smart Modification Input Box */}
               <div className="mt-3 border border-slate-200 rounded-2xl bg-white p-3 shadow-xs hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition shrink-0">
+                {activeCvSectionPrompt && (
+                  <div className="mb-2 px-3 py-2 bg-indigo-50/90 border border-indigo-200/90 rounded-xl text-xs animate-in fade-in duration-150">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-[11px]">
+                        <span>📍</span>
+                        <span>{activeCvSectionPrompt.isExisting ? `Add More: ${activeCvSectionPrompt.label}` : `Add Section: ${activeCvSectionPrompt.label}`}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveCvSectionPrompt(null)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-white p-0.5 rounded transition cursor-pointer shrink-0 font-bold leading-none"
+                        title="Cancel adding section"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="text-slate-700 text-[11px] leading-relaxed break-words whitespace-pre-line">
+                      {activeCvSectionPrompt.question}
+                    </p>
+                  </div>
+                )}
+                {activeFieldPrompt && (
+                  <div className="mb-2 px-3 py-2 bg-indigo-50/90 border border-indigo-200/90 rounded-xl text-xs animate-in fade-in duration-150">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-[11px]">
+                        <span>📍</span>
+                        <span>{activeFieldPrompt.label}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveFieldPrompt(null)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-white p-0.5 rounded transition cursor-pointer shrink-0 font-bold leading-none"
+                        title="Cancel field input"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="text-slate-700 text-[11px] leading-relaxed break-words">
+                      {activeFieldPrompt.question}
+                    </p>
+                  </div>
+                )}
                 <textarea
+                  ref={chatInputRef}
                   rows={2}
                   value={aiPromptText}
                   onChange={(e) => setAiPromptText(e.target.value)}
@@ -2946,7 +4636,13 @@ export function DocumentStudioDashboard() {
                       }
                     }
                   }}
-                  placeholder="Share details (e.g. IELTS 7.5 TRF 26IA...) or type 'delete section'..."
+                  placeholder={
+                    activeCvSectionPrompt
+                      ? activeCvSectionPrompt.placeholder
+                      : activeFieldPrompt
+                        ? `Type ${activeFieldPrompt.label} (e.g. ${activeFieldPrompt.placeholder})...`
+                        : "Share details (e.g. IELTS 7.5 TRF 26IA...) or type 'delete section'..."
+                  }
                   className="w-full text-xs text-slate-800 placeholder-slate-400 resize-none outline-none bg-transparent leading-relaxed"
                 />
 
@@ -2993,6 +4689,18 @@ export function DocumentStudioDashboard() {
 
             {/* ── Main Canvas Area & Floating Toolbar ─────────────────────────── */}
             <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 flex flex-col items-center bg-[#F8FAFC] relative w-full">
+              {/* Cover Letter Validation Panel (Compact top-right workspace panel) */}
+              {editableDocContent?.docType === "COVER_LETTER" && (
+                <CoverLetterValidationPanel
+                  groups={missingGroups}
+                  totalMissingCount={totalMissingCount}
+                  isOpen={isValidationPanelOpen}
+                  onToggle={() => setIsValidationPanelOpen((prev) => !prev)}
+                  onClose={() => setIsValidationPanelOpen(false)}
+                  onSelectField={handleSelectMissingField}
+                />
+              )}
+
               {/* Floating Toolbar with 100% Dynamic Controls */}
               <div className="sticky top-2 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_24px_rgba(15,23,42,0.12)] border border-slate-200 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-6 shrink-0 no-print">
                 {/* Clean trigger to open AI Tools directly within the toolbar when sidebar is collapsed */}
@@ -3020,19 +4728,16 @@ export function DocumentStudioDashboard() {
                     type="button"
                     onClick={() => setShowInfoPopover(!showInfoPopover)}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                       }`}
-                    title="Student Profile & CRM Verification Info"
+                    title="Student Profile"
                   >
                     <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[10px] font-bold">
                       ℹ
                     </span>
-                    <span className="font-medium text-slate-800 hidden sm:inline truncate max-w-[120px]">
+                    <span className="font-medium text-slate-800 hidden sm:inline truncate max-w-[140px]">
                       {editableDocContent.studentName}
-                    </span>
-                    <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">
-                      ✓ CRM Verified
                     </span>
                   </button>
 
@@ -3041,11 +4746,8 @@ export function DocumentStudioDashboard() {
                       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
                         <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                           <span>👤</span>
-                          <span>Candidate CRM Profile</span>
+                          <span>Candidate Profile</span>
                         </div>
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-semibold text-[10px]">
-                          ✓ CRM Verified
-                        </span>
                       </div>
                       <div className="space-y-2.5 text-slate-600">
                         <div>
@@ -3071,51 +4773,33 @@ export function DocumentStudioDashboard() {
 
                 <div className="h-4 w-px bg-slate-200 shrink-0" />
 
-                {/* CV View Mode Toggle (Europass Theme vs Caret Editor) */}
+                {/* CV View Mode Badge */}
                 {editableDocContent.docType === "CV" && (
                   <>
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-full border border-slate-200 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setCvViewMode("europass")}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${cvViewMode === "europass"
-                            ? "bg-indigo-600 text-white shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                          }`}
-                        title="Switch to Authentic Europass Theme"
-                      >
-                        <span>🇪🇺 Europass Theme</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCvViewMode("caret")}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${cvViewMode === "caret"
-                            ? "bg-indigo-600 text-white shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                          }`}
-                        title="Switch to Tiptap Caret Editor"
-                      >
-                        <span>📝 Caret Editor</span>
-                      </button>
+                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0 select-none">
+                      <span>🇪🇺 Europass Theme</span>
                     </div>
                     <div className="h-4 w-px bg-slate-200 shrink-0" />
                   </>
                 )}
 
-                {/* Smart AI Refine Pill */}
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("academic_polish")}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
-                  title="Run academic polish on entire document"
-                >
-                  <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
-                    ✨
-                  </span>
-                  <span>Ask AI Refine</span>
-                </button>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
+                {/* Smart AI Refine Pill (Shown for non-CV documents) */}
+                {editableDocContent.docType !== "CV" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleRunSmartChange("academic_polish")}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
+                      title="Run academic polish on entire document"
+                    >
+                      <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
+                        ✨
+                      </span>
+                      <span>Ask AI Refine</span>
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 shrink-0" />
+                  </>
+                )}
 
                 {/* Heading Dropdown (H1 ▾) */}
                 <div className="relative shrink-0" ref={headingMenuRef}>
@@ -3226,8 +4910,8 @@ export function DocumentStudioDashboard() {
                                 }
                               }}
                               className={`w-full px-3 py-2 text-left flex items-center justify-between group transition-colors cursor-pointer ${isSelected
-                                  ? "bg-indigo-50/80 text-indigo-900"
-                                  : "hover:bg-slate-50 text-slate-800"
+                                ? "bg-indigo-50/80 text-indigo-900"
+                                : "hover:bg-slate-50 text-slate-800"
                                 }`}
                             >
                               <div className="flex flex-col min-w-0 pr-2">
@@ -3560,127 +5244,82 @@ export function DocumentStudioDashboard() {
                       )}
                     </div>
 
-                    {/* Right side: + Add Section Dropdown */}
-                    <div className="relative shrink-0" ref={addSectionMenuRef}>
+                    {/* Right side: Rearrange & + Add Section */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      {/* Rearrange Sections Button */}
                       <button
                         type="button"
-                        onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs"
+                        onClick={() => setIsRearrangeModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200/90 hover:border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs select-none"
+                        title="Rearrange section order"
                       >
-                        <span className="text-sm font-bold leading-none">+</span>
-                        <span>Add Section</span>
-                        <svg
-                          width="10"
-                          height="10"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          className={`transition-transform duration-150 ${isAddSectionOpen ? "rotate-180" : ""}`}
-                        >
-                          <path d="M6 9l6 6 6-6" />
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="text-indigo-600">
+                          <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l4-4m-4 4l-4-4" />
                         </svg>
+                        <span>Rearrange</span>
                       </button>
 
-                      {isAddSectionOpen && (
-                        <div className="absolute right-0 top-full mt-1.5 w-60 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
-                          <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            Add Section
+                      {/* + Add Section Dropdown */}
+                      <div className="relative shrink-0" ref={addSectionMenuRef}>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs"
+                        >
+                          <span className="text-sm font-bold leading-none">+</span>
+                          <span>Add Section</span>
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            className={`transition-transform duration-150 ${isAddSectionOpen ? "rotate-180" : ""}`}
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+
+                        {isAddSectionOpen && (
+                          <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
+                            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                              <span>Add or Update Section</span>
+                              <span className="text-[9px] text-slate-400 font-normal">AI Powered</span>
+                            </div>
+                            <div className="py-1 max-h-80 overflow-y-auto">
+                              {CV_SECTION_MENU_OPTIONS.map((item) => {
+                                const isPresent = isCvSectionPresent(item.key, item.heading);
+                                return (
+                                  <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={() => {
+                                      handleAddSection(item.heading, "");
+                                      setIsAddSectionOpen(false);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span>{item.icon}</span>
+                                      <span className="font-medium text-[11px]">{item.label}</span>
+                                    </span>
+                                    {isPresent ? (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        + Add More
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-slate-50 text-slate-600 border border-slate-200">
+                                        + Create
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div className="py-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("WORK EXPERIENCE", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>💼 Work Experience</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("ENGLISH LANGUAGE CERTIFICATE", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>🌐 English Certificate (IELTS)</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("EDUCATION AND TRAINING", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>🎓 Education &amp; Training</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("DIGITAL SKILLS", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>⚡ Digital &amp; Technical Skills</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("CERTIFICATIONS", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>📜 Certifications</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("HOBBIES AND INTERESTS", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>🎯 Hobbies &amp; Extracurricular</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("ACADEMIC PROJECTS", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
-                            >
-                              <span>🔬 Academic Projects</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                          </div>
-                          <div className="py-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleAddSection("CUSTOM SECTION", "");
-                                setIsAddSectionOpen(false);
-                              }}
-                              className="w-full px-3 py-1.5 text-left hover:bg-indigo-50/80 text-slate-700 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer font-medium"
-                            >
-                              <span>➕ Blank Custom Section</span>
-                              <span className="text-[10px] text-slate-400">Empty</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -3693,8 +5332,8 @@ export function DocumentStudioDashboard() {
                           <div
                             key={`${sec.heading}-${idx}`}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${isEmpty
-                                ? "bg-amber-50/80 border-amber-200 text-amber-900"
-                                : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                              ? "bg-amber-50/80 border-amber-200 text-amber-900"
+                              : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
                               }`}
                           >
                             <span
@@ -3725,24 +5364,132 @@ export function DocumentStudioDashboard() {
                 </div>
               )}
 
+              {/* ── Rearrange Sections Modal ── */}
+              {isRearrangeModalOpen && editableDocContent && (
+                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+                    {/* Modal Header */}
+                    <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          <span>⇅</span>
+                          <span>Rearrange {editableDocContent.docType === "CV" ? "CV" : "Document"} Sections</span>
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Use the arrows to reorder sections. The layout updates instantly.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsRearrangeModalOpen(false)}
+                        className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Sections List */}
+                    <div className="p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-100">
+                      {editableDocContent.sections.map((sec, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === editableDocContent.sections.length - 1;
+                        const isEmpty = !sec.content || !sec.content.trim();
+
+                        return (
+                          <div
+                            key={`${sec.heading}-${idx}`}
+                            className="pt-2 first:pt-0 flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-slate-50 transition border border-transparent hover:border-slate-200/80 group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-slate-100 group-hover:bg-indigo-50 text-slate-600 group-hover:text-indigo-600 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+                              <span className="font-semibold text-xs text-slate-800 truncate">
+                                {sec.heading}
+                              </span>
+                              {isEmpty && (
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 font-bold shrink-0">
+                                  Empty
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Up / Down Controls */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveSection(idx, idx - 1)}
+                                disabled={isFirst}
+                                className="w-7 h-7 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:hover:border-slate-200 flex items-center justify-center text-xs font-bold transition cursor-pointer disabled:cursor-not-allowed shadow-2xs"
+                                title="Move Up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveSection(idx, idx + 1)}
+                                disabled={isLast}
+                                className="w-7 h-7 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300 disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-slate-400 disabled:hover:border-slate-200 flex items-center justify-center text-xs font-bold transition cursor-pointer disabled:cursor-not-allowed shadow-2xs"
+                                title="Move Down"
+                              >
+                                ↓
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editableDocContent) return;
+                          if (editableDocContent.docType === "CV") {
+                            const sample = getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+                            const defaultOrder = [
+                              "about",
+                              "education",
+                              "work",
+                              "languages",
+                              "english",
+                              "skills",
+                              "certification",
+                              "hobbi",
+                              "declaration",
+                            ];
+                            const sorted = [...editableDocContent.sections].sort((a, b) => {
+                              const idxA = defaultOrder.findIndex((k) => a.heading.toLowerCase().includes(k));
+                              const idxB = defaultOrder.findIndex((k) => b.heading.toLowerCase().includes(k));
+                              return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+                            });
+                            const updated = { ...editableDocContent, sections: sorted };
+                            setEditableDocContent(updated);
+                            setActiveDocument(updated);
+                            setCvDocumentData(syncSectionsToCvData(sorted, sample));
+                            syncDocumentToRecent(updated, "Edited just now");
+                          }
+                        }}
+                        className="text-xs text-slate-500 hover:text-slate-800 underline transition cursor-pointer"
+                      >
+                        Reset to Default
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsRearrangeModalOpen(false)}
+                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ── Document Canvas: Either Cairo Europass Theme or Tiptap Caret Engine ── */}
               {editableDocContent.docType === "CV" && cvViewMode === "europass" ? (
                 <div className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar">
-                  {/* Sub-bar for Europass indicating Theme */}
-                  <div className="w-full max-w-[210mm] flex items-center justify-between px-2 mb-3 text-xs text-slate-500 shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-700">
-                        Europass Standard Curriculum Vitae
-                      </span>
-                      <span className="text-[10px] text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 font-medium">
-                        Official EU Format (Cairo-Verified)
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-                      A4 Standard · 210mm × 297mm
-                    </span>
-                  </div>
-
                   <div
                     style={{
                       transform: `scale(${zoomLevel / 100})`,
@@ -3777,8 +5524,8 @@ export function DocumentStudioDashboard() {
 
                   <div
                     className={`bg-white a4-paper-sheet shadow-[0_12px_40px_rgba(15,23,42,0.08)] rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
-                        ? "border-2 border-indigo-500/80 ring-4 ring-indigo-50/50"
-                        : "border border-slate-300 shadow-[0_10px_35px_rgba(15,23,42,0.06)]"
+                      ? "border-2 border-indigo-500/80 ring-4 ring-indigo-50/50"
+                      : "border border-slate-300 shadow-[0_10px_35px_rgba(15,23,42,0.06)]"
                       }`}
                     style={{
                       transform: `scale(${zoomLevel / 100})`,
@@ -3897,8 +5644,8 @@ export function DocumentStudioDashboard() {
                             s.content.toLowerCase().includes("genuine") ||
                             s.content.toLowerCase().includes("intent")
                         )
-                            ? "text-emerald-700"
-                            : "text-amber-700 font-medium"
+                          ? "text-emerald-700"
+                          : "text-amber-700 font-medium"
                           }`}
                       >
                         <span>

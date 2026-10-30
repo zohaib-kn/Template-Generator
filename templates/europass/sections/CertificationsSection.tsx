@@ -46,7 +46,7 @@ export const CertificationsSection = memo(function CertificationsSection({
               ) : (
                 <span className={styles.certTitleText}>{cert.name}</span>
               )}
-              {(isInteractive || cert.completionDate) && (
+              {Boolean(cert.completionDate && cert.completionDate.trim()) && (
                 <span
                   className={styles.datesBadge}
                   data-html2canvas-ignore={!cert.completionDate?.trim() ? "true" : undefined}
@@ -68,7 +68,11 @@ export const CertificationsSection = memo(function CertificationsSection({
               )}
             </div>
 
-            {(isInteractive || cert.provider) && (
+            {Boolean(
+              cert.provider &&
+              cert.provider.trim() &&
+              cert.provider.toLowerCase() !== "online course provider"
+            ) && (
               <div className={styles.certProviderText}>
                 {isInteractive && onUpdate ? (
                   <EditableText

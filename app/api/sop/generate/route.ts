@@ -129,7 +129,7 @@ export { extractLockedFacts };
 // ---------------------------------------------------------------------------
 
 const MAX_GENERATE_BODY_BYTES = 256 * 1024;
-const MAX_INSTRUCTION_CHARS = 1000;
+const MAX_INSTRUCTION_CHARS = 8000;
 
 export async function POST(req: NextRequest) {
   const auth0 = await requireSession(req);
