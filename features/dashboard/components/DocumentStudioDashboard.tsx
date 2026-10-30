@@ -203,7 +203,7 @@ function getEuropassData(
       const norm = mapCrmToNormalizedStudent(ownSnapshot);
       const proj = mapNormalizedToResume(norm);
       if (proj.student && proj.student.personal?.fullName) return proj.student;
-    } catch {}
+    } catch { }
   }
 
   const empty = createEmptyDocumentData();
@@ -373,7 +373,7 @@ export function DocumentStudioDashboard() {
         }
       }
       localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(INITIAL_RECENT_DOCS));
-    } catch {}
+    } catch { }
   }, []);
 
   // Modal State (2 clean dropdowns: student first, then doc type)
@@ -401,7 +401,7 @@ export function DocumentStudioDashboard() {
       }
       try {
         localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -525,7 +525,7 @@ export function DocumentStudioDashboard() {
     const storageKey = `antigravity_studio_chat_${activeDocument.studentId}_${activeDocument.docType}`;
     try {
       localStorage.setItem(storageKey, JSON.stringify(chatMessages));
-    } catch {}
+    } catch { }
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, activeDocument]);
 
@@ -561,7 +561,7 @@ export function DocumentStudioDashboard() {
             next = [updatedDoc, ...list];
           }
           localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
-        } catch {}
+        } catch { }
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -1757,17 +1757,15 @@ export function DocumentStudioDashboard() {
 
   const cookingStages = [
     "Connecting to Digi-Wire CRM...",
-    `Retrieving verified academic profile for ${
-      studentRoster.find((s) => s.id === modalStudentId)?.name || "Student"
+    `Retrieving verified academic profile for ${studentRoster.find((s) => s.id === modalStudentId)?.name || "Student"
     }...`,
-    `Hydrating ${
-      modalDocType === "COVER_LETTER"
-        ? "Italy Visa Cover Letter"
-        : modalDocType === "SOP"
+    `Hydrating ${modalDocType === "COVER_LETTER"
+      ? "Italy Visa Cover Letter"
+      : modalDocType === "SOP"
         ? "Statement of Purpose"
         : modalDocType === "CV"
-        ? "Europass Academic CV"
-        : "Letter of Recommendation"
+          ? "Europass Academic CV"
+          : "Letter of Recommendation"
     } template with student data...`,
     "Compiling admissions document workspace...",
   ];
@@ -2154,9 +2152,8 @@ export function DocumentStudioDashboard() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2.5"
-                    className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${
-                      isStudentDropdownOpen ? "rotate-180" : ""
-                    }`}
+                    className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${isStudentDropdownOpen ? "rotate-180" : ""
+                      }`}
                   >
                     <path d="M6 9l6 6 6-6" />
                   </svg>
@@ -2210,11 +2207,10 @@ export function DocumentStudioDashboard() {
                             setModalStudentId(s.id);
                             setIsStudentDropdownOpen(false);
                           }}
-                          className={`px-3.5 py-2.5 text-sm cursor-pointer transition flex items-center justify-between ${
-                            s.id === modalStudentId
+                          className={`px-3.5 py-2.5 text-sm cursor-pointer transition flex items-center justify-between ${s.id === modalStudentId
                               ? "bg-indigo-50 text-indigo-700 font-semibold"
                               : "text-slate-800 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
                           <span className="truncate font-medium">{s.name}</span>
                           {s.email && (
@@ -2256,9 +2252,8 @@ export function DocumentStudioDashboard() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2.5"
-                    className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${
-                      isDocTypeDropdownOpen ? "rotate-180" : ""
-                    }`}
+                    className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${isDocTypeDropdownOpen ? "rotate-180" : ""
+                      }`}
                   >
                     <path d="M6 9l6 6 6-6" />
                   </svg>
@@ -2273,11 +2268,10 @@ export function DocumentStudioDashboard() {
                           setModalDocType(type);
                           setIsDocTypeDropdownOpen(false);
                         }}
-                        className={`px-3.5 py-2.5 text-sm cursor-pointer transition ${
-                          modalDocType === type
+                        className={`px-3.5 py-2.5 text-sm cursor-pointer transition ${modalDocType === type
                             ? "bg-indigo-50 text-indigo-700 font-semibold"
                             : "text-slate-800 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         {docTypeLabels[type]}
                       </div>
@@ -2361,10 +2355,10 @@ export function DocumentStudioDashboard() {
               {modalDocType === "COVER_LETTER"
                 ? "Italy Type D Visa Cover Letter"
                 : modalDocType === "SOP"
-                ? "Statement of Purpose"
-                : modalDocType === "CV"
-                ? "Europass Academic CV"
-                : "Letter of Recommendation"}
+                  ? "Statement of Purpose"
+                  : modalDocType === "CV"
+                    ? "Europass Academic CV"
+                    : "Letter of Recommendation"}
             </p>
 
             <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 min-h-[44px] flex items-center justify-center">
@@ -2380,7 +2374,7 @@ export function DocumentStudioDashboard() {
       {activeDocument && editableDocContent && (
         <div className="fixed inset-0 z-50 bg-[#F8FAFC] flex flex-col overflow-hidden animate-in fade-in duration-200 text-slate-800 font-sans">
           {/* ── Top Unified Studio Midnight Slate Header Bar ───────────────────── */}
-          <header className="bg-[#0F172A] border-b border-slate-800 text-white px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between shrink-0 shadow-sm select-none z-30 gap-1.5 sm:gap-2.5 overflow-visible relative no-print">
+          <header className="bg-[#0F172A] border-b border-slate-800 text-white px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between shrink-0 shadow-sm select-none z-50 gap-1.5 sm:gap-2.5 overflow-visible relative no-print">
             {/* Left Header Controls */}
             <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
               {/* Home Navigation Button */}
@@ -2438,7 +2432,7 @@ export function DocumentStudioDashboard() {
                 </button>
 
                 {showDocTypeMenu && (
-                  <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 w-64 z-50 text-xs divide-y divide-slate-100 text-slate-800 animate-in fade-in duration-100">
+                  <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 w-64 z-[100] text-xs divide-y divide-slate-100 text-slate-800 animate-in fade-in duration-100">
                     {(["COVER_LETTER", "SOP", "CV", "LOR"] as const).map((type) => (
                       <div
                         key={type}
@@ -2446,21 +2440,20 @@ export function DocumentStudioDashboard() {
                           setShowDocTypeMenu(false);
                           handleSwitchDocType(type);
                         }}
-                        className={`px-3.5 py-2.5 cursor-pointer font-medium hover:bg-indigo-50 transition flex items-center justify-between ${
-                          editableDocContent.docType === type
+                        className={`px-3.5 py-2.5 cursor-pointer font-medium hover:bg-indigo-50 transition flex items-center justify-between ${editableDocContent.docType === type
                             ? "text-indigo-700 font-bold bg-indigo-50/70"
                             : "text-slate-700"
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="font-semibold">
                             {type === "COVER_LETTER"
                               ? "Italy Type D Visa Cover Letter"
                               : type === "SOP"
-                              ? "Statement of Purpose (SOP)"
-                              : type === "CV"
-                              ? "Europass Academic CV"
-                              : "Letter of Recommendation (LOR)"}
+                                ? "Statement of Purpose (SOP)"
+                                : type === "CV"
+                                  ? "Europass Academic CV"
+                                  : "Letter of Recommendation (LOR)"}
                           </div>
                           <div className="text-[10px] text-slate-400">Rehydrate from student snapshot</div>
                         </div>
@@ -2475,11 +2468,10 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => setEditorMode(editorMode === "editing" ? "preview" : "editing")}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer transition border shrink-0 ${
-                  editorMode === "preview"
+                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer transition border shrink-0 ${editorMode === "preview"
                     ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
                     : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
-                }`}
+                  }`}
                 title={editorMode === "editing" ? "Switch to Clean Print Preview" : "Switch to Inline Editing"}
               >
                 {editorMode === "editing" ? (
@@ -2573,11 +2565,10 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => setShowInsightsDrawer(!showInsightsDrawer)}
-                className={`px-2 sm:px-2.5 py-1.5 rounded-lg cursor-pointer transition flex items-center gap-1.5 text-xs font-semibold border shrink-0 ${
-                  showInsightsDrawer
+                className={`px-2 sm:px-2.5 py-1.5 rounded-lg cursor-pointer transition flex items-center gap-1.5 text-xs font-semibold border shrink-0 ${showInsightsDrawer
                     ? "bg-indigo-600 text-white border-indigo-500 shadow-xs"
                     : "bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-800 border-slate-700"
-                }`}
+                  }`}
                 title="Open Document Analytics & Compliance Insights"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2613,7 +2604,7 @@ export function DocumentStudioDashboard() {
                 </button>
 
                 {showExportMenu && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1.5 w-64 z-50 text-xs divide-y divide-slate-100 text-slate-800 animate-in fade-in duration-100">
+                  <div className="absolute right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1.5 w-64 z-[100] text-xs divide-y divide-slate-100 text-slate-800 animate-in fade-in duration-100">
                     <button
                       type="button"
                       onClick={handleExportPdf}
@@ -2679,11 +2670,10 @@ export function DocumentStudioDashboard() {
 
             {/* ── Left Sidebar: AI Assistant Chat & Dynamic Suggestions ──────────────────── */}
             <aside
-              className={`bg-white border-r border-slate-200 flex-col justify-between p-4 sm:p-5 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${
-                isSidebarCollapsed
+              className={`bg-white border-r border-slate-200 flex-col justify-between p-4 sm:p-5 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
                   ? "hidden"
                   : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[350px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[340px] md:min-w-[340px] md:max-w-[340px] md:shadow-none shrink-0"
-              }`}
+                }`}
             >
               {chatMessages.length === 0 ? (
                 /* ── State A: Starter Suggestions (Visible before conversation starts) ── */
@@ -3029,11 +3019,10 @@ export function DocumentStudioDashboard() {
                   <button
                     type="button"
                     onClick={() => setShowInfoPopover(!showInfoPopover)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${
-                      showInfoPopover
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                    }`}
+                      }`}
                     title="Student Profile & CRM Verification Info"
                   >
                     <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[10px] font-bold">
@@ -3089,11 +3078,10 @@ export function DocumentStudioDashboard() {
                       <button
                         type="button"
                         onClick={() => setCvViewMode("europass")}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${
-                          cvViewMode === "europass"
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${cvViewMode === "europass"
                             ? "bg-indigo-600 text-white shadow-xs"
                             : "text-slate-600 hover:text-slate-900"
-                        }`}
+                          }`}
                         title="Switch to Authentic Europass Theme"
                       >
                         <span>🇪🇺 Europass Theme</span>
@@ -3101,11 +3089,10 @@ export function DocumentStudioDashboard() {
                       <button
                         type="button"
                         onClick={() => setCvViewMode("caret")}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${
-                          cvViewMode === "caret"
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${cvViewMode === "caret"
                             ? "bg-indigo-600 text-white shadow-xs"
                             : "text-slate-600 hover:text-slate-900"
-                        }`}
+                          }`}
                         title="Switch to Tiptap Caret Editor"
                       >
                         <span>📝 Caret Editor</span>
@@ -3170,9 +3157,8 @@ export function DocumentStudioDashboard() {
                               else tiptapEditor.chain().focus().setParagraph().run();
                             }
                           }}
-                          className={`px-3 py-1.5 cursor-pointer font-medium hover:bg-slate-100 ${
-                            activeHeading === h ? "text-indigo-700 font-bold bg-indigo-50" : "text-slate-700"
-                          }`}
+                          className={`px-3 py-1.5 cursor-pointer font-medium hover:bg-slate-100 ${activeHeading === h ? "text-indigo-700 font-bold bg-indigo-50" : "text-slate-700"
+                            }`}
                         >
                           {h === "Body" ? "Normal (Body)" : `Heading ${h.replace("H", "")}`}
                         </div>
@@ -3209,9 +3195,8 @@ export function DocumentStudioDashboard() {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2.5"
-                      className={`transition-transform duration-150 text-slate-400 ${
-                        showFontMenu ? "rotate-180" : ""
-                      }`}
+                      className={`transition-transform duration-150 text-slate-400 ${showFontMenu ? "rotate-180" : ""
+                        }`}
                     >
                       <path d="M6 9l6 6 6-6" />
                     </svg>
@@ -3240,11 +3225,10 @@ export function DocumentStudioDashboard() {
                                   tiptapEditor.chain().focus().setFontFamily(item.val).run();
                                 }
                               }}
-                              className={`w-full px-3 py-2 text-left flex items-center justify-between group transition-colors cursor-pointer ${
-                                isSelected
+                              className={`w-full px-3 py-2 text-left flex items-center justify-between group transition-colors cursor-pointer ${isSelected
                                   ? "bg-indigo-50/80 text-indigo-900"
                                   : "hover:bg-slate-50 text-slate-800"
-                              }`}
+                                }`}
                             >
                               <div className="flex flex-col min-w-0 pr-2">
                                 <span
@@ -3347,9 +3331,8 @@ export function DocumentStudioDashboard() {
                               tiptapEditor.chain().focus().setColor(c.color).run();
                             }
                           }}
-                          className={`w-5 h-5 rounded-full cursor-pointer border transition-transform hover:scale-110 ${
-                            textColor === c.color ? "ring-2 ring-indigo-500 scale-110" : "border-slate-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full cursor-pointer border transition-transform hover:scale-110 ${textColor === c.color ? "ring-2 ring-indigo-500 scale-110" : "border-slate-300"
+                            }`}
                           style={{ backgroundColor: c.color }}
                           title={c.label}
                         />
@@ -3370,9 +3353,8 @@ export function DocumentStudioDashboard() {
                       setIsBold(!isBold);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${
-                    isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                    }`}
                   title="Bold (Ctrl+B)"
                 >
                   B
@@ -3386,9 +3368,8 @@ export function DocumentStudioDashboard() {
                       setIsItalic(!isItalic);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${
-                    isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                    }`}
                   title="Italic (Ctrl+I)"
                 >
                   I
@@ -3402,9 +3383,8 @@ export function DocumentStudioDashboard() {
                       setIsUnderline(!isUnderline);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${
-                    isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                    }`}
                   title="Underline (Selected text only)"
                 >
                   U
@@ -3418,9 +3398,8 @@ export function DocumentStudioDashboard() {
                       setIsStrikethrough(!isStrikethrough);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${
-                    isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                  }`}
+                  className={`w-6 h-6 rounded flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                    }`}
                   title="Strikethrough"
                 >
                   S
@@ -3436,9 +3415,8 @@ export function DocumentStudioDashboard() {
                       setTextAlign("left");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("left").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${
-                      textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                    }`}
+                    className={`p-1 rounded cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                      }`}
                     title="Align Left (Headings & Paragraphs)"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -3453,9 +3431,8 @@ export function DocumentStudioDashboard() {
                       setTextAlign("center");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("center").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${
-                      textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                    }`}
+                    className={`p-1 rounded cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                      }`}
                     title="Align Center (Headings & Paragraphs)"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -3470,9 +3447,8 @@ export function DocumentStudioDashboard() {
                       setTextAlign("right");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("right").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${
-                      textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                    }`}
+                    className={`p-1 rounded cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                      }`}
                     title="Align Right (Headings & Paragraphs)"
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -3716,11 +3692,10 @@ export function DocumentStudioDashboard() {
                         return (
                           <div
                             key={`${sec.heading}-${idx}`}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
-                              isEmpty
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${isEmpty
                                 ? "bg-amber-50/80 border-amber-200 text-amber-900"
                                 : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
-                            }`}
+                              }`}
                           >
                             <span
                               onClick={() => handleScrollToSection(sec.heading)}
@@ -3801,11 +3776,10 @@ export function DocumentStudioDashboard() {
                   </div>
 
                   <div
-                    className={`bg-white a4-paper-sheet shadow-[0_12px_40px_rgba(15,23,42,0.08)] rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${
-                      editorMode === "editing"
+                    className={`bg-white a4-paper-sheet shadow-[0_12px_40px_rgba(15,23,42,0.08)] rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
                         ? "border-2 border-indigo-500/80 ring-4 ring-indigo-50/50"
                         : "border border-slate-300 shadow-[0_10px_35px_rgba(15,23,42,0.06)]"
-                    }`}
+                      }`}
                     style={{
                       transform: `scale(${zoomLevel / 100})`,
                       transformOrigin: "top center",
@@ -3841,127 +3815,126 @@ export function DocumentStudioDashboard() {
               <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[340px] sm:w-80 bg-white border-l border-slate-200 shadow-2xl p-6 flex flex-col justify-between animate-in slide-in-from-right duration-200 select-none">
                 <div className="space-y-6">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>📊</span>
-                    <span>Document Insights</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowInsightsDrawer(false)}
-                    className="text-slate-400 hover:text-slate-700 text-xs p-1 cursor-pointer"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Metrics Summary Cards */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3">
-                    <div className="text-[10px] text-indigo-700 font-semibold uppercase tracking-wider">
-                      Word Count
-                    </div>
-                    <div className="text-xl font-bold text-indigo-900 mt-1">
-                      {editableDocContent.wordCount}
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
-                    <div className="text-[10px] text-blue-700 font-semibold uppercase tracking-wider">
-                      Est. Read Time
-                    </div>
-                    <div className="text-xl font-bold text-blue-900 mt-1">
-                      {Math.max(1, Math.ceil(editableDocContent.wordCount / 200))} min
-                    </div>
-                  </div>
-                </div>
-
-                {/* A4 Capacity Estimator */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-700">Estimated A4 Pages:</span>
-                    <span className="font-bold text-indigo-600">
-                      {Math.max(1, Math.ceil(editableDocContent.wordCount / 450))} Page(s)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-indigo-600 h-full rounded-full transition-all"
-                      style={{
-                        width: `${Math.min(100, (editableDocContent.wordCount / 500) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    Target budget: 500–650 words per single page
-                  </div>
-                </div>
-
-                {/* Admissions & Visa Compliance Checklist */}
-                <div className="space-y-2.5">
-                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Admissions Compliance
-                  </span>
-
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex items-center gap-2 text-emerald-700">
-                      <span>✓</span>
-                      <span>Verified Student: {editableDocContent.studentName}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-700">
-                      <span>✓</span>
-                      <span>Institution: {editableDocContent.targetUniversity}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-700">
-                      <span>✓</span>
-                      <span>Course: {editableDocContent.targetCourse}</span>
-                    </div>
-
-                    {/* Dynamic check for genuine student statement */}
-                    <div
-                      className={`flex items-center gap-2 ${
-                        editableDocContent.sections.some(
-                          (s) =>
-                            s.content.toLowerCase().includes("genuine") ||
-                            s.content.toLowerCase().includes("intent")
-                        )
-                          ? "text-emerald-700"
-                          : "text-amber-700 font-medium"
-                      }`}
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>📊</span>
+                      <span>Document Insights</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowInsightsDrawer(false)}
+                      className="text-slate-400 hover:text-slate-700 text-xs p-1 cursor-pointer"
                     >
-                      <span>
-                        {editableDocContent.sections.some(
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Metrics Summary Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-3">
+                      <div className="text-[10px] text-indigo-700 font-semibold uppercase tracking-wider">
+                        Word Count
+                      </div>
+                      <div className="text-xl font-bold text-indigo-900 mt-1">
+                        {editableDocContent.wordCount}
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3">
+                      <div className="text-[10px] text-blue-700 font-semibold uppercase tracking-wider">
+                        Est. Read Time
+                      </div>
+                      <div className="text-xl font-bold text-blue-900 mt-1">
+                        {Math.max(1, Math.ceil(editableDocContent.wordCount / 200))} min
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* A4 Capacity Estimator */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">Estimated A4 Pages:</span>
+                      <span className="font-bold text-indigo-600">
+                        {Math.max(1, Math.ceil(editableDocContent.wordCount / 450))} Page(s)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-indigo-600 h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, (editableDocContent.wordCount / 500) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      Target budget: 500–650 words per single page
+                    </div>
+                  </div>
+
+                  {/* Admissions & Visa Compliance Checklist */}
+                  <div className="space-y-2.5">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                      Admissions Compliance
+                    </span>
+
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <span>✓</span>
+                        <span>Verified Student: {editableDocContent.studentName}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <span>✓</span>
+                        <span>Institution: {editableDocContent.targetUniversity}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <span>✓</span>
+                        <span>Course: {editableDocContent.targetCourse}</span>
+                      </div>
+
+                      {/* Dynamic check for genuine student statement */}
+                      <div
+                        className={`flex items-center gap-2 ${editableDocContent.sections.some(
                           (s) =>
                             s.content.toLowerCase().includes("genuine") ||
                             s.content.toLowerCase().includes("intent")
                         )
-                          ? "✓"
-                          : "⚠️"}
-                      </span>
-                      <span>
-                        {editableDocContent.sections.some(
-                          (s) =>
-                            s.content.toLowerCase().includes("genuine") ||
-                            s.content.toLowerCase().includes("intent")
-                        )
-                          ? "Genuine Student Declaration Included"
-                          : "Visa Declaration Missing"}
-                      </span>
+                            ? "text-emerald-700"
+                            : "text-amber-700 font-medium"
+                          }`}
+                      >
+                        <span>
+                          {editableDocContent.sections.some(
+                            (s) =>
+                              s.content.toLowerCase().includes("genuine") ||
+                              s.content.toLowerCase().includes("intent")
+                          )
+                            ? "✓"
+                            : "⚠️"}
+                        </span>
+                        <span>
+                          {editableDocContent.sections.some(
+                            (s) =>
+                              s.content.toLowerCase().includes("genuine") ||
+                              s.content.toLowerCase().includes("intent")
+                          )
+                            ? "Genuine Student Declaration Included"
+                            : "Visa Declaration Missing"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => setShowInsightsDrawer(false)}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer"
-              >
-                Close Insights
-              </button>
-            </div>
-          </>
-        )}
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowInsightsDrawer(false)}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer"
+                >
+                  Close Insights
+                </button>
+              </div>
+            </>
+          )}
 
           {/* ── Toast Notification for AI Smart Refinements ─────────────────── */}
           {aiToast && (
@@ -4007,9 +3980,8 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => setShowNotes(!showNotes)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${
-                  showNotes ? "text-indigo-600 font-semibold" : ""
-                }`}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${showNotes ? "text-indigo-600 font-semibold" : ""
+                  }`}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -4039,9 +4011,8 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => setIsTimerRunning(!isTimerRunning)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${
-                  isTimerRunning ? "text-emerald-600 font-semibold" : ""
-                }`}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${isTimerRunning ? "text-emerald-600 font-semibold" : ""
+                  }`}
                 title={isTimerRunning ? "Click to pause timer" : "Click to start timer"}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -4094,9 +4065,9 @@ export function DocumentStudioDashboard() {
                 type="button"
                 onClick={() => {
                   if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => {});
+                    document.documentElement.requestFullscreen().catch(() => { });
                   } else {
-                    document.exitFullscreen().catch(() => {});
+                    document.exitFullscreen().catch(() => { });
                   }
                 }}
                 className="hidden sm:inline-block p-1 rounded hover:bg-slate-100 cursor-pointer text-slate-500 hover:text-slate-800"
