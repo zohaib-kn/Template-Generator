@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { SopDraftModel } from "@/models/SopDraft";
+import { requireSession } from "@/lib/auth/session";
 import type {
   ReviewStatus,
   StudentDocumentContext,
@@ -40,6 +41,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const targetStudentId = body?.studentId || body?.ctx?.student?.id || null;
+    const auth = await requireSession(req, { studentId: targetStudentId });
+    if (auth.response) return auth.response;
 
     const incomingId = body.id as string | undefined;
     const studentName = (body.studentName as string | undefined)?.trim() || "Student";

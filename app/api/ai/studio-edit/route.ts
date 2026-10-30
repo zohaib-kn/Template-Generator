@@ -18,7 +18,7 @@ import {
 } from "@/services/ai/studio/studioEdit";
 
 const MAX_BODY_BYTES = 512 * 1024;
-const MAX_INSTRUCTION_CHARS = 2000;
+const MAX_INSTRUCTION_CHARS = 12000;
 const MAX_SECTIONS = 60;
 
 function fail(status: number, code: string, message: string) {
@@ -38,7 +38,12 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
-  const auth = await requireSession(req, { studentId: body?.studentId ?? null });
+  if (!body?.studentId || typeof body.studentId !== "string" || !body.studentId.trim()) {
+    return fail(400, "INVALID_REQUEST", "studentId is required for studio-edit.");
+  }
+
+  const cleanStudentId = body.studentId.trim();
+  const auth = await requireSession(req, { studentId: cleanStudentId });
   if (auth.response) return auth.response;
 
   if (typeof body.instruction !== "string" || !body.instruction.trim() || body.instruction.length > MAX_INSTRUCTION_CHARS) {

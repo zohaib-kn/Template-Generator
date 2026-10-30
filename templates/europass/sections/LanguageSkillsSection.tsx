@@ -38,7 +38,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
       !e.level?.toLowerCase().includes("native")
   );
 
-  if (!isInteractive && !effectiveMotherTongue && otherLanguages.length === 0) return null;
+  if (!effectiveMotherTongue && otherLanguages.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
 
@@ -67,7 +67,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
       )}
 
       {/* Other languages */}
-      {(isInteractive || otherLanguages.length > 0) && (
+      {otherLanguages.length > 0 && (
         <div className={styles.otherLanguagesRow}>
           <div className={styles.identityLabel} style={{ marginBottom: "1.5mm" }}>
             Other language(s):

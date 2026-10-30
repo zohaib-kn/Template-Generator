@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
+import { requireSession } from "@/lib/auth/session";
 import { ResumeDraftModel } from "@/models/ResumeDraft";
 import type { ResumeDraftRecord } from "@/features/document-generator/types/draft";
 
@@ -24,6 +25,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ResumeDraftRecord;
+    const auth = await requireSession(req, { studentId: body?.studentId ?? null });
+    if (auth.response) return auth.response;
     await connectToDatabase();
 
     const id =

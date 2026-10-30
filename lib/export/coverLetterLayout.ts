@@ -1,3 +1,39 @@
+export function unbundleCoverLetterSections(singleSectionContent: string, defaultHeading = "Recipient / Consulate"): ExportSection[] {
+  if (!singleSectionContent || !singleSectionContent.includes("###")) {
+    return [{ title: defaultHeading, content: singleSectionContent }];
+  }
+
+  const result: ExportSection[] = [];
+  const lines = singleSectionContent.split(/\r?\n/);
+  let currentTitle = defaultHeading;
+  let currentLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*#{1,6}\s+(.+)$/);
+    if (match) {
+      if (currentLines.length > 0 || currentTitle !== defaultHeading) {
+        result.push({
+          title: currentTitle,
+          content: currentLines.join("\n").trim(),
+        });
+        currentLines = [];
+      }
+      currentTitle = match[1].trim();
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  if (currentLines.length > 0 || result.length === 0) {
+    result.push({
+      title: currentTitle,
+      content: currentLines.join("\n").trim(),
+    });
+  }
+
+  return result.filter((sec) => sec.content.length > 0);
+}
+
 /**
  * lib/export/coverLetterLayout.ts
  *
@@ -53,13 +89,27 @@ export interface CoverLetterLayout {
   signature: string;
 }
 
+export function isMetadataOrScaffoldingSection(title: string, content: string): boolean {
+  const t = (title || "").toLowerCase();
+  const c = (content || "").toLowerCase();
+  if (/architecture|core pillar|prompt|guidance|instruction|pillar/i.test(t)) return true;
+  if (/^-\s*core pillar/im.test(c)) return true;
+  return false;
+}
+
 export function buildCoverLetterLayout(sections: ExportSection[]): CoverLetterLayout {
+  let effectiveSections = sections;
+  if (sections.length === 1 && sections[0]?.content && (sections[0].content.includes("###") || sections[0].content.includes("Subject:"))) {
+    effectiveSections = unbundleCoverLetterSections(sections[0].content, sections[0].title || "Recipient / Consulate");
+  }
+
   const bySlot = new Map<Slot, string[]>();
   const unclassified: string[] = [];
 
-  for (const s of sections) {
+  for (const s of effectiveSections) {
     const content = (s.content || "").trim();
     if (!content) continue;
+    if (isMetadataOrScaffoldingSection(s.title || "", content)) continue;
     const slot = classifyCoverLetterSection(s.title || "");
     if (!slot) {
       unclassified.push(content);

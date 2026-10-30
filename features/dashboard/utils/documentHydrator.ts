@@ -1,3 +1,6 @@
+import { isSampleStudentId, getSampleSnapshotById } from "@/lib/sampleStudents";
+import { createEmptyDocumentData } from "@/features/document-generator/utils/documentDefaults";
+import type { DocumentData } from "@/types";
 /**
  * features/dashboard/utils/documentHydrator.ts
  *
@@ -13,6 +16,7 @@ import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { universitySopTemplate } from "@/features/sop-generator/templates/university-sop";
 import { italyTypeDCoverLetter } from "@/features/sop-generator/templates/italy-type-d-cover-letter";
 import { interpolate } from "@/features/sop-generator/lib/interpolateTemplate";
+import { renderCleanCoverLetterSections } from "./coverLetterCleaner";
 import {
   mapCrmToNormalizedStudent,
   mapNormalizedToSop,
@@ -22,6 +26,7 @@ import {
 export const RECENT_DOCS_STORAGE_KEY = "antigravity_recent_documents_v3";
 
 export interface HydratedDocumentData {
+  id?: string;
   title: string;
   docType: "SOP" | "CV" | "LOR" | "COVER_LETTER" | "BLANK";
   docTypeName: string;
@@ -38,6 +43,51 @@ export interface HydratedDocumentData {
     content: string;
   }[];
   rawHtml?: string;
+  fieldValues?: Record<string, string>;
+}
+
+export function generateDocumentId(studentId: string, docType: string): string {
+  const cleanStudent = studentId.replace(/[^a-zA-Z0-9_-]/g, "");
+  const cleanType = docType.toLowerCase().replace(/[^a-zA-Z0-9_-]/g, "");
+  const randomSuffix = Math.random().toString(36).substring(2, 9);
+  return `doc_${cleanStudent}_${cleanType}_${Date.now()}_${randomSuffix}`;
+}
+
+export function ensureDocumentIdentity(doc: HydratedDocumentData): HydratedDocumentData {
+  if (doc.id && typeof doc.id === "string" && doc.id.trim()) {
+    return doc;
+  }
+  const legacyId = `legacy_${doc.studentId}_${doc.docType.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  return {
+    ...doc,
+    id: legacyId,
+  };
+}
+
+/**
+ * Pure synchronization function for recent documents list with strict identity matching.
+ * Never matches by document title or studentId + docType alone.
+ * Multi-document support: multiple CVs or SOPs for the same student are fully preserved.
+ */
+export function syncDocumentToRecentList(
+  prev: HydratedDocumentData[],
+  doc: HydratedDocumentData,
+  status: string = "Edited just now"
+): HydratedDocumentData[] {
+  const safeDoc = ensureDocumentIdentity({
+    ...doc,
+    updatedAt: status,
+  });
+
+  // Strict immutable identity: matches ONLY if id and studentId match exactly
+  const existingIdx = prev.findIndex(
+    (d) => d.id && d.id === safeDoc.id && d.studentId === safeDoc.studentId
+  );
+
+  if (existingIdx >= 0) {
+    return [safeDoc, ...prev.filter((_, idx) => idx !== existingIdx)];
+  }
+  return [safeDoc, ...prev];
 }
 
 export function hydrateDocumentFromSnapshot(
@@ -193,17 +243,21 @@ export function hydrateDocumentFromSnapshot(
     const docTypeName = isVisa ? "Italy Type D Visa Cover Letter" : "Statement of Purpose (SOP)";
     const route = `/sop-generator?student=${studentId}&template=${template.id}`;
 
-    const sections = template.sections.map((sec) => ({
-      heading: sec.title,
-      content: interpolate(sec.content, sopContext),
-    }));
+    const sections = isVisa
+      ? renderCleanCoverLetterSections(sopContext)
+      : template.sections.map((sec) => ({
+          heading: sec.title,
+          content: interpolate(sec.content, sopContext),
+        }));
 
     const totalWords = sections.reduce(
       (acc, s) => acc + s.content.split(/\s+/).filter(Boolean).length,
       0
     );
 
+    const docId = generateDocumentId(studentId, isVisa ? "COVER_LETTER" : "SOP");
     return {
+      id: docId,
       title,
       docType: isVisa ? "COVER_LETTER" : "SOP",
       docTypeName,
@@ -380,7 +434,9 @@ export function hydrateDocumentFromSnapshot(
       0
     );
 
+    const docId = generateDocumentId(studentId, "CV");
     return {
+      id: docId,
       title,
       docType: "CV",
       docTypeName: "Europass Academic CV",
@@ -430,7 +486,9 @@ export function hydrateDocumentFromSnapshot(
     0
   );
 
+  const docId = generateDocumentId(studentId, "LOR");
   return {
+    id: docId,
     title,
     docType: "LOR",
     docTypeName: "Academic Letter of Recommendation",
@@ -443,5 +501,45 @@ export function hydrateDocumentFromSnapshot(
     wordCount: totalWords,
     route: `/lor-generator?student=${studentId}`,
     sections,
+  };
+}
+
+export function getEuropassData(
+  studentId: string,
+  studentName?: string,
+  globalStudentData?: any
+): DocumentData {
+  // Strict identity verification: candidate CRM data MUST belong to the requested student
+  const isMatching =
+    Boolean(globalStudentData) &&
+    (globalStudentData?.student?._id === studentId ||
+      globalStudentData?.student?.id === studentId ||
+      globalStudentData?._id === studentId ||
+      globalStudentData?.id === studentId);
+
+  // Only allowed sample IDs may fall back to sample snapshots. Real students NEVER fall back to sample data.
+  const isSample = isSampleStudentId(studentId);
+  const ownSnapshot = isMatching
+    ? globalStudentData
+    : isSample
+    ? getSampleSnapshotById(studentId)
+    : null;
+
+  if (ownSnapshot) {
+    try {
+      const norm = mapCrmToNormalizedStudent(ownSnapshot);
+      const proj = mapNormalizedToResume(norm);
+      if (proj.student && proj.student.personal?.fullName) return proj.student;
+    } catch {}
+  }
+
+  // Safe empty document fallback with candidate name - zero foreign student or mock data
+  const empty = createEmptyDocumentData();
+  return {
+    ...empty,
+    personal: {
+      ...empty.personal,
+      fullName: studentName || "",
+    },
   };
 }
