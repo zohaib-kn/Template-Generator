@@ -533,8 +533,17 @@ export function mapCrmToNormalizedStudent(
   // 1. Personal Names
   const firstName = pd.firstName?.trim() || "";
   const middleName = pd.middleName?.trim() || undefined;
-  const lastName = pd.lastName?.trim() || "";
-  const fullName = joinParts([firstName, middleName, lastName]) || "Student";
+  const rawLastName = pd.lastName?.trim() || "";
+  const lastName =
+    rawLastName === "-" ||
+    rawLastName === "--" ||
+    rawLastName.toUpperCase() === "NA" ||
+    rawLastName.toUpperCase() === "N/A"
+      ? undefined
+      : rawLastName.replace(/[\s\-_]+$/, "").trim();
+  const cleanFirstName = firstName.replace(/[\s\-_]+$/, "").trim();
+  const rawFullName = joinParts([cleanFirstName, middleName, lastName]) || "Student";
+  const fullName = rawFullName.replace(/[\s\-_]+$/, "").trim() || "Student";
 
   // 2. Personal Nationality & Countries
   const natInfo = resolveCountryAndNationality(nat.nationality);
@@ -679,7 +688,7 @@ export function mapCrmToNormalizedStudent(
       fullName,
       firstName,
       middleName,
-      lastName,
+      lastName: lastName || "",
       dateOfBirth: toDateOnly(pd.dob) || undefined,
       gender: pd.gender?.trim() || undefined,
       email: pd.email?.trim() || pd.personalEmail?.trim() || undefined,

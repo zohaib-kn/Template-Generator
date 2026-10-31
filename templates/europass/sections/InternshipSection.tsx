@@ -11,6 +11,7 @@ interface InternshipSectionProps {
   title?: string;
   isInteractive?: boolean;
   onUpdate?: (id: string, patch: Partial<InternshipEntry>) => void;
+  onRemove?: (id: string) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -29,6 +30,7 @@ export const InternshipSection = memo(function InternshipSection({
   title,
   isInteractive = false,
   onUpdate,
+  onRemove,
 }: InternshipSectionProps) {
   if (!entries || entries.length === 0) return null;
 
@@ -55,14 +57,29 @@ export const InternshipSection = memo(function InternshipSection({
           <div key={item.id} className={styles.educationEntry}>
             {!item.hideHeader && (
               isInteractive && onUpdate ? (
-                <EditableText
-                  value={item.role ?? ""}
-                  onChange={(v) => onUpdate(item.id, { role: v })}
-                  isInteractive={isInteractive}
-                  className={styles.qualificationTitle}
-                  placeholder="Role / Job Title"
-                  as="h3"
-                />
+                <div className="flex items-center justify-between group">
+                  <EditableText
+                    value={item.role ?? ""}
+                    onChange={(v) => onUpdate(item.id, { role: v })}
+                    isInteractive={isInteractive}
+                    className={styles.qualificationTitle}
+                    placeholder="Role / Job Title"
+                    as="h3"
+                  />
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemove(item.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 p-0.5 rounded text-xs transition cursor-pointer leading-none shrink-0 ml-2"
+                      title="Remove this work experience entry"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               ) : (
                 item.role && <h3 className={styles.qualificationTitle}>{item.role}</h3>
               )

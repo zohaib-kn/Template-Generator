@@ -13,6 +13,7 @@ interface CoverLetterValidationPanelProps {
   onToggle: () => void;
   onClose: () => void;
   onSelectField: (field: ValidationFieldDefinition) => void;
+  className?: string;
 }
 
 export function CoverLetterValidationPanel({
@@ -22,6 +23,7 @@ export function CoverLetterValidationPanel({
   onToggle,
   onClose,
   onSelectField,
+  className,
 }: CoverLetterValidationPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -43,43 +45,43 @@ export function CoverLetterValidationPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed sm:absolute right-3 sm:right-6 top-3 sm:top-4 z-30 select-none no-print"
+      className={className || "relative shrink-0 select-none no-print"}
     >
       {/* ── Compact Trigger Pill Button ──────────────────────────────────── */}
       <button
         type="button"
         onClick={onToggle}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm border transition cursor-pointer backdrop-blur-sm ${
+        className={`h-7.5 flex items-center gap-1.5 px-3 rounded-full text-xs font-semibold shadow-2xs border transition-all duration-150 cursor-pointer backdrop-blur-md shrink-0 active:scale-95 ${
           totalMissingCount > 0
-            ? "bg-amber-50/95 text-amber-900 border-amber-200/90 hover:bg-amber-100 hover:border-amber-300"
-            : "bg-emerald-50/95 text-emerald-900 border-emerald-200/90 hover:bg-emerald-100 hover:border-emerald-300"
+            ? "bg-amber-50 text-amber-900 border-amber-200/90 hover:bg-amber-100 hover:border-amber-300 shadow-amber-900/5"
+            : "bg-emerald-50 text-emerald-900 border-emerald-200/90 hover:bg-emerald-100 hover:border-emerald-300 shadow-emerald-900/5"
         }`}
         title="Toggle Missing Details Panel"
       >
         <span
-          className={`w-2 h-2 rounded-full ${
+          className={`w-2 h-2 rounded-full shrink-0 ${
             totalMissingCount > 0 ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
           }`}
         />
-        <span>
+        <span className="whitespace-nowrap font-medium text-[11.5px]">
           {totalMissingCount > 0 ? `${totalMissingCount} Missing Details` : "All Details Verified"}
         </span>
         <svg
-          width="11"
-          height="11"
+          width="10"
+          height="10"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
           strokeWidth="2.5"
-          className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          className={`transition-transform duration-200 text-slate-400 shrink-0 ${isOpen ? "rotate-180" : ""}`}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </button>
 
-      {/* ── Dropdown Panel (Top-Right Workspace) ─────────────────────────── */}
+      {/* ── Dropdown Panel (Anchored cleanly below the toolbar button) ───── */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-88 max-h-[75vh] bg-white border border-slate-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-50">
+        <div className="absolute right-0 top-full mt-2.5 w-80 sm:w-88 max-h-[75vh] bg-white border border-slate-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-50">
           {/* Header */}
           <div className="px-4 py-3 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">

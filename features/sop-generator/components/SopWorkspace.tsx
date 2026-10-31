@@ -67,7 +67,18 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   const [activeDocumentType, setActiveDocumentType] = useState<SopDocumentType>(() => {
     if (initialDraft?.documentType) return initialDraft.documentType;
     if (initialDraft?.templateId === "university-sop-standard") return "UNIVERSITY_SOP";
-    return "VISA_COVER_LETTER";
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const t = p.get("type")?.toUpperCase();
+      const tmpl = p.get("template");
+      if (t === "COVER_LETTER" || t === "VISA_COVER_LETTER" || tmpl?.includes("visa") || tmpl?.includes("cover-letter")) {
+        return "VISA_COVER_LETTER";
+      }
+      if (t === "SOP" || t === "UNIVERSITY_SOP" || tmpl === "university-sop-standard" || tmpl === "university-sop") {
+        return "UNIVERSITY_SOP";
+      }
+    }
+    return "UNIVERSITY_SOP";
   });
 
   const application = useMemo(() => getApplication(), []);
@@ -348,7 +359,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const visaBase = Object.fromEntries(visaTemplate.sections.map((s) => [s.id, s.content]));
     const sopBase = Object.fromEntries(sopTemplate.sections.map((s) => [s.id, s.content]));
 
-    const isSopDraft = initialDraft?.documentType === "UNIVERSITY_SOP" || initialDraft?.templateId === "university-sop-standard";
+    const isSopDraft = initialDraft
+      ? initialDraft.documentType === "UNIVERSITY_SOP" || initialDraft.templateId === "university-sop-standard"
+      : typeof window !== "undefined"
+      ? !(
+          new URLSearchParams(window.location.search).get("type")?.toUpperCase() === "COVER_LETTER" ||
+          new URLSearchParams(window.location.search).get("template")?.includes("visa")
+        )
+      : true;
     return {
       VISA_COVER_LETTER: isSopDraft ? visaBase : { ...visaBase, ...(initialDraft?.sectionContents ?? {}) },
       UNIVERSITY_SOP: isSopDraft ? { ...sopBase, ...(initialDraft?.sectionContents ?? {}) } : sopBase,
@@ -361,7 +379,14 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
     const visaBase = Object.fromEntries(visaTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
     const sopBase = Object.fromEntries(sopTemplate.sections.map((s) => [s.id, "NOT_REVIEWED" as ReviewStatus]));
 
-    const isSopDraft = initialDraft?.documentType === "UNIVERSITY_SOP" || initialDraft?.templateId === "university-sop-standard";
+    const isSopDraft = initialDraft
+      ? initialDraft.documentType === "UNIVERSITY_SOP" || initialDraft.templateId === "university-sop-standard"
+      : typeof window !== "undefined"
+      ? !(
+          new URLSearchParams(window.location.search).get("type")?.toUpperCase() === "COVER_LETTER" ||
+          new URLSearchParams(window.location.search).get("template")?.includes("visa")
+        )
+      : true;
     return {
       VISA_COVER_LETTER: isSopDraft ? visaBase : { ...visaBase, ...(initialDraft?.sectionStatuses ?? {}) },
       UNIVERSITY_SOP: isSopDraft ? { ...sopBase, ...(initialDraft?.sectionStatuses ?? {}) } : sopBase,

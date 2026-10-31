@@ -545,7 +545,8 @@ function renderCleanStudentIntro(
   ctx: StudentDocumentContext | null | undefined,
   ov?: Record<string, string>
 ): string {
-  const name = resolveCleanField(ctx, ov, "student.fullName") || "Applicant";
+  const rawName = resolveCleanField(ctx, ov, "student.fullName") || "Applicant";
+  const name = rawName.replace(/[\s\-_]+$/, "").trim() || "Applicant";
   const city = resolveCleanField(ctx, ov, "student.city");
   const country = resolveCleanField(ctx, ov, "student.country");
 
@@ -834,12 +835,13 @@ function renderCleanSignature(
   ctx: StudentDocumentContext | null | undefined,
   ov?: Record<string, string>
 ): string {
-  const name = resolveCleanField(ctx, ov, "student.fullName") || "Applicant";
+  const rawName = resolveCleanField(ctx, ov, "student.fullName") || "Applicant";
+  const name = rawName.replace(/[\s\-_]+$/, "").trim() || "Applicant";
   const email = resolveCleanField(ctx, ov, "student.email");
   const phone = resolveCleanField(ctx, ov, "student.phone");
   let res = `Sincerely,\n${name}`;
-  if (email) res += `\nEmail: **${email}**`;
-  if (phone) res += `\nPhone: **${phone}**`;
+  if (email) res += `\nEmail: ${email.replace(/\*\*/g, "").trim()}`;
+  if (phone) res += `\nPhone: ${phone.replace(/\*\*/g, "").trim()}`;
   return res;
 }
 
@@ -889,6 +891,10 @@ export function cleanCoverLetterText(text: string): string {
     // Clean trailing hyphen on names
     .replace(/(\b[A-Za-z]+)\s*-\s*,/g, "$1,")
     .replace(/(\b[A-Za-z]+)\s*-\s*\./g, "$1.")
+    .replace(/\*\*([^*]+?)\s*-\s*\*\*/g, "**$1**")
+    .replace(/My name is \*\*([^*]+?)\s*-\s*\*\*/gi, "My name is **$1**")
+    .replace(/My name is ([^,.\n]+?)\s*-\s*,/gi, "My name is $1,")
+    .replace(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+-\b/g, "$1")
     // Clean orphan family sentences
     .replace(/I come from a family of\s*\./gi, "")
     .replace(/My father is an?\s*(and my mother is employed with\s*)?\./gi, "")
@@ -904,19 +910,339 @@ export function cleanCoverLetterText(text: string): string {
   return cleaned;
 }
 
+export interface ParsedFieldEntry {
+  key: string;
+  value: string;
+  label: string;
+}
+
+interface MultiFieldDefinition {
+  key: string;
+  label: string;
+  aliases: string[];
+}
+
+export const MULTI_FIELD_DEFINITIONS: MultiFieldDefinition[] = [
+  {
+    key: "student.city",
+    label: "Student City",
+    aliases: ["student city", "candidate city", "applicant city", "home city", "current city", "city"],
+  },
+  {
+    key: "student.country",
+    label: "Student Country",
+    aliases: ["student country", "candidate country", "applicant country", "home country", "country of origin", "origin country", "country"],
+  },
+  {
+    key: "student.languages",
+    label: "Mother Tongue / Languages",
+    aliases: [
+      "mother tongue",
+      "mother tounge",
+      "native language",
+      "first language",
+      "primary language",
+      "native toungue",
+      "native tounge",
+      "mother language",
+      "languages",
+      "language",
+    ],
+  },
+  {
+    key: "student.nationality",
+    label: "Nationality",
+    aliases: ["student nationality", "nationality"],
+  },
+  {
+    key: "student.fullName",
+    label: "Student Name",
+    aliases: ["student full name", "student name", "candidate name", "applicant name", "full name"],
+  },
+  {
+    key: "student.email",
+    label: "Email Address",
+    aliases: ["student email", "email address", "email id", "email"],
+  },
+  {
+    key: "student.phone",
+    label: "Phone Number",
+    aliases: ["student phone", "phone number", "mobile number", "contact number", "mobile", "phone"],
+  },
+  {
+    key: "family.fatherOccupation",
+    label: "Father's Occupation",
+    aliases: ["father's occupation", "father occupation", "father's job", "father job", "father profession"],
+  },
+  {
+    key: "family.motherOccupation",
+    label: "Mother's Occupation",
+    aliases: ["mother's occupation", "mother occupation", "mother's job", "mother job", "mother profession"],
+  },
+  {
+    key: "family.count",
+    label: "Family Member Count",
+    aliases: ["family member count", "family members count", "family member", "family count", "members in family"],
+  },
+  {
+    key: "family.siblingText",
+    label: "Sibling Details",
+    aliases: ["sibling details", "sibling detail", "sibling", "siblings"],
+  },
+  {
+    key: "sponsor.name",
+    label: "Sponsor Name",
+    aliases: ["sponsor name", "financial sponsor name", "sponsor"],
+  },
+  {
+    key: "sponsor.relationship",
+    label: "Sponsor Relationship",
+    aliases: ["sponsor relationship", "sponsor relation", "relationship of sponsor"],
+  },
+  {
+    key: "finance.educationLoanAmount",
+    label: "Education Loan Amount",
+    aliases: ["education loan amount", "loan amount", "sanctioned loan amount", "education loan"],
+  },
+  {
+    key: "finance.loanProvider",
+    label: "Loan Provider / Bank",
+    aliases: ["loan provider", "lending bank", "loan bank", "disbursement bank", "bank name"],
+  },
+  {
+    key: "destination.university",
+    label: "Target University",
+    aliases: ["target university", "destination university", "university name", "university", "college name"],
+  },
+  {
+    key: "destination.course",
+    label: "Degree Programme",
+    aliases: ["degree programme", "degree program", "target course", "course name", "programme", "course", "degree"],
+  },
+  {
+    key: "destination.consulate",
+    label: "Italian Consulate / Embassy",
+    aliases: ["consulate", "embassy", "consulate name", "embassy name"],
+  },
+  {
+    key: "tests.ielts.overall",
+    label: "English / IELTS Band Score",
+    aliases: ["ielts band score", "ielts score", "overall band score", "ielts overall", "band score", "ielts band"],
+  },
+  {
+    key: "travel.airline",
+    label: "Airline Name",
+    aliases: ["airline name", "flight airline", "airline"],
+  },
+  {
+    key: "travel.pnr",
+    label: "Flight PNR Number",
+    aliases: ["flight pnr", "pnr number", "flight booking pnr", "pnr"],
+  },
+];
+
+export function formatFieldValue(key: string, rawVal: string): string {
+  let cleaned = rawVal
+    .replace(/^[:=\s-]+/, "")
+    .replace(/[."']+$/, "")
+    .replace(/^[."']+/, "")
+    .trim();
+
+  if (key === "student.email") return cleaned.toLowerCase();
+  if (key === "travel.pnr") return cleaned.toUpperCase();
+  if (key === "tests.ielts.overall") return cleaned;
+  if (
+    key.includes("Amount") ||
+    key.includes("Balance") ||
+    key.includes("Rate") ||
+    key === "family.count" ||
+    key.includes("Date")
+  ) {
+    return cleaned;
+  }
+
+  if (key === "student.fullName") {
+    cleaned = cleaned.replace(/[\s\-_]+$/, "").trim();
+  }
+
+  // If text is all lowercase, convert each word to Title Case
+  if (cleaned && cleaned === cleaned.toLowerCase()) {
+    return cleaned
+      .split(/\s+/)
+      .map((w) => (w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+      .join(" ");
+  }
+
+  return cleaned;
+}
+
+export function extractFieldsFromHeader(headerText: string): MultiFieldDefinition[] {
+  const lower = headerText.toLowerCase();
+  const occurrences: { field: MultiFieldDefinition; index: number; length: number }[] = [];
+
+  for (const field of MULTI_FIELD_DEFINITIONS) {
+    const sortedAliases = [...field.aliases].sort((a, b) => b.length - a.length);
+    for (const alias of sortedAliases) {
+      const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`\\b${escaped}\\b`, "i");
+      const m = lower.match(regex);
+      if (m && m.index !== undefined) {
+        const start = m.index;
+        const end = start + m[0].length;
+        const overlaps = occurrences.some(
+          (o) => (start >= o.index && start < o.index + o.length) || (end > o.index && end <= o.index + o.length)
+        );
+        if (!overlaps) {
+          occurrences.push({ field, index: start, length: m[0].length });
+          break;
+        }
+      }
+    }
+  }
+
+  occurrences.sort((a, b) => a.index - b.index);
+  return occurrences.map((o) => o.field);
+}
+
+function matchFieldByAlias(str: string): MultiFieldDefinition | null {
+  const lower = str.trim().toLowerCase();
+  for (const def of MULTI_FIELD_DEFINITIONS) {
+    const sorted = [...def.aliases].sort((a, b) => b.length - a.length);
+    for (const alias of sorted) {
+      if (lower === alias) {
+        return def;
+      }
+    }
+  }
+  return null;
+}
+
 /**
- * Parses user input for direct field assignment instructions.
- * Supports:
- * - "Add student city Bhopal."
- * - "Set father's occupation to businessman."
- * - "Update education loan amount to ₹20,00,000."
- * - "Add Hindi as mother tongue."
+ * Smart Multi-Field Instruction Parser.
+ * Detects messages containing multiple details (e.g., city, country, mother tongue)
+ * in various formats (key-value pairs, comma lists, or header-to-value lists).
+ */
+export function parseMultiFieldInstruction(text: string): ParsedFieldEntry[] | null {
+  const t = text.trim();
+  if (!t) return null;
+
+  // Pattern 2: Key-Value pairs separated by commas, semicolons, newlines, or "and"
+  // e.g. "city: Bhopal, country: India, mother tongue: Hindi"
+  const clauseDelim = /(?:[\r\n]+|[,;]+\s*(?:and\s+)?|\s+and\s+)/i;
+  const rawClauses = t.split(clauseDelim).map((c) => c.trim()).filter(Boolean);
+
+  if (rawClauses.length >= 2) {
+    const kvEntries: ParsedFieldEntry[] = [];
+    const seenKeys = new Set<string>();
+    let allValid = true;
+
+    for (const clause of rawClauses) {
+      const kvMatch = clause.match(/^(?:(?:add|set|update|change)?\s*(?:the\s*)?)?([a-zA-Z\s']+?)\s*(?::|=|(?:to)|-|\bis\b)\s*(.+)$/i);
+      if (kvMatch) {
+        const keyPart = kvMatch[1].trim();
+        const valPart = kvMatch[2].trim();
+        const matchedDef = matchFieldByAlias(keyPart);
+        if (matchedDef && valPart && !seenKeys.has(matchedDef.key)) {
+          seenKeys.add(matchedDef.key);
+          kvEntries.push({
+            key: matchedDef.key,
+            value: formatFieldValue(matchedDef.key, valPart),
+            label: matchedDef.label,
+          });
+          continue;
+        }
+      }
+
+      // Check if clause starts with an alias followed by value
+      let aliasMatched = false;
+      for (const def of MULTI_FIELD_DEFINITIONS) {
+        const sorted = [...def.aliases].sort((a, b) => b.length - a.length);
+        for (const alias of sorted) {
+          const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const prefixRegex = new RegExp(`^(?:(?:add|set|update|change)?\\s*(?:the\\s*)?)?${escaped}\\s+(.+)$`, "i");
+          const m = clause.match(prefixRegex);
+          if (m && m[1].trim() && !seenKeys.has(def.key)) {
+            seenKeys.add(def.key);
+            kvEntries.push({
+              key: def.key,
+              value: formatFieldValue(def.key, m[1].trim()),
+              label: def.label,
+            });
+            aliasMatched = true;
+            break;
+          }
+        }
+        if (aliasMatched) break;
+      }
+
+      if (!aliasMatched) {
+        allValid = false;
+        break;
+      }
+    }
+
+    if (allValid && kvEntries.length >= 2) {
+      return kvEntries;
+    }
+  }
+
+  // Pattern 1: Delimited Header List -> Values List
+  // e.g. "add student city country and mother tounge which is :\nbhopal , india , hindi"
+  const sepMatch = t.match(/(?:\s*(?:which\s+is\s*:?|which\s+are\s*:?|as\s+follows\s*:?|[:=])\s*(?:\r?\n)?|\r?\n+)/i);
+  if (sepMatch && sepMatch.index !== undefined) {
+    const leftPart = t.slice(0, sepMatch.index).trim();
+    const rightPart = t.slice(sepMatch.index + sepMatch[0].length).trim();
+
+    if (leftPart && rightPart) {
+      const fields = extractFieldsFromHeader(leftPart);
+      const values = rightPart
+        .split(/[,;\n/]+/)
+        .map((v) => v.trim())
+        .filter(Boolean);
+
+      if (fields.length >= 2 && fields.length === values.length) {
+        return fields.map((f, i) => ({
+          key: f.key,
+          value: formatFieldValue(f.key, values[i]),
+          label: f.label,
+        }));
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Parses user input for direct single field assignment instructions.
+ * Prevents greedy false matches by rejecting values with other field keywords,
+ * dangling clauses, or multi-field prompts.
  */
 export function parseDirectFieldInstruction(
   text: string
 ): { key: string; value: string; label: string } | null {
   const t = text.trim();
   if (!t) return null;
+
+  // 1. Guard against multi-field inputs
+  const multi = parseMultiFieldInstruction(t);
+  if (multi && multi.length >= 2) {
+    return null;
+  }
+
+  // 2. Disallow prompts that mention 2 or more distinct field names
+  const mentionedFields = extractFieldsFromHeader(t);
+  if (mentionedFields.length >= 2) {
+    return null;
+  }
+
+  const FORBIDDEN_VALUE_KEYWORDS: string[] = [
+    "city", "country", "mother tongue", "mother tounge", "native language",
+    "language", "languages", "nationality", "email", "phone", "mobile",
+    "father", "mother", "sponsor", "loan", "university", "course",
+    "degree", "ielts", "band", "accommodation", "insurance", "pnr",
+    "which is", "which are", "as follows",
+  ];
 
   const matchers: [RegExp, string, string][] = [
     // Mother tongue / Languages
@@ -1042,14 +1368,72 @@ export function parseDirectFieldInstruction(
     const match = t.match(re);
     if (match) {
       let val = match[1].trim();
+      val = val.replace(/^(?:is|to|=|:|which\s+is\s*:?|as\s+follows\s*:?)\s*/i, "").trim();
       val = val.replace(/[."']+$/, "").replace(/^[."']+/, "").trim();
-      if (val) {
-        return { key, value: val, label };
+
+      if (!val) continue;
+
+      // Reject dangling clauses
+      if (/^(which\s+is|which\s+are|as\s+follows|is|to|that\s+is|namely|and)\s*[:.]*$/i.test(val)) {
+        continue;
       }
+      if (/(\b(which\s+is|which\s+are|is|to|and|with|that)\s*[:.]*)$/i.test(val)) {
+        continue;
+      }
+
+      // Reject if val contains other field keywords or instruction phrases
+      const hasForbiddenKeyword = FORBIDDEN_VALUE_KEYWORDS.some((kw) => {
+        const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(`\\b${escaped}\\b`, "i").test(val);
+      });
+      if (hasForbiddenKeyword) {
+        continue;
+      }
+
+      // Reject if val spans multiple lines with colon or contains list of items
+      if (val.includes("\n") || (val.includes(":") && val.length > 25)) {
+        continue;
+      }
+
+      const formattedVal = formatFieldValue(key, val);
+      return { key, value: formattedVal, label };
     }
   }
 
   return null;
+}
+
+/**
+ * Updates multiple cover letter sections at once for a set of parsed field entries.
+ */
+export function updateCoverLetterSectionsWithMultipleFields(
+  sections: { heading: string; content: string }[],
+  entries: { key: string; value: string }[],
+  ctx: StudentDocumentContext | null | undefined,
+  existingOverrides?: Record<string, string>
+): {
+  sections: { heading: string; content: string }[];
+  fieldValues: Record<string, string>;
+} {
+  const mergedOverrides: Record<string, string> = {
+    ...(existingOverrides || {}),
+  };
+  for (const entry of entries) {
+    mergedOverrides[entry.key] = entry.value;
+  }
+
+  let currentSections = [...sections];
+  for (const entry of entries) {
+    currentSections = updateCoverLetterSectionWithField(
+      currentSections,
+      entry.key,
+      entry.value,
+      ctx,
+      mergedOverrides
+    );
+  }
+
+  return { sections: currentSections, fieldValues: mergedOverrides };
 }
 
 /**

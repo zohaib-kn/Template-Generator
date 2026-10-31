@@ -136,6 +136,7 @@ export function EuropassTemplate({
     setEnglishCertificate,
     updateEducation,
     updateInternship,
+    removeInternship,
     updateAcademicProject,
     updateAchievement,
     updateLeadershipActivity,
@@ -521,6 +522,7 @@ export function EuropassTemplate({
               title={item.title}
               isInteractive={isInteractive}
               onUpdate={updateInternship}
+              onRemove={removeInternship}
             />
           ) : null;
         }
