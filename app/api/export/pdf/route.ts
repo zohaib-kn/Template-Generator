@@ -68,15 +68,34 @@ interface TextToken {
   width: number;
 }
 
+function normalizeMarkdownBolding(text: string): string {
+  if (!text) return "";
+  return text
+    // Fix fragmented numbers like 7.** 5** or 7.**5** -> 7.5
+    .replace(/(\d+)\.\*\*\s*(\d+)\*\*/g, "**$1.$2**")
+    .replace(/\*\*\s*(\d+)\s*\*\*\.\*\*\s*(\d+)\s*\*\*/g, "**$1.$2**")
+    // Trailing hyphen before closing bold: "**Angad Deep -**" -> "**Angad Deep**"
+    .replace(/\*\*([^*]+?)\s*-\s*\*\*/g, "**$1**")
+    // Fix spaces inside asterisks: "** word **" -> "**word**"
+    .replace(/\*\*\s+([^*]+?)\s+\*\*/g, " **$1** ")
+    .replace(/\*\*\s+([^*]+?)\*\*/g, " **$1**")
+    .replace(/\*\*([^*]+?)\s+\*\*/g, "**$1** ")
+    // Clean empty bolds
+    .replace(/\*\*\s*\*\*/g, "")
+    // Clean multiple spaces
+    .replace(/[ \t]{2,}/g, " ");
+}
+
 function enrichCoverLetterBolding(text: string, studentName?: string): string {
   if (!text) return "";
   let enriched = text;
 
   // Student Name
   if (studentName && studentName.trim().length > 2) {
-    const sName = studentName.trim();
-    const regex = new RegExp(`(?<!\\*\\*)\\b${sName}\\b(?!\\*\\*)`, "gi");
-    enriched = enriched.replace(regex, `**${sName}**`);
+    const cleanName = studentName.replace(/\s*-\s*$/, "").trim();
+    const escaped = cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`(?<!\\*\\*)\\b${escaped}\\b(?!\\*\\*)`, "gi");
+    enriched = enriched.replace(regex, `**${cleanName}**`);
   }
 
   // Currency amounts: INR xx,xx,xxx and EUR xx,xxx
@@ -85,60 +104,24 @@ function enrichCoverLetterBolding(text: string, studentName?: string): string {
   enriched = enriched.replace(/(?<!\*\*)\b(USD\s+[\d,]+|\$[\d,]+)(?!\*\*)/g, "**$1**");
   enriched = enriched.replace(/(?<!\*\*)\b(1\s+EUR\s+=\s+INR\s+[\d.]+)(?!\*\*)/g, "**$1**");
 
-  // IELTS Scores
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(IELTS\s*(?:Academic\s*)?(?:overall\s*)?band score of\s*[\d.]+(?:,\s*with\s*[\d.]+\s*in\s*\w+)?)(?!\*\*)/gi,
-    "**$1**"
-  );
-
-  // Degrees
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(Bachelor(?:'s)? Degree in [A-Za-z\s,]+(?=\s+at|\s+for|\s+from))(?!\*\*)/gi,
-    "**$1**"
-  );
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(Master(?:'s)? (?:Degree|Specialization) in [A-Za-z\s,]+(?=\s+at|\s+for|\s+from|\s+depending|\s+to))(?!\*\*)/gi,
-    "**$1**"
-  );
-
-  // University names
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(University of [A-Z][a-z]+(?:\s+[A-Z][a-z]+)*|Università degli Studi di [A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?!\*\*)/g,
-    "**$1**"
-  );
-
-  // Return to India
-  enriched = enriched.replace(/(?<!\*\*)\b(return to India and [^,.]*|return to India)(?!\*\*)/gi, "**$1**");
-
-  // Insurance and Certificate
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(International Student Medical Insurance[^,.]*|travel medical insurance[^,.]*)(?!\*\*)/gi,
-    "**$1**"
-  );
-
-  // Accommodation
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(Student Residence[^,.]*|Hotel[^,.]*Spa[^,.]*)(?!\*\*)/gi,
-    "**$1**"
-  );
-
-  // Flight & PNR
-  enriched = enriched.replace(
-    /(?<!\*\*)\b(ITA Airways flight[^,.]*|flight from [A-Z][a-z]+ to [A-Z][a-z]+[^,.]*|PNR:\s*[A-Z0-9]+)(?!\*\*)/gi,
-    "**$1**"
-  );
-
-  return enriched;
+  return normalizeMarkdownBolding(enriched);
 }
 
 function tokenizeRichText(doc: jsPDF, raw: string, baseFontSize: number): TextToken[] {
-  const parts = raw.split(/(\**[^*]+\**)/g);
+  const normalized = normalizeMarkdownBolding(raw);
+  // Split on bold markdown tags (**word**)
+  const parts = normalized.split(/(\*\*[^*]+?\*\*)/g);
   const tokens: TextToken[] = [];
 
   for (const part of parts) {
     if (!part) continue;
-    const isBold = part.startsWith("**") && part.endsWith("**");
-    const inner = isBold ? part.slice(2, -2) : part;
+    const isBold = part.startsWith("**") && part.endsWith("**") && part.length >= 4;
+    // Strip ** tags from bold text
+    let inner = isBold ? part.slice(2, -2).trim() : part;
+    // Strip any remaining rogue ** so asterisks NEVER print on the PDF
+    inner = inner.replace(/\*\*/g, "");
+    if (!inner) continue;
+
     const chunks = inner.split(/(\s+)/);
     for (const chunk of chunks) {
       if (!chunk) continue;
@@ -430,7 +413,7 @@ export async function POST(req: NextRequest) {
           if (line.toLowerCase().startsWith("email:")) {
             const parts = line.split(/(email:\s*)/i);
             const prefix = parts[1] || "Email: ";
-            const emailVal = line.replace(/email:\s*/i, "").trim();
+            const emailVal = line.replace(/email:\s*/i, "").replace(/\*\*/g, "").trim();
             doc.setTextColor(24, 24, 27);
             doc.text(prefix, margin, currentY);
             const offset = doc.getTextWidth(prefix);
@@ -442,8 +425,9 @@ export async function POST(req: NextRequest) {
             doc.line(margin + offset, currentY + 0.4, margin + offset + emailWidth, currentY + 0.4);
             doc.setTextColor(24, 24, 27);
           } else {
+            const cleanLine = line.replace(/\*\*/g, "").trim();
             doc.setTextColor(24, 24, 27);
-            doc.text(line, margin, currentY);
+            doc.text(cleanLine, margin, currentY);
           }
           currentY += bodyLineHeight;
         }
@@ -487,7 +471,8 @@ export async function POST(req: NextRequest) {
         const sopLineHeightFactor = (sopLineHeight * (72 / 25.4)) / 10;
 
         for (const p of paragraphs) {
-          const lines = doc.splitTextToSize(p, printableWidth) as string[];
+          const cleanP = p.replace(/\*\*/g, "");
+          const lines = doc.splitTextToSize(cleanP, printableWidth) as string[];
           const paragraphHeight = lines.length * sopLineHeight;
           checkPageBreak(paragraphHeight + 2);
           doc.text(lines, margin, currentY, {

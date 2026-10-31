@@ -46,6 +46,11 @@ export function syncSectionsToCvData(
     updatedCv.aboutMe = cleanAbout;
   } else if (aboutSec && !aboutSec.content.trim()) {
     updatedCv.aboutMe = "";
+  } else if (!aboutSec) {
+    updatedCv.aboutMe = "";
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "aboutMe" && id !== "about");
+    }
   }
 
   // 2. Work Experience / Internships
@@ -62,12 +67,24 @@ export function syncSectionsToCvData(
       const roleLine = lines[0] || "Role";
       const compLine = lines[1] || "";
       const datesMatch = compLine.match(/\[\s*([^\]]+)\s*\]/);
-      const compName = compLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
+      const withoutDates = compLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
+      let compName = withoutDates;
+      let locName = "";
+      if (withoutDates.includes("|")) {
+        const p = withoutDates.split("|").map((x) => x.trim()).filter(Boolean);
+        compName = p[0] || "Company";
+        locName = p.slice(1).join(", ").replace(/^Location:\s*/i, "").trim();
+      } else if (/Location:\s*/i.test(withoutDates)) {
+        const locM = withoutDates.match(/Location:\s*([^,.\n]+)/i);
+        if (locM) locName = locM[1].trim();
+        compName = withoutDates.replace(/Location:\s*[^,.\n]+/i, "").trim();
+      }
       const descLines = lines.slice(2);
       return {
         id: `intern-${idx}`,
         role: roleLine,
         company: compName || "Company",
+        location: locName || undefined,
         startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
         endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
         description: descLines.join("\n"),
@@ -75,6 +92,11 @@ export function syncSectionsToCvData(
     });
   } else if (workSec && !workSec.content.trim()) {
     updatedCv.internships = [];
+  } else if (!workSec) {
+    updatedCv.internships = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "internships");
+    }
   }
 
   // 3. Education
@@ -106,6 +128,13 @@ export function syncSectionsToCvData(
         website: webMatch ? webMatch[1].trim() : undefined,
       };
     });
+  } else if (eduSec && !eduSec.content.trim()) {
+    updatedCv.education = [];
+  } else if (!eduSec) {
+    updatedCv.education = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "education");
+    }
   }
 
   // 4. English Language Certificate
@@ -137,6 +166,11 @@ export function syncSectionsToCvData(
     };
   } else if (engSec && !engSec.content.trim()) {
     updatedCv.englishCertificate = undefined;
+  } else if (!engSec) {
+    updatedCv.englishCertificate = undefined;
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "englishCertificate");
+    }
   }
 
   // 5. Skills
@@ -153,6 +187,11 @@ export function syncSectionsToCvData(
     updatedCv.skills = skillList.map((name, idx) => ({ id: `skill-${idx}`, name }));
   } else if (skillsSec && !skillsSec.content.trim()) {
     updatedCv.skills = [];
+  } else if (!skillsSec) {
+    updatedCv.skills = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "skills");
+    }
   }
 
   // 6. Certifications
@@ -186,6 +225,11 @@ export function syncSectionsToCvData(
     });
   } else if (certSec && !certSec.content.trim()) {
     updatedCv.certifications = [];
+  } else if (!certSec) {
+    updatedCv.certifications = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "certifications");
+    }
   }
 
   // 7. Hobbies
@@ -198,12 +242,29 @@ export function syncSectionsToCvData(
     updatedCv.hobbies = hobbiesList.map((name, idx) => ({ id: `hobby-${idx}`, name }));
   } else if (hobbySec && !hobbySec.content.trim()) {
     updatedCv.hobbies = [];
+  } else if (!hobbySec) {
+    updatedCv.hobbies = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "hobbies");
+    }
   }
 
-  // 8. Declaration
-  const declSec = sections.find((s) => s.heading?.toLowerCase().includes("declaration"));
+  // 8. Declaration / Visa Compliance Intent
+  const declSec = sections.find(
+    (s) =>
+      s.heading?.toLowerCase().includes("declaration") ||
+      s.heading?.toLowerCase().includes("compliance") ||
+      s.heading?.toLowerCase().includes("genuine")
+  );
   if (declSec && declSec.content.trim()) {
     updatedCv.declaration = declSec.content;
+  } else if (declSec && !declSec.content.trim()) {
+    updatedCv.declaration = "";
+  } else if (!declSec) {
+    updatedCv.declaration = "";
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "declaration");
+    }
   }
 
   // 9. Language Skills & Mother Tongue
@@ -249,6 +310,12 @@ export function syncSectionsToCvData(
   } else if (langSec && !langSec.content.trim()) {
     updatedCv.motherTongue = "";
     updatedCv.languages = [];
+  } else if (!langSec) {
+    updatedCv.motherTongue = "";
+    updatedCv.languages = [];
+    if (updatedCv.sectionOrder) {
+      updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id) => id !== "languages");
+    }
   }
 
   // 10. Personal Details & Home Address Sync
@@ -330,7 +397,69 @@ export function syncSectionsToCvData(
     updatedCv.leadershipActivities = [];
   }
 
-  // 14. Map dynamic section order from sections array for Europass template
+  // 14. Academic Interests
+  const interestSec = sections.find(
+    (s) =>
+      s.heading?.toLowerCase().includes("academic interest") ||
+      (s.heading?.toLowerCase().includes("interest") && !s.heading?.toLowerCase().includes("hobb"))
+  );
+  if (interestSec && interestSec.content.trim()) {
+    const entries = interestSec.content
+      .split(/[,•\n]+/)
+      .map((l) => l.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+      .filter(Boolean);
+    updatedCv.academicInterests = entries.map((name, idx) => ({ id: `interest-${idx}`, name }));
+  } else if (interestSec && !interestSec.content.trim()) {
+    updatedCv.academicInterests = [];
+  }
+
+  // 15. Volunteering
+  const volSec = sections.find(
+    (s) => s.heading?.toLowerCase().includes("volunteer") || s.heading?.toLowerCase().includes("community")
+  );
+  if (volSec && volSec.content.trim()) {
+    const entries = volSec.content.split(/\n\n+/).filter(Boolean);
+    updatedCv.volunteering = entries.map((entryStr, idx) => {
+      const lines = entryStr.split("\n").map((l) => l.trim()).filter(Boolean);
+      const roleLine = lines[0] || "Volunteer";
+      const orgLine = lines[1] || "";
+      const datesMatch = orgLine.match(/\[\s*([^\]]+)\s*\]/);
+      const orgName = orgLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
+      const descLines = lines.slice(2);
+      return {
+        id: `vol-${idx}`,
+        role: roleLine,
+        organization: orgName || undefined,
+        startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
+        endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
+        description: descLines.join("\n") || undefined,
+      };
+    });
+  } else if (volSec && !volSec.content.trim()) {
+    updatedCv.volunteering = [];
+  }
+
+  // 16. Recommendations
+  const recSec = sections.find(
+    (s) => s.heading?.toLowerCase().includes("recommendation") || s.heading?.toLowerCase().includes("referee")
+  );
+  if (recSec && recSec.content.trim()) {
+    const entries = recSec.content.split(/\n\n+/).filter(Boolean);
+    updatedCv.recommendations = entries.map((entryStr, idx) => {
+      const lines = entryStr.split("\n").map((l) => l.trim()).filter(Boolean);
+      return {
+        id: `rec-${idx}`,
+        recommenderName: lines[0] || "Recommender",
+        recommenderTitle: lines[1] || undefined,
+        organization: lines[2] || undefined,
+        text: lines.slice(3).join("\n") || undefined,
+      };
+    });
+  } else if (recSec && !recSec.content.trim()) {
+    updatedCv.recommendations = [];
+  }
+
+  // 17. Map dynamic section order from sections array for Europass template
   const headingToSectionId = (heading: string): string | null => {
     const h = heading.toLowerCase();
     if (h.includes("about me") || h.includes("about")) return "aboutMe";
@@ -340,13 +469,14 @@ export function syncSectionsToCvData(
     if (h.includes("language")) return "languages";
     if (h.includes("digital") || h.includes("skill")) return "skills";
     if (h.includes("certification") || h.includes("certificate")) return "certifications";
+    if (h.includes("academic interest") || (h.includes("interest") && !h.includes("hobb"))) return "academicInterests";
     if (h.includes("hobbi") || h.includes("interest")) return "hobbies";
     if (h.includes("project")) return "academicProjects";
     if (h.includes("achievement") || h.includes("award")) return "achievements";
-    if (h.includes("leadership") || h.includes("responsibilit")) return "leadershipActivities";
-    if (h.includes("volunteer")) return "volunteering";
-    if (h.includes("recommendation")) return "recommendations";
-    if (h.includes("declaration")) return "declaration";
+    if (h.includes("leadership") || h.includes("responsibilit") || h.includes("extracurricular")) return "leadershipActivities";
+    if (h.includes("volunteer") || h.includes("community")) return "volunteering";
+    if (h.includes("recommendation") || h.includes("referee")) return "recommendations";
+    if (h.includes("declaration") || h.includes("compliance") || h.includes("genuine")) return "declaration";
     return null;
   };
 
@@ -360,33 +490,197 @@ export function syncSectionsToCvData(
     }
   }
 
-  // Preserve existing sections from baseCv.sectionOrder that weren't in sections
+  // Preserve existing sections from baseCv.sectionOrder that weren't in sections,
+  // BUT do not re-add sections that were explicitly removed from sections
+  const removedSectionIds = new Set<string>();
+  if (!aboutSec) { removedSectionIds.add("aboutMe"); removedSectionIds.add("about"); }
+  if (!workSec) removedSectionIds.add("internships");
+  if (!eduSec) removedSectionIds.add("education");
+  if (!engSec) removedSectionIds.add("englishCertificate");
+  if (!skillsSec) removedSectionIds.add("skills");
+  if (!certSec) removedSectionIds.add("certifications");
+  if (!hobbySec) removedSectionIds.add("hobbies");
+  if (!langSec) removedSectionIds.add("languages");
+  if (!declSec) removedSectionIds.add("declaration");
+  if (!projSec) removedSectionIds.add("academicProjects");
+  if (!achSec) removedSectionIds.add("achievements");
+  if (!leaderSec) removedSectionIds.add("leadershipActivities");
+  if (!interestSec) removedSectionIds.add("academicInterests");
+  if (!volSec) removedSectionIds.add("volunteering");
+  if (!recSec) removedSectionIds.add("recommendations");
+
   const existingOrder = baseCv.sectionOrder && baseCv.sectionOrder.length > 0
     ? baseCv.sectionOrder
     : [
-        "aboutMe",
-        "education",
-        "languages",
-        "englishCertificate",
-        "hobbies",
-        "internships",
-        "academicProjects",
-        "achievements",
-        "certifications",
-        "skills",
-        "leadershipActivities",
-        "volunteering",
-        "academicInterests",
-        "recommendations",
-        "declaration",
-      ];
+      "aboutMe",
+      "education",
+      "languages",
+      "englishCertificate",
+      "hobbies",
+      "internships",
+      "academicProjects",
+      "achievements",
+      "certifications",
+      "skills",
+      "leadershipActivities",
+      "volunteering",
+      "academicInterests",
+      "recommendations",
+      "declaration",
+    ];
   const mergedOrder = [...detectedOrder];
   for (const id of existingOrder) {
-    if (!mergedOrder.includes(id)) {
+    if (!mergedOrder.includes(id) && !removedSectionIds.has(id)) {
       mergedOrder.push(id);
     }
   }
-  updatedCv.sectionOrder = mergedOrder;
+  updatedCv.sectionOrder = mergedOrder.filter((id) => !removedSectionIds.has(id));
 
   return updatedCv;
+}
+
+/**
+ * Synchronizes structured DocumentData updates (e.g. from inline Europass canvas editing)
+ * back into the flat HydratedSection array used by the studio.
+ */
+export function syncCvDataToSections(
+  cv: DocumentData,
+  existingSections: { heading: string; content: string }[]
+): { heading: string; content: string }[] {
+  const sections = existingSections.map((s) => ({ ...s }));
+
+  // 1. About Me
+  const aboutIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("about me"));
+  if (cv.aboutMe !== undefined && aboutIdx >= 0) {
+    sections[aboutIdx].content = cv.aboutMe || "";
+  }
+
+  // 2. Work Experience / Internships
+  const workIdx = sections.findIndex(
+    (s) =>
+      s.heading?.toLowerCase().includes("work experience") ||
+      s.heading?.toLowerCase().includes("internship") ||
+      s.heading?.toLowerCase().includes("employment")
+  );
+  if (cv.internships !== undefined && workIdx >= 0) {
+    const validInternships = (cv.internships || []).filter((e) => e.role || e.company || e.description);
+    sections[workIdx].content = validInternships
+      .map((exp) => {
+        const lines: string[] = [];
+        if (exp.role) lines.push(exp.role);
+        const compParts: string[] = [];
+        if (exp.company) compParts.push(exp.company);
+        if (exp.location) compParts.push(`Location: ${exp.location}`);
+        const dateStr = exp.startDate || exp.endDate ? `[ ${exp.startDate || ""} – ${exp.endDate || ""} ]` : "";
+        if (dateStr) compParts.push(dateStr);
+        if (compParts.length > 0) lines.push(compParts.join(" | "));
+        if (exp.description) lines.push(exp.description);
+        return lines.join("\n");
+      })
+      .join("\n\n");
+  }
+
+  // 3. Education
+  const eduIdx = sections.findIndex(
+    (s) =>
+      s.heading?.toLowerCase().includes("education") ||
+      s.heading?.toLowerCase().includes("training")
+  );
+  if (cv.education !== undefined && eduIdx >= 0) {
+    const validEdu = (cv.education || []).filter((e) => e.qualification || e.institution);
+    sections[eduIdx].content = validEdu
+      .map((edu) => {
+        const lines = [
+          edu.qualification || "Degree",
+          `${edu.institution || ""} [ ${edu.startDate || ""} – ${edu.endDate || ""} ]`,
+        ];
+        const meta = [
+          edu.address ? `Location: ${edu.address}` : "",
+          edu.website ? `Website: ${edu.website}` : "",
+          edu.finalGrade ? `Final grade: ${edu.finalGrade}` : "",
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        if (meta) lines.push(meta);
+        if (edu.description) lines.push(edu.description);
+        return lines.join("\n");
+      })
+      .join("\n\n");
+  }
+
+  // 4. Skills
+  const skillsIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("skill"));
+  if (cv.skills !== undefined && skillsIdx >= 0) {
+    sections[skillsIdx].content = (cv.skills || []).map((s) => s.name).filter(Boolean).join(" / ");
+  }
+
+  // 5. Hobbies
+  const hobbiesIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("hobb"));
+  if (cv.hobbies !== undefined && hobbiesIdx >= 0) {
+    sections[hobbiesIdx].content = (cv.hobbies || []).map((h) => h.name).filter(Boolean).join(" • ");
+  }
+
+  // 6. Certifications
+  const certsIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("certificat"));
+  if (cv.certifications !== undefined && certsIdx >= 0) {
+    sections[certsIdx].content = (cv.certifications || [])
+      .map((c) => (c.provider ? `${c.name} – ${c.provider}.` : `${c.name}.`))
+      .join("\n");
+  }
+
+  // 7. Languages
+  const langIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("language") && !s.heading?.toLowerCase().includes("certificate"));
+  if ((cv.motherTongue !== undefined || cv.languages !== undefined) && langIdx >= 0) {
+    const parts: string[] = [];
+    if (cv.motherTongue?.trim()) parts.push(`Mother tongue(s): ${cv.motherTongue.trim()}`);
+    const other = (cv.languages || []).map((l) => l.language?.trim()).filter(Boolean);
+    if (other.length > 0) parts.push(`Other language(s): ${other.join(", ")}`);
+    sections[langIdx].content = parts.join("\n");
+  }
+
+  // 8. Academic Projects
+  const projIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("project"));
+  if (cv.academicProjects !== undefined && projIdx >= 0) {
+    sections[projIdx].content = (cv.academicProjects || [])
+      .map((p) => [p.title, p.description].filter(Boolean).join("\n"))
+      .join("\n\n");
+  }
+
+  // 9. Academic Interests
+  const intIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("academic interest") || (s.heading?.toLowerCase().includes("interest") && !s.heading?.toLowerCase().includes("hobb")));
+  if (cv.academicInterests !== undefined && intIdx >= 0) {
+    sections[intIdx].content = (cv.academicInterests || []).map((i) => i.name).filter(Boolean).join(" • ");
+  }
+
+  // 10. Achievements & Awards
+  const achIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("achievement") || s.heading?.toLowerCase().includes("award"));
+  if (cv.achievements !== undefined && achIdx >= 0) {
+    sections[achIdx].content = (cv.achievements || []).map((a) => a.title).filter(Boolean).join("\n");
+  }
+
+  // 11. Leadership & Extracurricular
+  const leadIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("leadership") || s.heading?.toLowerCase().includes("responsibilit") || s.heading?.toLowerCase().includes("extracurricular"));
+  if (cv.leadershipActivities !== undefined && leadIdx >= 0) {
+    sections[leadIdx].content = (cv.leadershipActivities || [])
+      .map((l) => [l.activity, [l.organisation, l.duration ? `[ ${l.duration} ]` : null].filter(Boolean).join(" "), l.description].filter(Boolean).join("\n"))
+      .join("\n\n");
+  }
+
+  // 12. Volunteering
+  const volIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("volunteer") || s.heading?.toLowerCase().includes("community"));
+  if (cv.volunteering !== undefined && volIdx >= 0) {
+    sections[volIdx].content = (cv.volunteering || [])
+      .map((v) => [v.role, [v.organization, v.startDate || v.endDate ? `[ ${v.startDate || ""} – ${v.endDate || ""} ]` : null].filter(Boolean).join(" "), v.description].filter(Boolean).join("\n"))
+      .join("\n\n");
+  }
+
+  // 13. Recommendations
+  const recIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("recommendation") || s.heading?.toLowerCase().includes("referee"));
+  if (cv.recommendations !== undefined && recIdx >= 0) {
+    sections[recIdx].content = (cv.recommendations || [])
+      .map((r) => [r.recommenderName, [r.recommenderTitle, r.organization].filter(Boolean).join(", "), r.text ? `"${r.text}"` : null].filter(Boolean).join("\n"))
+      .join("\n\n");
+  }
+
+  return sections;
 }

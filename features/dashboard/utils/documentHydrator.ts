@@ -54,13 +54,26 @@ export function generateDocumentId(studentId: string, docType: string): string {
 }
 
 export function ensureDocumentIdentity(doc: HydratedDocumentData): HydratedDocumentData {
+  const cleanStudentName = doc.studentName ? doc.studentName.replace(/[\s\-_]+$/, "").trim() : doc.studentName;
+  const cleanTitle = doc.title
+    ? doc.title
+        .replace(/\s*-\s*-\s*/g, " - ")
+        .replace(/(\b[A-Za-z]+)\s*-\s*-\s*/g, "$1 - ")
+        .replace(/(\b[A-Za-z]+)\s*-\s+-\s+Italy/g, "$1 - Italy")
+    : doc.title;
   if (doc.id && typeof doc.id === "string" && doc.id.trim()) {
-    return doc;
+    return {
+      ...doc,
+      studentName: cleanStudentName,
+      title: cleanTitle,
+    };
   }
   const legacyId = `legacy_${doc.studentId}_${doc.docType.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   return {
     ...doc,
     id: legacyId,
+    studentName: cleanStudentName,
+    title: cleanTitle,
   };
 }
 
@@ -102,7 +115,8 @@ export function hydrateDocumentFromSnapshot(
   const a = normalized.academics;
   const prog = normalized.applications.activeProgram;
 
-  const studentName = p.fullName || "Candidate";
+  const rawStudentName = p.fullName || "Candidate";
+  const studentName = rawStudentName.replace(/[\s\-_]+$/, "").trim() || "Candidate";
   const firstName = studentName.split(" ")[0] || "Candidate";
 
   const targetCourse = prog?.course || "";
@@ -135,14 +149,17 @@ export function hydrateDocumentFromSnapshot(
     const sopContext = mapNormalizedToSop(normalized);
 
     const isExplicitCoverLetter = docType === "COVER_LETTER";
+    const isExplicitSop = docType === "SOP";
 
     const isVisaLetter =
-      isExplicitCoverLetter ||
-      templateId === italyTypeDCoverLetter.id ||
-      templateId === "VISA_COVER_LETTER" ||
-      (templateId && templateId.toLowerCase().includes("visa"));
+      !isExplicitSop &&
+      (isExplicitCoverLetter ||
+        templateId === italyTypeDCoverLetter.id ||
+        templateId === "VISA_COVER_LETTER" ||
+        Boolean(templateId && templateId.toLowerCase().includes("visa")));
 
     const isItalyVisa =
+      !isExplicitSop &&
       !templateId &&
       !isExplicitCoverLetter &&
       targetCountry.toLowerCase() === "italy" &&
@@ -153,8 +170,8 @@ export function hydrateDocumentFromSnapshot(
         normalized.visaLogistics?.travel?.flightNumber
       );
 
-    const template = (isVisaLetter || isItalyVisa) ? italyTypeDCoverLetter : universitySopTemplate;
-    const isVisa = template.id === italyTypeDCoverLetter.id;
+    const template = (!isExplicitSop && (isVisaLetter || isItalyVisa)) ? italyTypeDCoverLetter : universitySopTemplate;
+    const isVisa = !isExplicitSop && template.id === italyTypeDCoverLetter.id;
 
     if (isVisa) {
       // Profile enrichment from the student's own CRM snapshot only
@@ -539,7 +556,7 @@ export function getEuropassData(
     ...empty,
     personal: {
       ...empty.personal,
-      fullName: studentName || "",
+      fullName: (studentName || "").replace(/[\s\-_]+$/, "").trim(),
     },
   };
 }

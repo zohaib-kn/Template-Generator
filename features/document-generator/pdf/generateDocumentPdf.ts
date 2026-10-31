@@ -78,7 +78,7 @@ export function buildFilename(
 
   const rawCountry =
     options?.country?.trim() ||
-    data.personal?.targetCountry?.trim() ||
+    (data.personal as unknown as { targetCountry?: string })?.targetCountry?.trim() ||
     data.personal?.nationality?.trim() ||
     "Italy";
   const countryPart = safeFilenamePart(rawCountry) || "Italy";

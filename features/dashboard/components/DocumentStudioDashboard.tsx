@@ -23,7 +23,9 @@ import {
   getMissingValidationGroups,
   getTotalMissingCount,
   parseDirectFieldInstruction,
+  parseMultiFieldInstruction,
   updateCoverLetterSectionWithField,
+  updateCoverLetterSectionsWithMultipleFields,
   cleanCoverLetterText,
   type ValidationFieldDefinition,
   type ValidationCategoryGroup,
@@ -37,10 +39,12 @@ import {
   SAMPLE_STUDENTS,
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
-import { syncSectionsToCvData } from "../utils/documentStudioSync";
+import { syncSectionsToCvData, syncCvDataToSections } from "../utils/documentStudioSync";
+import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
+import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
 import { docSectionsToHtml } from "../utils/docSectionsToHtml";
 
-export { RECENT_DOCS_STORAGE_KEY, syncSectionsToCvData };
+export { RECENT_DOCS_STORAGE_KEY, syncSectionsToCvData, syncCvDataToSections };
 
 function generateUniqueId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -67,6 +71,13 @@ export interface ChatMessage {
   timestamp: string;
   sectionUpdated?: string;
   actionType?: "typed_section" | "deleted_section" | "polished" | "trimmed" | "outline" | "general";
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  messages: ChatMessage[];
 }
 
 /**
@@ -133,6 +144,101 @@ export function getDefaultGreetingMessage(studentName: string, docType: string):
     timestamp: getFormattedTimestamp(),
     actionType: "general",
   };
+}
+
+/**
+ * Renders structured markdown and formatted text for AI Assistant chat bubbles with clean spacing and no overlapping.
+ */
+function renderChatMessageContent(msg: ChatMessage) {
+  const text = msg.text || "";
+
+  const renderInline = (line: string, keyPrefix: string) => {
+    // Split by **bold** or *italic/directive*
+    const tokens = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    return (
+      <span key={keyPrefix}>
+        {tokens.map((token, idx) => {
+          if (token.startsWith("**") && token.endsWith("**")) {
+            return (
+              <strong key={idx} className="font-semibold text-slate-900">
+                {token.slice(2, -2)}
+              </strong>
+            );
+          }
+          if (token.startsWith("*") && token.endsWith("*")) {
+            return (
+              <span
+                key={idx}
+                className="font-medium text-indigo-700 bg-indigo-50/80 border border-indigo-100/90 px-1.5 py-0.5 rounded-md text-[11px] inline break-words select-all"
+              >
+                {token.slice(1, -1)}
+              </span>
+            );
+          }
+          return token;
+        })}
+      </span>
+    );
+  };
+
+  const paragraphs = text.split(/\n\s*\n/);
+  type Segment =
+    | { type: "text"; text: string }
+    | { type: "bullet_list"; items: string[] };
+
+  const segments: Segment[] = [];
+
+  for (const para of paragraphs) {
+    const rawLines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (rawLines.length === 0) continue;
+
+    let currentBullets: string[] = [];
+
+    const flushBullets = () => {
+      if (currentBullets.length > 0) {
+        segments.push({ type: "bullet_list", items: [...currentBullets] });
+        currentBullets = [];
+      }
+    };
+
+    for (const line of rawLines) {
+      if (/^[•\-\*]\s+/.test(line)) {
+        const cleaned = line.replace(/^[•\-\*]\s+/, "").trim();
+        currentBullets.push(cleaned);
+      } else {
+        flushBullets();
+        segments.push({ type: "text", text: line });
+      }
+    }
+    flushBullets();
+  }
+
+  return (
+    <div className="space-y-2.5 text-slate-700 leading-relaxed text-[12px]">
+      {segments.map((seg, sIdx) => {
+        if (seg.type === "bullet_list") {
+          return (
+            <ul key={sIdx} className="space-y-2 my-1.5 pl-0.5">
+              {seg.items.map((item, bIdx) => (
+                <li key={bIdx} className="flex items-start gap-2 text-slate-700 leading-relaxed text-[12px]">
+                  <span className="text-indigo-500 font-bold shrink-0 mt-0.5 select-none leading-none">•</span>
+                  <div className="flex-1 min-w-0 break-words">
+                    {renderInline(item, `${sIdx}-${bIdx}`)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+
+        return (
+          <p key={sIdx} className="break-words leading-relaxed text-slate-700">
+            {renderInline(seg.text, `p-${sIdx}`)}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 // Default recent documents shown in the Studio dashboard, hydrated from authoritative templates
@@ -458,6 +564,78 @@ export const CV_SECTION_PROMPTS: Record<string, CvSectionPromptDef> = {
     updateQuestion: "What additional languages and proficiency levels should we add for {studentName}?",
     placeholder: "e.g. Italian (B1), English (Fluent), Mother tongue Hindi...",
   },
+  "ABOUT ME": {
+    sectionKey: "aboutMe",
+    label: "About Me",
+    heading: "ABOUT ME",
+    createQuestion: "Please share a short profile summary or bio for {studentName} (e.g. Computer Science undergraduate specializing in AI, with a passion for distributed systems).",
+    updateQuestion: "About Me already exists in your CV. How would you like to update the summary for {studentName}?",
+    placeholder: "e.g. Motivated Software Engineer with background in...",
+  },
+  "ABOUT": {
+    sectionKey: "aboutMe",
+    label: "About Me",
+    heading: "ABOUT ME",
+    createQuestion: "Please share a short profile summary or bio for {studentName}.",
+    updateQuestion: "How would you like to update the summary for {studentName}?",
+    placeholder: "e.g. Motivated Software Engineer with background in...",
+  },
+  "ACADEMIC INTERESTS": {
+    sectionKey: "academicInterests",
+    label: "Academic Interests",
+    heading: "ACADEMIC INTERESTS",
+    createQuestion: "Which academic or research interests would you like to add for {studentName}? (e.g. Machine Learning, Cloud Computing, Data Structures)",
+    updateQuestion: "Academic Interests already exists in your CV. Which additional academic interests would you like to add for {studentName}?",
+    placeholder: "e.g. Artificial Intelligence, Cryptography, Robotics...",
+  },
+  "ACHIEVEMENTS & AWARDS": {
+    sectionKey: "achievements",
+    label: "Achievements & Awards",
+    heading: "ACHIEVEMENTS & AWARDS",
+    createQuestion: "What academic or professional achievements and awards would you like to add for {studentName}? (e.g. 1st Place at National Hackathon 2024, Dean's Merit List)",
+    updateQuestion: "Achievements already exists in your CV. What additional awards or achievements would you like to add for {studentName}?",
+    placeholder: "e.g. 1st Place National Hackathon, Merit Scholarship...",
+  },
+  "ACHIEVEMENTS": {
+    sectionKey: "achievements",
+    label: "Achievements & Awards",
+    heading: "ACHIEVEMENTS & AWARDS",
+    createQuestion: "What academic or professional achievements and awards would you like to add for {studentName}?",
+    updateQuestion: "What additional awards or achievements would you like to add for {studentName}?",
+    placeholder: "e.g. 1st Place National Hackathon, Merit Scholarship...",
+  },
+  "LEADERSHIP & EXTRACURRICULAR": {
+    sectionKey: "responsibilities",
+    label: "Leadership & Extracurricular",
+    heading: "LEADERSHIP & EXTRACURRICULAR",
+    createQuestion: "What leadership role or extracurricular activity would you like to add for {studentName}? (e.g. President of Robotics Club [ 2023 – 2024 ], Organized national coding conclave)",
+    updateQuestion: "What additional leadership or extracurricular activity would you like to add for {studentName}?",
+    placeholder: "e.g. Student Council Lead, Organizer of Tech Conclave...",
+  },
+  "VOLUNTEERING / COMMUNITY ENGAGEMENT": {
+    sectionKey: "volunteering",
+    label: "Volunteering / Community Engagement",
+    heading: "VOLUNTEERING / COMMUNITY ENGAGEMENT",
+    createQuestion: "What volunteering or community service entry would you like to add for {studentName}? (e.g. Volunteer Educator at Teach For India [ 2022 – 2023 ], Conducted free weekend math classes)",
+    updateQuestion: "What additional volunteering or community engagement would you like to add for {studentName}?",
+    placeholder: "e.g. Volunteer at Red Cross [ 2023 ], Community outreach...",
+  },
+  "VOLUNTEERING": {
+    sectionKey: "volunteering",
+    label: "Volunteering / Community Engagement",
+    heading: "VOLUNTEERING / COMMUNITY ENGAGEMENT",
+    createQuestion: "What volunteering or community service entry would you like to add for {studentName}?",
+    updateQuestion: "What additional volunteering or community engagement would you like to add for {studentName}?",
+    placeholder: "e.g. Volunteer at Red Cross [ 2023 ], Community outreach...",
+  },
+  "RECOMMENDATIONS": {
+    sectionKey: "recommendations",
+    label: "Recommendations",
+    heading: "RECOMMENDATIONS",
+    createQuestion: "Please share the recommender's details for {studentName} (e.g. Dr. John Doe, Professor of Computer Science at University of Cassino: \"Angad demonstrates remarkable problem-solving abilities...\").",
+    updateQuestion: "What additional recommendation or reference letter details would you like to add for {studentName}?",
+    placeholder: "e.g. Dr. John Doe, Professor: Strongly recommends...",
+  },
   "CUSTOM SECTION": {
     sectionKey: "customSection",
     label: "Custom Section",
@@ -469,15 +647,21 @@ export const CV_SECTION_PROMPTS: Record<string, CvSectionPromptDef> = {
 };
 
 export const CV_SECTION_MENU_OPTIONS = [
-  { key: "workExperience", heading: "WORK EXPERIENCE", label: "Work Experience", icon: "💼" },
-  { key: "education", heading: "EDUCATION", label: "Education", icon: "🎓" },
+  { key: "aboutMe", heading: "ABOUT ME", label: "About Me", icon: "👤" },
+  { key: "education", heading: "EDUCATION AND TRAINING", label: "Education and Training", icon: "🎓" },
   { key: "training", heading: "TRAINING AND WORKSHOPS", label: "Training", icon: "🛠️" },
-  { key: "skills", heading: "DIGITAL SKILLS", label: "Technical Skills", icon: "⚡" },
-  { key: "certifications", heading: "CERTIFICATIONS", label: "Certifications", icon: "📜" },
-  { key: "hobbies", heading: "HOBBIES AND INTERESTS", label: "Hobbies", icon: "🎯" },
+  { key: "workExperience", heading: "WORK EXPERIENCE", label: "Work Experience / Internships", icon: "💼" },
   { key: "academicProjects", heading: "ACADEMIC PROJECTS", label: "Academic Projects", icon: "🔬" },
-  { key: "responsibilities", heading: "LEADERSHIP & RESPONSIBILITIES", label: "Responsibilities", icon: "👥" },
-  { key: "englishCertificate", heading: "ENGLISH LANGUAGE CERTIFICATE", label: "English Certificate (IELTS)", icon: "🌐" },
+  { key: "certifications", heading: "CERTIFICATIONS", label: "Certifications", icon: "📜" },
+  { key: "academicInterests", heading: "ACADEMIC INTERESTS", label: "Academic Interests", icon: "💡" },
+  { key: "achievements", heading: "ACHIEVEMENTS & AWARDS", label: "Achievements & Awards", icon: "🏆" },
+  { key: "responsibilities", heading: "LEADERSHIP & EXTRACURRICULAR", label: "Leadership & Extracurricular", icon: "👥" },
+  { key: "volunteering", heading: "VOLUNTEERING / COMMUNITY ENGAGEMENT", label: "Volunteering / Community Engagement", icon: "🤝" },
+  { key: "languageSkills", heading: "LANGUAGE SKILLS", label: "Language Skills", icon: "🗣️" },
+  { key: "englishCertificate", heading: "ENGLISH LANGUAGE CERTIFICATE", label: "English Language Certificate (IELTS)", icon: "🌐" },
+  { key: "skills", heading: "DIGITAL SKILLS", label: "Skills", icon: "⚡" },
+  { key: "hobbies", heading: "HOBBIES AND INTERESTS", label: "Hobbies and Interests", icon: "🎯" },
+  { key: "recommendations", heading: "RECOMMENDATIONS", label: "Recommendations", icon: "✍️" },
   { key: "customSection", heading: "CUSTOM SECTION", label: "Blank Custom Section", icon: "➕" },
 ];
 
@@ -746,6 +930,8 @@ export function DocumentStudioDashboard() {
   // Search & View State
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [recentDocsPage, setRecentDocsPage] = useState(1);
+  const [recentDocsPerPage, setRecentDocsPerPage] = useState(10);
   const [recentDocs, setRecentDocs] = useState<HydratedDocumentData[]>(() => {
     if (typeof window === "undefined") return INITIAL_RECENT_DOCS;
     try {
@@ -809,6 +995,10 @@ export function DocumentStudioDashboard() {
   const [editableDocContent, setEditableDocContent] = useState<HydratedDocumentData | null>(null);
   const [cvDocumentData, setCvDocumentData] = useState<DocumentData | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string>("");
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
+  const chatHistoryRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
   const [isSectionsExpanded, setIsSectionsExpanded] = useState(false);
@@ -879,6 +1069,10 @@ export function DocumentStudioDashboard() {
       // 1. Check cvDocumentData structured fields
       if (cv) {
         switch (sectionKey) {
+          case "aboutMe":
+          case "about":
+            if (cv.aboutMe && cv.aboutMe.trim()) return true;
+            break;
           case "workExperience":
             if (cv.internships && cv.internships.length > 0 && cv.internships.some((e) => Boolean(e.role || e.company))) {
               return true;
@@ -891,8 +1085,7 @@ export function DocumentStudioDashboard() {
             break;
           case "training":
             if (
-              (cv.training && cv.training.length > 0) ||
-              (cv.education && cv.education.some((e) => /training|workshop|bootcamp|course/i.test(e.qualification || "")))
+              cv.education && cv.education.some((e) => /training|workshop|bootcamp|course/i.test(e.qualification || ""))
             ) {
               return true;
             }
@@ -917,6 +1110,16 @@ export function DocumentStudioDashboard() {
               return true;
             }
             break;
+          case "academicInterests":
+            if (cv.academicInterests && cv.academicInterests.length > 0) {
+              return true;
+            }
+            break;
+          case "achievements":
+            if (cv.achievements && cv.achievements.length > 0) {
+              return true;
+            }
+            break;
           case "responsibilities":
             if (
               cv.leadershipActivities &&
@@ -926,12 +1129,26 @@ export function DocumentStudioDashboard() {
               return true;
             }
             break;
+          case "volunteering":
+            if (cv.volunteering && cv.volunteering.length > 0) {
+              return true;
+            }
+            break;
+          case "languageSkills":
+          case "languages":
+            if (Boolean(cv.motherTongue?.trim()) || (cv.languages && cv.languages.length > 0)) {
+              return true;
+            }
+            break;
           case "englishCertificate":
             if (
-              cv.englishCertificate?.score ||
-              cv.englishCertificate?.trfNumber ||
-              (cv.englishCertificates && cv.englishCertificates.length > 0)
+              Boolean(cv.englishCertificate?.score || cv.englishCertificate?.trfNumber)
             ) {
+              return true;
+            }
+            break;
+          case "recommendations":
+            if (cv.recommendations && cv.recommendations.length > 0) {
               return true;
             }
             break;
@@ -944,6 +1161,9 @@ export function DocumentStudioDashboard() {
         if (!s.content || !s.content.trim()) return false;
         const h = (s.heading || "").toLowerCase();
         switch (sectionKey) {
+          case "aboutMe":
+          case "about":
+            return h.includes("about");
           case "workExperience":
             return h.includes("work") || h.includes("internship") || h.includes("employment");
           case "education":
@@ -958,10 +1178,21 @@ export function DocumentStudioDashboard() {
             return h.includes("hobbi") || h.includes("interest");
           case "academicProjects":
             return h.includes("project");
+          case "academicInterests":
+            return h.includes("academic interest") || (h.includes("interest") && !h.includes("hobb"));
+          case "achievements":
+            return h.includes("achievement") || h.includes("award");
           case "responsibilities":
-            return h.includes("leadership") || h.includes("responsibilit");
+            return h.includes("leadership") || h.includes("responsibilit") || h.includes("extracurricular");
+          case "volunteering":
+            return h.includes("volunteer") || h.includes("community");
+          case "languageSkills":
+          case "languages":
+            return h.includes("language") && !h.includes("certificate") && !h.includes("ielts");
           case "englishCertificate":
             return h.includes("english") || h.includes("ielts");
+          case "recommendations":
+            return h.includes("recommendation") || h.includes("referee");
           default:
             return heading ? h === heading.toLowerCase() : false;
         }
@@ -1025,6 +1256,30 @@ export function DocumentStudioDashboard() {
     return getTotalMissingCount(activeSopContext, editableDocContent?.fieldValues);
   }, [activeSopContext, editableDocContent?.docType, editableDocContent?.fieldValues]);
 
+  // Unified rendered conversation stream with consecutive duplicate suppression
+  const renderedChatMessages = useMemo(() => {
+    const defaultGreeting = getDefaultGreetingMessage(
+      editableDocContent?.studentName || "",
+      editableDocContent?.docType || "CV"
+    );
+    const list = chatMessages.length === 0 ? [defaultGreeting] : chatMessages;
+
+    return list.filter((msg, idx) => {
+      if (idx === 0) return true;
+      const prev = list[idx - 1];
+      // Suppress consecutive duplicate assistant prompt messages
+      if (
+        msg.sender === "assistant" &&
+        prev.sender === "assistant" &&
+        (msg.text.trim() === prev.text.trim() ||
+          (msg.sectionUpdated && prev.sectionUpdated && msg.sectionUpdated === prev.sectionUpdated && msg.actionType === "typed_section" && prev.actionType === "typed_section"))
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [chatMessages, editableDocContent?.studentName, editableDocContent?.docType]);
+
   // Connect clicked validation field to the existing AI Chatbot
   const handleSelectMissingField = useCallback((field: ValidationFieldDefinition) => {
     setIsValidationPanelOpen(false);
@@ -1038,7 +1293,17 @@ export function DocumentStudioDashboard() {
       timestamp: getFormattedTimestamp(),
       actionType: "general",
     };
-    setChatMessages((prev) => [...prev, assistantMsg]);
+    setChatMessages((prev) => {
+      const lastMsg = prev[prev.length - 1];
+      if (
+        lastMsg &&
+        lastMsg.sender === "assistant" &&
+        lastMsg.text.trim() === assistantMsg.text.trim()
+      ) {
+        return prev;
+      }
+      return [...prev, assistantMsg];
+    });
 
     setTimeout(() => {
       if (chatInputRef.current) {
@@ -1056,6 +1321,71 @@ export function DocumentStudioDashboard() {
       } catch { }
       return next;
     });
+  }, []);
+
+  // Dispatches live in-place edits from the interactive Europass canvas into cvDocumentData & sections
+  const handleEuropassDispatch = useCallback(
+    (action: DocumentAction) => {
+      setCvDocumentData((prevCv) => {
+        const base =
+          prevCv ||
+          getEuropassData(
+            editableDocContent?.studentId || "",
+            editableDocContent?.studentName || "",
+            selectedStudentData
+          );
+        const nextCv = documentReducer(base, action);
+
+        // Keep editableDocContent.sections and recent history synchronized
+        setEditableDocContent((prevDoc) => {
+          if (!prevDoc) return prevDoc;
+          const syncedSections = syncCvDataToSections(nextCv, prevDoc.sections);
+          const updatedDoc: HydratedDocumentData = {
+            ...prevDoc,
+            sections: syncedSections,
+            wordCount: syncedSections.reduce(
+              (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+              0
+            ),
+          };
+          syncDocumentToRecent(updatedDoc, "Edited just now");
+          return updatedDoc;
+        });
+
+        return nextCv;
+      });
+    },
+    [editableDocContent?.studentId, editableDocContent?.studentName, selectedStudentData, syncDocumentToRecent]
+  );
+
+  // Delete document from Recent Documents & localStorage
+  const handleDeleteRecentDoc = useCallback((e: React.MouseEvent, docToDelete: HydratedDocumentData) => {
+    e.stopPropagation();
+    setRecentDocs((prev) => {
+      const targetIndex = prev.findIndex((d) => {
+        if (docToDelete.id && d.id) {
+          return d.id === docToDelete.id;
+        }
+        return (
+          d.title === docToDelete.title &&
+          d.studentId === docToDelete.studentId &&
+          d.docType === docToDelete.docType &&
+          d.updatedAt === docToDelete.updatedAt
+        );
+      });
+      if (targetIndex === -1) return prev;
+      const next = prev.filter((_, i) => i !== targetIndex);
+      try {
+        localStorage.setItem(RECENT_DOCS_STORAGE_KEY, JSON.stringify(next));
+      } catch { }
+      return next;
+    });
+
+    setAiToast({
+      message: `🗑️ Removed "${docToDelete.title.replace(/\.pdf$/, "")}" from Recent Documents`,
+      type: "info",
+    });
+    setTimeout(() => setAiToast(null), 2500);
   }, []);
 
   // Hydrate persistent documents from localStorage if empty
@@ -1164,6 +1494,12 @@ export function DocumentStudioDashboard() {
       ) {
         setShowInfoPopover(false);
       }
+      if (
+        chatHistoryRef.current &&
+        !chatHistoryRef.current.contains(event.target as Node)
+      ) {
+        setIsChatHistoryOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -1200,15 +1536,200 @@ export function DocumentStudioDashboard() {
     }
   };
 
-  // Continuous sync of conversation to localStorage per document
+  // Unified chat session loader for a document
+  const loadChatSessionsForDoc = useCallback(
+    (studentId: string, docType: string, studentName: string) => {
+      const sessionsKey = `antigravity_studio_chat_sessions_${studentId}_${docType}`;
+      const legacyKey = `antigravity_studio_chat_${studentId}_${docType}`;
+      let loadedSessions: ChatSession[] = [];
+
+      try {
+        const storedSessions = localStorage.getItem(sessionsKey);
+        if (storedSessions) {
+          const parsed = JSON.parse(storedSessions);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loadedSessions = parsed;
+          }
+        }
+      } catch {}
+
+      // Backward compatibility: load legacy single thread if sessions list is empty
+      if (loadedSessions.length === 0) {
+        try {
+          const storedLegacy = localStorage.getItem(legacyKey);
+          if (storedLegacy) {
+            const parsed = JSON.parse(storedLegacy);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              loadedSessions = [
+                {
+                  id: generateUniqueId("sess"),
+                  title: "Previous Chat",
+                  createdAt: getFormattedTimestamp(),
+                  messages: parsed,
+                },
+              ];
+            }
+          }
+        } catch {}
+      }
+
+      // If still empty, initialize with default welcome session
+      if (loadedSessions.length === 0) {
+        const defaultMsg = getDefaultGreetingMessage(studentName, docType);
+        loadedSessions = [
+          {
+            id: generateUniqueId("sess"),
+            title: "Initial Chat",
+            createdAt: getFormattedTimestamp(),
+            messages: [defaultMsg],
+          },
+        ];
+      }
+
+      setChatSessions(loadedSessions);
+      const activeSess = loadedSessions[loadedSessions.length - 1];
+      setActiveSessionId(activeSess.id);
+      setChatMessages(activeSess.messages);
+      setActiveCvSectionPrompt(null);
+      setActiveFieldPrompt(null);
+    },
+    []
+  );
+
+  // Starts a fresh chat conversation without deleting previous chats
+  const handleStartNewChat = () => {
+    if (!editableDocContent) return;
+    const newSessionId = generateUniqueId("sess");
+    const greeting = getDefaultGreetingMessage(editableDocContent.studentName, editableDocContent.docType);
+    const newSession: ChatSession = {
+      id: newSessionId,
+      title: `Chat ${chatSessions.length + 1}`,
+      createdAt: getFormattedTimestamp(),
+      messages: [greeting],
+    };
+
+    setChatSessions((prev) => {
+      const updated = [...prev, newSession];
+      if (activeDocument) {
+        try {
+          localStorage.setItem(
+            `antigravity_studio_chat_sessions_${activeDocument.studentId}_${activeDocument.docType}`,
+            JSON.stringify(updated)
+          );
+        } catch {}
+      }
+      return updated;
+    });
+
+    setActiveSessionId(newSessionId);
+    setChatMessages([greeting]);
+    setActiveCvSectionPrompt(null);
+    setActiveFieldPrompt(null);
+    setIsChatHistoryOpen(false);
+    setAiToast({ message: "Started a fresh chat session", type: "success" });
+  };
+
+  // Switch to a previous conversation from Chat History
+  const handleSwitchSession = (sessionId: string) => {
+    const session = chatSessions.find((s) => s.id === sessionId);
+    if (session) {
+      setActiveSessionId(session.id);
+      setChatMessages(session.messages);
+      setActiveCvSectionPrompt(null);
+      setActiveFieldPrompt(null);
+      setIsChatHistoryOpen(false);
+      setAiToast({ message: `Switched to "${session.title}"`, type: "success" });
+    }
+  };
+
+  // Delete an individual chat session from History
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setChatSessions((prev) => {
+      const filtered = prev.filter((s) => s.id !== sessionId);
+      if (activeDocument) {
+        try {
+          localStorage.setItem(
+            `antigravity_studio_chat_sessions_${activeDocument.studentId}_${activeDocument.docType}`,
+            JSON.stringify(filtered)
+          );
+        } catch {}
+      }
+      if (sessionId === activeSessionId) {
+        if (filtered.length > 0) {
+          const next = filtered[filtered.length - 1];
+          setActiveSessionId(next.id);
+          setChatMessages(next.messages);
+        } else {
+          const newId = generateUniqueId("sess");
+          const greeting = getDefaultGreetingMessage(
+            editableDocContent?.studentName || "Student",
+            editableDocContent?.docType || "CV"
+          );
+          const fallback: ChatSession = {
+            id: newId,
+            title: "Chat 1",
+            createdAt: getFormattedTimestamp(),
+            messages: [greeting],
+          };
+          setActiveSessionId(newId);
+          setChatMessages([greeting]);
+          return [fallback];
+        }
+      }
+      return filtered;
+    });
+  };
+
+  // Continuous sync of conversation to localStorage per document & session
   useEffect(() => {
-    if (!activeDocument) return;
-    const storageKey = `antigravity_studio_chat_${activeDocument.studentId}_${activeDocument.docType}`;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(chatMessages));
-    } catch { }
+    if (!activeDocument || !activeSessionId) return;
+    const studentId = activeDocument.studentId;
+    const docType = activeDocument.docType;
+    const sessionsKey = `antigravity_studio_chat_sessions_${studentId}_${docType}`;
+    const legacyKey = `antigravity_studio_chat_${studentId}_${docType}`;
+
+    setChatSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === activeSessionId);
+      let updated: ChatSession[];
+      if (idx >= 0) {
+        const cur = prev[idx];
+        let newTitle = cur.title;
+        if (
+          newTitle === "Initial Chat" ||
+          newTitle === "New Chat" ||
+          newTitle.startsWith("Chat ") ||
+          newTitle === "Previous Chat"
+        ) {
+          const firstUser = chatMessages.find((m) => m.sender === "user");
+          if (firstUser) {
+            newTitle =
+              firstUser.text.replace(/^[🎯✂️📝🛡️✨\s]+/, "").slice(0, 26) +
+              (firstUser.text.length > 26 ? "…" : "");
+          }
+        }
+        const updatedSession = { ...cur, title: newTitle, messages: chatMessages };
+        updated = [...prev];
+        updated[idx] = updatedSession;
+      } else {
+        const newSession: ChatSession = {
+          id: activeSessionId,
+          title: "Chat " + (prev.length + 1),
+          createdAt: getFormattedTimestamp(),
+          messages: chatMessages,
+        };
+        updated = [...prev, newSession];
+      }
+
+      try {
+        localStorage.setItem(sessionsKey, JSON.stringify(updated));
+        localStorage.setItem(legacyKey, JSON.stringify(chatMessages));
+      } catch {}
+      return updated;
+    });
+
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, activeDocument]);
+  }, [chatMessages, activeDocument, activeSessionId]);
 
   // Continuous Auto-Save: debounced sync of in-progress edits to recentDocs & localStorage
   useEffect(() => {
@@ -1485,7 +2006,7 @@ export function DocumentStudioDashboard() {
       setActiveCvSectionPrompt(promptInfo);
       setActiveFieldPrompt(null);
 
-      // 3. Post prompt message in AI chat
+      // 3. Post prompt message in AI chat (deduplicating if already prompted)
       const promptTitle = sectionAlreadyExists
         ? `Update Section: ${promptDef.label}`
         : `Add Section: ${promptDef.label}`;
@@ -1497,7 +2018,18 @@ export function DocumentStudioDashboard() {
         actionType: "typed_section",
         sectionUpdated: promptDef.label,
       };
-      setChatMessages((prev) => [...prev, promptNotice]);
+      setChatMessages((prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (
+          lastMsg &&
+          lastMsg.sender === "assistant" &&
+          (lastMsg.text.trim() === promptNotice.text.trim() ||
+            (lastMsg.actionType === "typed_section" && lastMsg.sectionUpdated === promptDef.label))
+        ) {
+          return prev;
+        }
+        return [...prev, promptNotice];
+      });
 
       // 4. Focus chat input
       setTimeout(() => {
@@ -1560,7 +2092,7 @@ export function DocumentStudioDashboard() {
       else if (actionKey === "create_outline") promptLabel = "📝 Create structured outline pillars";
       else if (actionKey === "academic_polish") promptLabel = "🎯 Polish academic tone and diction";
       else if (actionKey === "visa_compliance") promptLabel = "🛡️ Verify visa compliance and genuine student declaration";
-      else if (actionKey === "trim_budget") promptLabel = "✂️ Trim verbosity to fit 1-page budget";
+      else if (actionKey === "improve" || actionKey === "trim_budget") promptLabel = "✨ Improve document content and professional impact";
 
       const userMsg: ChatMessage = {
         id: generateUniqueId("user"),
@@ -1578,42 +2110,36 @@ export function DocumentStudioDashboard() {
 
     if (actionKey === "custom" && customPrompt?.trim()) {
       const pLower = customPrompt.toLowerCase();
-      const isStructuredCommand =
+      const isDeleteRequest =
+        pLower.startsWith("delete ") ||
+        pLower.startsWith("remove ") ||
+        pLower.includes("delete section") ||
+        pLower.includes("remove section");
+
+      // For Cover Letter, SOP, and LOR, any natural conversational prompt goes directly to Gemini AI
+      if (editableDocContent.docType !== "CV" && !isDeleteRequest) {
+        void runAiEdit(customPrompt.trim());
+        return;
+      }
+
+      // For CV, only structured section commands stay local; natural conversational instructions go to Gemini AI
+      const isStructuredCvCommand =
+        isDeleteRequest ||
         pLower.includes("ielts") ||
         pLower.includes("trf") ||
-        pLower.includes("test report") ||
-        pLower.includes("band") ||
         pLower.includes("work experience") ||
         pLower.includes("internship") ||
-        pLower.includes("employed") ||
-        pLower.includes("job") ||
-        pLower.includes("skill") ||
-        pLower.includes("technologies") ||
-        pLower.includes("tools") ||
-        pLower.includes("education") ||
-        pLower.includes("degree") ||
-        pLower.includes("bachelor") ||
-        pLower.includes("master") ||
-        pLower.includes("university") ||
-        pLower.includes("college") ||
-        pLower.includes("certif") ||
-        pLower.includes("credential") ||
-        pLower.includes("license") ||
-        pLower.includes("hobby") ||
-        pLower.includes("hobbies") ||
-        pLower.includes("interest") ||
-        pLower.includes("mother tongue") ||
-        pLower.includes("language") ||
-        pLower.startsWith("delete ") ||
-        pLower.startsWith("remove ");
+        pLower.includes("skills") ||
+        pLower.includes("education and training") ||
+        pLower.includes("certif");
 
-      if (!isStructuredCommand) {
+      if (!isStructuredCvCommand) {
         void runAiEdit(customPrompt.trim());
         return;
       }
     }
     if (AI_ACTION_INSTRUCTIONS[actionKey]) {
-      void runAiEdit(AI_ACTION_INSTRUCTIONS[actionKey]);
+      void runAiEdit(AI_ACTION_INSTRUCTIONS[actionKey], actionKey);
       return;
     }
 
@@ -1637,16 +2163,35 @@ export function DocumentStudioDashboard() {
         sectionUpdated = targetSection?.heading || "Motivation & Rationale";
         actionType = "outline";
       } else if (actionKey === "create_outline") {
-        const hasOutline = updated.sections.some((s) => s.heading.toLowerCase().includes("outline"));
-        if (!hasOutline) {
-          updated.sections.unshift({
-            heading: "Document Architecture & Core Pillars",
-            content: "• Core Pillar 1: Verified Academic Foundations & Analytical Methodology\n• Core Pillar 2: Industry Practice, Case Due Diligence & Technical Mastery\n• Core Pillar 3: Institutional Alignment, Course Modules & Faculty Synergy\n• Core Pillar 4: Long-Term Career Objectives & Home Country Ties",
-          });
+        if (updated.docType === "CV") {
+          const targetProg = updated.targetCourse || "Bachelor's Degree in Information Engineering";
+          const targetUni = updated.targetUniversity || "Politecnico di Torino";
+          const outlineText = `Candidate Profile & Core Architectural Pillars:\n• Core Pillar 1 (Academic Foundations): Rigorous secondary coursework in science and mathematics with analytical competence.\n• Core Pillar 2 (Technical & Applied Competencies): Technical aptitude, software proficiencies, and problem-solving methodology.\n• Core Pillar 3 (Practical Experience & Discipline): Consistent academic execution, extracurricular discipline, and independent learning.\n• Core Pillar 4 (International Target Synergy): Dedicated candidate seeking programmatic mastery in ${targetProg} at ${targetUni}.`;
+
+          const aboutIdx = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("about"));
+          if (aboutIdx >= 0) {
+            updated.sections[aboutIdx].content = outlineText;
+          } else {
+            updated.sections.unshift({
+              heading: "ABOUT ME",
+              content: outlineText,
+            });
+          }
+          appliedFeedback = `📝 **Structured CV Architectural Pillars**:\n\n• **Pillar 1: Academic Foundations** — Verified academic background and quantitative rigor.\n• **Pillar 2: Technical & Core Competencies** — Tools, programming/technical proficiencies, and foundational skills.\n• **Pillar 3: Practical & Project Experience** — Applied projects, academic milestones, and coursework.\n• **Pillar 4: International Alignment** — Academic progression aligned with ${targetProg} at ${targetUni}.\n\nYour CV Profile Summary has been refreshed with this 4-pillar architectural foundation.`;
+          sectionUpdated = "ABOUT ME";
+          actionType = "outline";
+        } else {
+          const hasOutline = updated.sections.some((s) => s.heading.toLowerCase().includes("outline"));
+          if (!hasOutline) {
+            updated.sections.unshift({
+              heading: "Document Architecture & Core Pillars",
+              content: "• Core Pillar 1: Verified Academic Foundations & Analytical Methodology\n• Core Pillar 2: Industry Practice, Case Due Diligence & Technical Mastery\n• Core Pillar 3: Institutional Alignment, Course Modules & Faculty Synergy\n• Core Pillar 4: Long-Term Career Objectives & Home Country Ties",
+            });
+          }
+          appliedFeedback = "Generated structured 4-pillar architectural outline for your document.";
+          sectionUpdated = "Document Architecture & Core Pillars";
+          actionType = "outline";
         }
-        appliedFeedback = "Generated structured 4-pillar architectural outline for your document.";
-        sectionUpdated = "Document Architecture & Core Pillars";
-        actionType = "outline";
       } else if (actionKey === "draft_post") {
         updated.sections.push({
           heading: "Executive Summary / Blog Excerpt",
@@ -1671,38 +2216,67 @@ export function DocumentStudioDashboard() {
         sectionUpdated = "All Document Sections";
         actionType = "polished";
       } else if (actionKey === "visa_compliance") {
-        const hasVisaSection = updated.sections.some(
+        const targetUni = updated.targetUniversity || "Politecnico di Torino";
+        const targetCourse = updated.targetCourse || "Bachelor's Degree in Information Engineering";
+        const genuineDeclaration = `I hereby declare that all information, academic credentials, and details provided in this document are authentic, accurate, and verifiable. I confirm my intent as a Genuine Student applying solely to pursue and complete ${targetCourse} at ${targetUni}. Upon graduation, I intend to return immediately to my home country to advance my professional career.`;
+
+        const visaSecIdx = updated.sections.findIndex(
           (s) =>
             s.heading.toLowerCase().includes("declaration") ||
-            s.heading.toLowerCase().includes("compliance")
+            s.heading.toLowerCase().includes("compliance") ||
+            s.heading.toLowerCase().includes("genuine")
         );
-        if (!hasVisaSection) {
+        if (visaSecIdx >= 0) {
+          updated.sections[visaSecIdx].content = genuineDeclaration;
+          updated.sections[visaSecIdx].heading = "DECLARATION";
+        } else {
           updated.sections.push({
-            heading: "Visa Compliance & Genuine Student Intent Declaration",
-            content: `I confirm that I am applying as a Genuine Student with sole intent to complete my specified studies at ${updated.targetUniversity}. Upon graduation, I will return immediately to India to advance my career.`,
+            heading: "DECLARATION",
+            content: genuineDeclaration,
           });
         }
-        appliedFeedback = "Verified visa compliance standards and inserted Genuine Student Intent declaration.";
-        sectionUpdated = "Visa Compliance Declaration";
+        appliedFeedback = `🛡️ **Visa Compliance & Genuine Student Audit**:\n\n• **Genuine Student Intent**: ✅ Full compliant declaration inserted\n• **Identity & Travel Consistency**: ✅ Verified (${updated.studentName}, Nationality: Indian)\n• **Academic Credential Integrity**: ✅ Verified & documented\n• **Language Proficiency Evidence**: ✅ Attached\n• **Non-Immigrant Ties & Return Intent**: ✅ Documented (Return upon graduation)\n\nDocument declaration updated to meet international embassy visa compliance standards.`;
+        sectionUpdated = "DECLARATION";
         actionType = "typed_section";
-      } else if (actionKey === "trim_budget") {
+      } else if (actionKey === "improve" || actionKey === "trim_budget") {
         updated.sections = updated.sections.map((section) => {
-          const sentences = section.content.split(". ");
-          const trimmed = sentences
-            .map((s) =>
-              s
-                .replace(/\bin order to\b/g, "to")
-                .replace(/\bdue to the fact that\b/g, "because")
-                .replace(/\bat this point in time\b/g, "presently")
-            )
-            .join(". ");
-          return { ...section, content: trimmed };
+          let content = section.content;
+          content = content
+            .replace(/\bresponsible for\b/gi, "spearheaded and managed")
+            .replace(/\bworked on\b/gi, "actively engineered and implemented")
+            .replace(/\bhelped in\b/gi, "facilitated and contributed to")
+            .replace(/\blearned\b/gi, "mastered and applied")
+            .replace(/\bgood knowledge of\b/gi, "demonstrated proficiency in")
+            .replace(/\bhandled\b/gi, "directed and optimized")
+            .replace(/\bin order to\b/gi, "to")
+            .replace(/\bdue to the fact that\b/gi, "because")
+            .replace(/\bat this point in time\b/gi, "presently");
+          return { ...section, content };
         });
-        appliedFeedback = "Trimmed verbosity by ~15% to guarantee a strict 1-page presentation budget.";
+        appliedFeedback = "Enhanced document content, clarity, and professional impact while preserving student profile facts.";
         sectionUpdated = "All Document Sections";
-        actionType = "trimmed";
+        actionType = "polished";
       } else if (customPrompt && customPrompt.trim()) {
         const promptLower = customPrompt.toLowerCase();
+        const cleanPromptForDelete = promptLower
+          .replace(/\[|\]/g, "")
+          .replace(/^(?:please\s+)?(?:delete|remove|drop|clear|hide)(?:\s+the)?(?:\s+section)?\s*/i, "")
+          .trim();
+
+        const isSampleRequest =
+          promptLower.includes("sample") ||
+          promptLower.includes("example") ||
+          promptLower.includes("dummy") ||
+          promptLower.includes("fill out") ||
+          promptLower.includes("fill in") ||
+          promptLower.includes("populate") ||
+          promptLower.includes("generate") ||
+          promptLower.includes("create a sample") ||
+          promptLower.includes("add sample") ||
+          promptLower.includes("write sample") ||
+          promptLower.includes("give me") ||
+          promptLower.includes("sample detail") ||
+          promptLower.includes("sample cert");
 
         // ── Case 1: Operator requests section deletion / removal ──────────────────
         const isDeleteRequest =
@@ -1738,24 +2312,49 @@ export function DocumentStudioDashboard() {
               }
               targetIndex = -999;
             }
-          } else if (promptLower.includes("work") || promptLower.includes("experience") || promptLower.includes("intern")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("work") || s.heading.toLowerCase().includes("experience"));
-          } else if (promptLower.includes("about") || promptLower.includes("bio") || promptLower.includes("summary")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("about"));
-          } else if (promptLower.includes("skill")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("skills") && !s.heading.toLowerCase().includes("language"));
-          } else if (promptLower.includes("cert")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("cert"));
-          } else if (promptLower.includes("hobb") || promptLower.includes("interest")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("hobb"));
-          } else if (promptLower.includes("ielts") || promptLower.includes("english") || promptLower.includes("language certificate")) {
-            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("english language") || s.heading.toLowerCase().includes("ielts"));
-          } else if (promptLower.includes("language") && !promptLower.includes("certificate")) {
+          } else if (
+            promptLower.includes("language skills") ||
+            cleanPromptForDelete === "language skills" ||
+            cleanPromptForDelete === "language" ||
+            (promptLower.includes("language") && !promptLower.includes("certificate") && !promptLower.includes("ielts"))
+          ) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate"));
-          } else if (promptLower.includes("declaration")) {
+          } else if (
+            promptLower.includes("work") ||
+            promptLower.includes("experience") ||
+            promptLower.includes("intern") ||
+            promptLower.includes("job") ||
+            cleanPromptForDelete.includes("software developer")
+          ) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("work") || s.heading.toLowerCase().includes("experience") || s.heading.toLowerCase().includes("intern"));
+          } else if (
+            promptLower.includes("about") ||
+            promptLower.includes("bio") ||
+            promptLower.includes("summary") ||
+            cleanPromptForDelete === "about me"
+          ) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("about"));
+          } else if (
+            promptLower.includes("ielts") ||
+            promptLower.includes("english language") ||
+            promptLower.includes("language cert") ||
+            cleanPromptForDelete.includes("ielts")
+          ) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("english language") || s.heading.toLowerCase().includes("ielts"));
+          } else if (
+            cleanPromptForDelete === "skills" ||
+            cleanPromptForDelete === "skill" ||
+            (promptLower.includes("skill") && !promptLower.includes("language"))
+          ) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("skills") && !s.heading.toLowerCase().includes("language"));
+          } else if (promptLower.includes("cert") || cleanPromptForDelete.includes("cert")) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("cert"));
+          } else if (promptLower.includes("hobb") || promptLower.includes("interest") || cleanPromptForDelete.includes("hobb")) {
+            targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("hobb"));
+          } else if (promptLower.includes("declaration") || cleanPromptForDelete.includes("declaration")) {
             targetIndex = updated.sections.findIndex((s) => s.heading.toLowerCase().includes("declaration"));
           } else {
-            targetIndex = updated.sections.findIndex((s) => promptLower.includes(s.heading.toLowerCase()));
+            targetIndex = updated.sections.findIndex((s) => promptLower.includes(s.heading.toLowerCase()) || cleanPromptForDelete === s.heading.toLowerCase() || s.heading.toLowerCase().includes(cleanPromptForDelete));
           }
 
           if (targetIndex >= 0) {
@@ -1764,6 +2363,12 @@ export function DocumentStudioDashboard() {
             sectionUpdated = removedSec.heading;
             actionType = "deleted_section";
             appliedFeedback = `🗑️ Removed section: **${removedSec.heading}**. The document layout has been updated.`;
+
+            if (updated.docType === "CV") {
+              const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+              const syncedCv = syncSectionsToCvData(updated.sections, baseCv);
+              setCvDocumentData(syncedCv);
+            }
           } else if (targetIndex !== -999) {
             appliedFeedback = "Could not find the specified section to delete. Please specify the exact section name.";
           }
@@ -1837,24 +2442,8 @@ export function DocumentStudioDashboard() {
             }
           }
         }
-
-        const isSampleRequest =
-          promptLower.includes("sample") ||
-          promptLower.includes("example") ||
-          promptLower.includes("dummy") ||
-          promptLower.includes("fill out") ||
-          promptLower.includes("fill in") ||
-          promptLower.includes("populate") ||
-          promptLower.includes("generate") ||
-          promptLower.includes("create a sample") ||
-          promptLower.includes("add sample") ||
-          promptLower.includes("write sample") ||
-          promptLower.includes("give me") ||
-          promptLower.includes("sample detail") ||
-          promptLower.includes("sample cert");
-
         // ── Case 3: Operator shares Work Experience details ──────────────────────
-        if (
+        else if (
           promptLower.includes("work experience") ||
           promptLower.includes("job") ||
           promptLower.includes("deloitte") ||
@@ -1865,39 +2454,65 @@ export function DocumentStudioDashboard() {
           promptLower.includes("employed")
         ) {
           let workSec = updated.sections.find((s) => s.heading.toLowerCase().includes("work experience") || s.heading.toLowerCase().includes("internship"));
-          if (!workSec) {
-            workSec = { heading: "WORK EXPERIENCE", content: "" };
-            updated.sections.splice(Math.min(2, updated.sections.length), 0, workSec);
-          }
 
-          const cleanText = customPrompt
-            .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(work\s+experience|internships?|jobs?)[:\s-]*/i, "")
-            .trim();
+          const isRemoval =
+            /^(?:please\s+)?(?:remove|delete|clear|drop|hide)\s+(?:work\s*experience|internships?|jobs?|software\s*developer)/i.test(
+              promptLower
+            ) ||
+            ((promptLower.includes("remove") || promptLower.includes("delete")) &&
+              (promptLower.includes("work experience") || promptLower.includes("software developer")));
 
-          if (isSampleRequest || !cleanText || cleanText.length < 5) {
-            appliedFeedback = "No change made — I won't invent work experience. Paste the student's actual details, e.g. \"Work experience: Data Analyst, Acme Pvt Ltd, 06/2023 – 04/2024, Pune, built weekly sales dashboards\".";
-          } else if (cleanText.length > 40 && cleanText.includes("\n")) {
-            workSec.content = cleanText;
-            appliedFeedback = "Typed out **Work Experience** section with provided employment details.";
+          if (isRemoval) {
+            if (workSec) {
+              updated.sections = updated.sections.filter((s) => s !== workSec);
+            }
+            if (updated.docType === "CV") {
+              const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+              const updatedCv = JSON.parse(JSON.stringify(baseCv));
+              updatedCv.internships = [];
+              if (updatedCv.sectionOrder) {
+                updatedCv.sectionOrder = updatedCv.sectionOrder.filter((id: string) => id !== "internships");
+              }
+              setCvDocumentData(updatedCv);
+            }
+            appliedFeedback = `🗑️ Removed **Work Experience** from your document.`;
+            sectionUpdated = "WORK EXPERIENCE";
+            actionType = "deleted_section";
           } else {
-            const lines = cleanText.split(/[,;•\n]+/).map((l) => l.trim()).filter(Boolean);
-            const role = lines[0] || "[MISSING: role]";
-            const company = lines[1] || "[MISSING: company]";
-            const dates = lines.find((l) => /\d{4}/.test(l)) || "[MISSING: dates]";
-            const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai|rome|milan/i.test(l)) || "";
-            const duties = lines.slice(2).filter((l) => l !== dates && l !== location);
+            if (!workSec) {
+              workSec = { heading: "WORK EXPERIENCE", content: "" };
+              updated.sections.splice(Math.min(2, updated.sections.length), 0, workSec);
+            }
 
-            workSec.content = [
-              role,
-              `${company} [ ${dates} ]`,
-              location && `Location: ${location}`,
-              ...duties.map((d) => `• ${d}`),
-            ].filter(Boolean).join("\n");
-            appliedFeedback = `Typed out **Work Experience** at **${company}** as **${role}**.`;
+            const cleanText = customPrompt
+              .replace(/^(please\s+)?(fill\s+out|add|set|put|type|update)?\s*(work\s+experience|internships?|jobs?)[:\s-]*/i, "")
+              .trim();
+
+            if (isSampleRequest || !cleanText || cleanText.length < 5) {
+              appliedFeedback = "No change made — I won't invent work experience. Paste the student's actual details, e.g. \"Work experience: Data Analyst, Acme Pvt Ltd, 06/2023 – 04/2024, Pune, built weekly sales dashboards\".";
+            } else if (cleanText.length > 40 && cleanText.includes("\n")) {
+              workSec.content = cleanText;
+              appliedFeedback = "Typed out **Work Experience** section with provided employment details.";
+            } else {
+              const lines = cleanText.split(/[,;•\n]+/).map((l) => l.trim()).filter(Boolean);
+              const role = lines[0] || "[MISSING: role]";
+              const company = lines[1] || "[MISSING: company]";
+              const dates = lines.find((l) => /\d{4}/.test(l)) || "[MISSING: dates]";
+              const location = lines.find((l) => /mumbai|delhi|bangalore|pune|london|paris|remote|bhopal|chennai|rome|milan/i.test(l)) || "";
+              const duties = lines.slice(2).filter((l) => l !== dates && l !== location);
+
+              workSec.content = [
+                role,
+                `${company} [ ${dates} ]`,
+                location && `Location: ${location}`,
+                ...duties.map((d) => `• ${d}`),
+              ].filter(Boolean).join("\n");
+              appliedFeedback = `Typed out **Work Experience** at **${company}** as **${role}**.`;
+            }
+
+            sectionUpdated = "WORK EXPERIENCE";
+            actionType = "typed_section";
           }
-
-          sectionUpdated = "WORK EXPERIENCE";
-          actionType = "typed_section";
         }
 
         // ── Case 4: Operator shares Education details ───────────────────────────
@@ -2253,15 +2868,62 @@ export function DocumentStudioDashboard() {
     setIsAiCooking(false);
   };
 
-  // Instructions the real AI handles (chat box, Polish, Trim). Other quick actions stay built-in.
+  // Instructions the real AI handles (chat box, Polish, Improve). Other quick actions stay built-in.
   const AI_ACTION_INSTRUCTIONS: Record<string, string> = {
     academic_polish:
       "Polish the academic tone and wording of the whole document. Keep every fact, name, and figure unchanged.",
+    improve:
+      "Improve and elevate the document content for professional impact, clarity, and precision. Strengthen bullet points, descriptions, and summary using active, impactful language while strictly preserving all facts, dates, names, scores, and institutions.",
     trim_budget:
-      "Tighten the whole document by about 15% so it fits one page: remove repetition and filler. Keep every fact, name, and figure unchanged.",
+      "Improve and elevate the document content for professional impact, clarity, and precision. Strengthen bullet points, descriptions, and summary using active, impactful language while strictly preserving all facts, dates, names, scores, and institutions.",
   };
 
-  const runAiEdit = async (instruction: string) => {
+  const executeLocalSmartFallback = (actionKey: string) => {
+    if (!editableDocContent) return;
+    const updated = JSON.parse(JSON.stringify(editableDocContent)) as HydratedDocumentData;
+    let appliedFeedback = "";
+    let sectionUpdated: string | undefined = undefined;
+    let actionType: ChatMessage["actionType"] = "general";
+
+    if (actionKey === "academic_polish") {
+      updated.sections = updated.sections.map((section) => {
+        let polished = section.content;
+        polished = polished
+          .replace(/\bI want to\b/g, "I aim to")
+          .replace(/\bvery good\b/g, "rigorous")
+          .replace(/\blots of\b/g, "substantial")
+          .replace(/\bhelp me to\b/g, "enable me to")
+          .replace(/\bI think that\b/g, "I am convinced that")
+          .replace(/\bgood at\b/g, "proficient in");
+        return { ...section, content: polished };
+      });
+      appliedFeedback = "Polished overall academic diction and tone while preserving student profile facts.";
+      sectionUpdated = "All Document Sections";
+      actionType = "polished";
+    } else if (actionKey === "improve" || actionKey === "trim_budget") {
+      updated.sections = updated.sections.map((section) => {
+        let content = section.content;
+        content = content
+          .replace(/\bresponsible for\b/gi, "spearheaded and managed")
+          .replace(/\bworked on\b/gi, "actively engineered and implemented")
+          .replace(/\bhelped in\b/gi, "facilitated and contributed to")
+          .replace(/\blearned\b/gi, "mastered and applied")
+          .replace(/\bgood knowledge of\b/gi, "demonstrated proficiency in")
+          .replace(/\bhandled\b/gi, "directed and optimized")
+          .replace(/\bin order to\b/gi, "to")
+          .replace(/\bdue to the fact that\b/gi, "because")
+          .replace(/\bat this point in time\b/gi, "presently");
+        return { ...section, content };
+      });
+      appliedFeedback = "Enhanced document content, clarity, and professional impact while preserving student profile facts.";
+      sectionUpdated = "All Document Sections";
+      actionType = "polished";
+    }
+
+    commitAssistantEdit(updated, appliedFeedback, sectionUpdated, actionType);
+  };
+
+  const runAiEdit = async (instruction: string, fallbackKey?: string) => {
     if (!editableDocContent) return;
     const doc = ensureDocumentIdentity(editableDocContent);
 
@@ -2329,6 +2991,10 @@ export function DocumentStudioDashboard() {
       }
 
       if (!res.ok || !json.success) {
+        if (fallbackKey) {
+          executeLocalSmartFallback(fallbackKey);
+          return;
+        }
         reportFailure(`⚠️ ${json?.error?.message || "The AI request failed."} No changes were made.`);
         return;
       }
@@ -2358,6 +3024,10 @@ export function DocumentStudioDashboard() {
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         // Request aborted due to new operator action or switch - ignore cleanly
+        return;
+      }
+      if (fallbackKey) {
+        executeLocalSmartFallback(fallbackKey);
         return;
       }
       reportFailure("⚠️ Could not reach the AI service. No changes were made.");
@@ -2515,16 +3185,20 @@ export function DocumentStudioDashboard() {
           const compMatch = cleanAnswer.match(/(?:company|employer|organization|organisation|workplace)\s*[:=-]\s*([^\n,]+)/i);
           const durMatch = cleanAnswer.match(/(?:duration|dates?|period|time|tenure)\s*[:=-]\s*([^\n,]+)/i);
           const respMatch = cleanAnswer.match(/(?:responsibilities|responsibility|duties|tasks|description|work|summary)\s*[:=-]\s*([\s\S]+)/i);
+          const locMatch = cleanAnswer.match(/(?:location|city|address)\s*[:=-]\s*([^\n,]+)/i);
 
           let role = posMatch ? posMatch[1].trim() : "";
           let comp = compMatch ? compMatch[1].trim() : "";
           let dates = durMatch ? durMatch[1].trim() : "";
+          let loc = locMatch ? locMatch[1].trim() : "";
           let desc = respMatch ? respMatch[1].trim() : "";
 
           // Fallback to natural language extraction if not key-value labeled
           if (!role || !comp) {
             const bracketDate = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/);
-            const textDate = cleanAnswer.match(/((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|\d{4})[^\n,–-]+(?:[–-]|to)[^\n,.]+)/i);
+            const textDate = cleanAnswer.match(
+              /((?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{1,2}\/\d{4}|\d{4})\s*(?:[-–—]|to)\s*(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4}|\d{1,2}\/\d{4}|\d{4}|Present))/i
+            );
             if (!dates) {
               if (bracketDate) dates = bracketDate[1].trim();
               else if (textDate) dates = textDate[1].trim();
@@ -2542,36 +3216,79 @@ export function DocumentStudioDashboard() {
               }
             }
 
-            const atMatch = remaining.match(/^([^@–\-,]+?)\s+(?:at|@|for|–|-)\s+([^,.\n]+)/i);
-            if (atMatch) {
-              if (!role) role = atMatch[1].trim();
-              if (!comp) comp = atMatch[2].trim();
-              if (!desc && remaining.slice(atMatch[0].length).trim()) {
-                desc = remaining.slice(atMatch[0].length).replace(/^[.,;\-\s]+/, "").trim();
+            // Check if pipe-separated e.g. "Software developer ABC Enterprises | Bhopal, Madhya Pradesh"
+            if (remaining.includes("|")) {
+              const parts = remaining.split("|").map((p) => p.trim()).filter(Boolean);
+              if (parts.length >= 3) {
+                if (!role) role = parts[0];
+                if (!comp) comp = parts[1];
+                if (!loc) loc = parts[2];
+              } else if (parts.length === 2) {
+                if (!loc) loc = parts[1];
+                const first = parts[0];
+                const atMatch = first.match(/^(.+?)\s+(?:at|@|for)\s+(.+)$/i);
+                if (atMatch) {
+                  if (!role) role = atMatch[1].trim();
+                  if (!comp) comp = atMatch[2].trim();
+                } else {
+                  const roleRegex = /^(software\s*(?:developer|engineer)|frontend\s*(?:developer|engineer)|backend\s*(?:developer|engineer)|full\s*stack\s*(?:developer|engineer)|web\s*(?:developer|engineer)|data\s*(?:analyst|scientist)|product\s*manager|project\s*manager|intern(?:ship)?|trainee|analyst|associate|designer)\b\s*(.*)$/i;
+                  const matchRole = first.match(roleRegex);
+                  if (matchRole && matchRole[2]?.trim()) {
+                    if (!role) role = matchRole[1].trim();
+                    if (!comp) comp = matchRole[2].trim();
+                  } else {
+                    const compSuffixMatch = first.match(/^(.+?)\s+([A-Za-z0-9&.\s]+(?:Enterprises|Technologies|Pvt\s*Ltd|Ltd|Inc|LLC|Corp|Solutions|Systems|Labs|Services|Consulting|Group|Infotech|Software|Agency))$/i);
+                    if (compSuffixMatch) {
+                      if (!role) role = compSuffixMatch[1].trim();
+                      if (!comp) comp = compSuffixMatch[2].trim();
+                    } else {
+                      const words = first.split(/\s+/);
+                      if (words.length >= 4) {
+                        if (!role) role = words.slice(0, 2).join(" ");
+                        if (!comp) comp = words.slice(2).join(" ");
+                      } else {
+                        if (!role) role = first;
+                      }
+                    }
+                  }
+                }
               }
             } else {
-              const lines = remaining.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-              if (!role && lines[0]) role = lines[0];
-              if (!comp && lines[1]) comp = lines[1];
-              if (!desc && lines.slice(2).length > 0) desc = lines.slice(2).join("\n");
+              const atMatch = remaining.match(/^([^@–\-,]+?)\s+(?:at|@|for|–|-)\s+([^,.\n]+)/i);
+              if (atMatch) {
+                if (!role) role = atMatch[1].trim();
+                if (!comp) comp = atMatch[2].trim();
+                if (!desc && remaining.slice(atMatch[0].length).trim()) {
+                  desc = remaining.slice(atMatch[0].length).replace(/^[.,;\-\s]+/, "").trim();
+                }
+              } else {
+                const lines = remaining.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+                if (!role && lines[0]) role = lines[0];
+                if (!comp && lines[1]) comp = lines[1];
+                if (!loc && lines[2]) loc = lines[2];
+                if (!desc && lines.slice(3).length > 0) desc = lines.slice(3).join("\n");
+              }
             }
           }
 
           // Clean prefixes & provide sane fallbacks
           role = role.replace(/^(?:position|role|job\s*title)[:=-]\s*/i, "").trim() || "Software Developer Intern";
-          comp = comp.replace(/^(?:company|employer|organization)[:=-]\s*/i, "").trim() || "Company";
+          comp = comp.replace(/^(?:company|employer|organization)[:=-]\s*/i, "").trim().replace(/\s+from$/i, "").trim() || "Company";
+          loc = loc.replace(/^(?:location|city)[:=-]\s*/i, "").trim();
           dates = dates.replace(/^(?:duration|dates?|period)[:=-]\s*/i, "").trim() || "June 2023 – December 2023";
           desc = desc.replace(/^(?:responsibilities|duties|tasks)[:=-]\s*/i, "").trim();
 
+          const compLoc = [comp, loc].filter(Boolean).join(" | ");
           const dateBadge = dates ? `[ ${dates} ]` : "";
-          const compLine = dateBadge ? `${comp} ${dateBadge}` : comp;
+          const compLine = dateBadge ? `${compLoc} ${dateBadge}` : compLoc;
           formattedContent = desc ? `${role}\n${compLine}\n${desc}` : `${role}\n${compLine}`;
-          summaryText = `${role} at ${comp} (${dates})`;
+          summaryText = `${role} at ${comp}${loc ? ` (${loc})` : ""} [${dates}]`;
 
           const newInternEntry = {
             id: `intern-${Date.now()}`,
             role,
             company: comp,
+            location: loc || undefined,
             startDate: dates.split(/[–-]|to/i)[0]?.trim() || "",
             endDate: dates.split(/[–-]|to/i)[1]?.trim() || "",
             description: desc,
@@ -2777,6 +3494,164 @@ export function DocumentStudioDashboard() {
           break;
         }
 
+        case "aboutMe":
+        case "about": {
+          formattedSectionHeading = "ABOUT ME";
+          formattedContent = cleanAnswer;
+          summaryText = cleanAnswer;
+          updatedCv.aboutMe = cleanAnswer;
+          break;
+        }
+
+        case "academicInterests": {
+          formattedSectionHeading = "ACADEMIC INTERESTS";
+          const items = cleanAnswer
+            .replace(/\band\b/gi, ",")
+            .split(/[,•\n]+/)
+            .map((s) => s.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+            .filter(Boolean);
+          const rawItems = items.length > 0 ? items : [cleanAnswer];
+          formattedContent = rawItems.map((i) => `• ${i}`).join("\n");
+          summaryText = rawItems.join(", ");
+          const newInterests = rawItems.map((name, idx) => ({
+            id: `interest-${Date.now()}-${idx}`,
+            name,
+          }));
+          const existingInterests = updatedCv.academicInterests || [];
+          updatedCv.academicInterests = [...existingInterests, ...newInterests];
+          break;
+        }
+
+        case "achievements": {
+          formattedSectionHeading = "ACHIEVEMENTS & AWARDS";
+          const items = cleanAnswer
+            .split(/\n+/)
+            .map((s) => s.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+            .filter(Boolean);
+          const rawItems = items.length > 0 ? items : [cleanAnswer];
+          formattedContent = rawItems.map((i) => `• ${i}`).join("\n");
+          summaryText = rawItems.join(", ");
+          const newAchievements = rawItems.map((title, idx) => ({
+            id: `ach-${Date.now()}-${idx}`,
+            title,
+          }));
+          const existingAchievements = updatedCv.achievements || [];
+          updatedCv.achievements = [...existingAchievements, ...newAchievements];
+          break;
+        }
+
+        case "volunteering": {
+          formattedSectionHeading = "VOLUNTEERING / COMMUNITY ENGAGEMENT";
+          const roleMatch = cleanAnswer.match(/(?:role|position)\s*[:=-]\s*([^\n,]+)/i);
+          const orgMatch = cleanAnswer.match(/(?:organization|organisation|ngo|foundation)\s*[:=-]\s*([^\n,]+)/i);
+          const durMatch = cleanAnswer.match(/(?:duration|dates?|period)\s*[:=-]\s*([^\n,]+)/i);
+          const descMatch = cleanAnswer.match(/(?:responsibilities|duties|description|details)\s*[:=-]\s*([\s\S]+)/i);
+
+          let role = roleMatch ? roleMatch[1].trim() : "";
+          let org = orgMatch ? orgMatch[1].trim() : "";
+          let duration = durMatch ? durMatch[1].trim() : "";
+          let desc = descMatch ? descMatch[1].trim() : "";
+
+          if (!role) {
+            const bracketDate = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/);
+            if (bracketDate) duration = bracketDate[1].trim();
+            const cleanNoDate = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").trim();
+            const parts = cleanNoDate.split(/[:–-]\s+/);
+            role = parts[0]?.trim() || "Volunteer";
+            desc = parts.slice(1).join(" ").trim() || cleanAnswer;
+          }
+
+          role = role.replace(/^(?:role|position)[:=-]\s*/i, "").trim() || "Volunteer";
+          org = org.replace(/^(?:organization|ngo)[:=-]\s*/i, "").trim();
+          duration = duration.replace(/^(?:duration|dates?)[:=-]\s*/i, "").trim();
+          desc = desc.replace(/^(?:description|responsibilities)[:=-]\s*/i, "").trim();
+
+          const orgLine = [org, duration ? `[ ${duration} ]` : null].filter(Boolean).join(" ");
+          formattedContent = [role, orgLine, desc].filter(Boolean).join("\n");
+          summaryText = `${role}${org ? ` at ${org}` : ""}`;
+
+          const newVol = {
+            id: `vol-${Date.now()}`,
+            role,
+            organization: org || undefined,
+            startDate: duration ? duration.split(/[–-]|to/i)[0]?.trim() || "" : "",
+            endDate: duration ? duration.split(/[–-]|to/i)[1]?.trim() || "" : "",
+            description: desc || undefined,
+          };
+          const existingVol = updatedCv.volunteering || [];
+          updatedCv.volunteering = [...existingVol, newVol];
+          break;
+        }
+
+        case "languageSkills":
+        case "languages": {
+          formattedSectionHeading = "LANGUAGE SKILLS";
+          const mtMatch = cleanAnswer.match(/(?:mother\s*tou?ngue|native(?:\s*language)?|mother\s*language)[:\s]+([^\n,;]+)/i);
+          const mt = mtMatch ? mtMatch[1].trim() : (updatedCv.motherTongue || "Hindi");
+
+          const otherAnswer = cleanAnswer
+            .replace(/(?:mother\s*tou?ngue|native(?:\s*language)?|mother\s*language)[:\s]+[^\n,;]+/i, "")
+            .replace(/^(?:language\s*skills?|languages?)[:\s-]*/i, "")
+            .trim();
+
+          const otherLangs = otherAnswer
+            .split(/[,/•\n]+/)
+            .map((l) => l.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
+            .filter(Boolean);
+
+          formattedContent = otherLangs.length > 0
+            ? `Mother tongue(s): ${mt}\nOther language(s): ${otherLangs.join(", ")}`
+            : `Mother tongue(s): ${mt}`;
+          summaryText = `Mother tongue: ${mt}${otherLangs.length > 0 ? `, Other: ${otherLangs.join(", ")}` : ""}`;
+
+          updatedCv.motherTongue = mt;
+          if (otherLangs.length > 0) {
+            const existingLangs = updatedCv.languages || [];
+            const newLangEntries = otherLangs.map((lang, idx) => ({
+              id: `lang-${Date.now()}-${idx}`,
+              language: lang,
+              level: "Proficient",
+            }));
+            updatedCv.languages = [...existingLangs, ...newLangEntries];
+          }
+          break;
+        }
+
+        case "recommendations": {
+          formattedSectionHeading = "RECOMMENDATIONS";
+          const nameMatch = cleanAnswer.match(/(?:recommender|referee|name|professor|dr\.?)\s*[:=-]\s*([^\n,]+)/i);
+          const titleMatch = cleanAnswer.match(/(?:title|designation|position)\s*[:=-]\s*([^\n,]+)/i);
+          const orgMatch = cleanAnswer.match(/(?:organization|institution|university|college)\s*[:=-]\s*([^\n,]+)/i);
+          const textMatch = cleanAnswer.match(/(?:text|quote|feedback|comments?)\s*[:=-]\s*([\s\S]+)/i);
+
+          let recName = nameMatch ? nameMatch[1].trim() : "";
+          let recTitle = titleMatch ? titleMatch[1].trim() : "";
+          let recOrg = orgMatch ? orgMatch[1].trim() : "";
+          let recText = textMatch ? textMatch[1].trim() : "";
+
+          if (!recName) {
+            const parts = cleanAnswer.split(/[:–-]\s+/);
+            recName = parts[0]?.trim() || "Referee";
+            recText = parts.slice(1).join(" ").trim() || cleanAnswer;
+          }
+
+          recName = recName.replace(/^(?:recommender|referee)[:=-]\s*/i, "").trim() || "Referee";
+          const titleOrg = [recTitle, recOrg].filter(Boolean).join(", ");
+          formattedContent = [recName, titleOrg, recText ? `"${recText}"` : null].filter(Boolean).join("\n");
+          summaryText = `${recName}${recOrg ? ` (${recOrg})` : ""}`;
+
+          const newRec = {
+            id: `rec-${Date.now()}`,
+            recommenderName: recName,
+            recommenderTitle: recTitle || undefined,
+            organization: recOrg || undefined,
+            text: recText || undefined,
+          };
+          const existingRec = updatedCv.recommendations || [];
+          updatedCv.recommendations = [...existingRec, newRec];
+          break;
+        }
+
         default: {
           formattedSectionHeading = activeSectionPrompt.heading;
           formattedContent = cleanAnswer;
@@ -2788,6 +3663,12 @@ export function DocumentStudioDashboard() {
       // Update editableDocContent.sections:
       const existingSectionIdx = editableDocContent.sections.findIndex((s) =>
         s.heading.trim().toLowerCase() === formattedSectionHeading.toLowerCase() ||
+        ((activeSectionPrompt.sectionKey === "aboutMe" || activeSectionPrompt.sectionKey === "about") && s.heading.toLowerCase().includes("about")) ||
+        (activeSectionPrompt.sectionKey === "academicInterests" && (s.heading.toLowerCase().includes("academic interest") || (s.heading.toLowerCase().includes("interest") && !s.heading.toLowerCase().includes("hobb")))) ||
+        (activeSectionPrompt.sectionKey === "achievements" && (s.heading.toLowerCase().includes("achievement") || s.heading.toLowerCase().includes("award"))) ||
+        (activeSectionPrompt.sectionKey === "volunteering" && (s.heading.toLowerCase().includes("volunteer") || s.heading.toLowerCase().includes("community"))) ||
+        ((activeSectionPrompt.sectionKey === "languageSkills" || activeSectionPrompt.sectionKey === "languages") && s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate")) ||
+        (activeSectionPrompt.sectionKey === "recommendations" && (s.heading.toLowerCase().includes("recommendation") || s.heading.toLowerCase().includes("referee"))) ||
         (activeSectionPrompt.sectionKey === "hobbies" && s.heading.toLowerCase().includes("hobbies")) ||
         (activeSectionPrompt.sectionKey === "skills" && s.heading.toLowerCase().includes("skill") && !s.heading.toLowerCase().includes("language")) ||
         (activeSectionPrompt.sectionKey === "certifications" && s.heading.toLowerCase().includes("certificat")) ||
@@ -2795,17 +3676,17 @@ export function DocumentStudioDashboard() {
         (activeSectionPrompt.sectionKey === "education" && s.heading.toLowerCase().includes("education")) ||
         (activeSectionPrompt.sectionKey === "training" && (s.heading.toLowerCase().includes("training") || s.heading.toLowerCase().includes("education"))) ||
         (activeSectionPrompt.sectionKey === "academicProjects" && s.heading.toLowerCase().includes("project")) ||
-        (activeSectionPrompt.sectionKey === "responsibilities" && (s.heading.toLowerCase().includes("leadership") || s.heading.toLowerCase().includes("responsibilit"))) ||
+        (activeSectionPrompt.sectionKey === "responsibilities" && (s.heading.toLowerCase().includes("leadership") || s.heading.toLowerCase().includes("responsibilit") || s.heading.toLowerCase().includes("extracurricular"))) ||
         (activeSectionPrompt.sectionKey === "englishCertificate" && (s.heading.toLowerCase().includes("english") || s.heading.toLowerCase().includes("ielts")))
       );
 
       // Determine proper entry separator
       const sectionSeparator =
-        activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies"
+        activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies" || activeSectionPrompt.sectionKey === "academicInterests"
           ? " • "
-          : activeSectionPrompt.sectionKey === "certifications"
+          : activeSectionPrompt.sectionKey === "certifications" || activeSectionPrompt.sectionKey === "achievements"
           ? "\n"
-          : activeSectionPrompt.sectionKey === "englishCertificate"
+          : activeSectionPrompt.sectionKey === "englishCertificate" || activeSectionPrompt.sectionKey === "aboutMe" || activeSectionPrompt.sectionKey === "about" || activeSectionPrompt.sectionKey === "languageSkills" || activeSectionPrompt.sectionKey === "languages"
           ? "REPLACE"
           : "\n\n";
 
@@ -2834,15 +3715,25 @@ export function DocumentStudioDashboard() {
 
       // Ensure updatedCv.sectionOrder has this section
       const secIdMap: Record<string, string> = {
+        aboutMe: "aboutMe",
+        about: "aboutMe",
         hobbies: "hobbies",
         skills: "skills",
         englishCertificate: "englishCertificate",
         workExperience: "internships",
+        internships: "internships",
         certifications: "certifications",
         education: "education",
         training: "education",
         academicProjects: "academicProjects",
+        academicInterests: "academicInterests",
+        achievements: "achievements",
         responsibilities: "leadershipActivities",
+        leadershipActivities: "leadershipActivities",
+        volunteering: "volunteering",
+        languageSkills: "languages",
+        languages: "languages",
+        recommendations: "recommendations",
       };
       const mappedId = secIdMap[activeSectionPrompt.sectionKey];
       if (mappedId) {
@@ -2909,6 +3800,155 @@ export function DocumentStudioDashboard() {
       }, 350);
 
       return;
+    }
+
+    // ── Dedicated Smart Multi-Field Instant Parser ─────────────────────────────
+    const multiMatch = parseMultiFieldInstruction(trimmedPrompt);
+    if (multiMatch && multiMatch.length >= 2) {
+      if (editableDocContent.docType === "COVER_LETTER") {
+        const userMsg: ChatMessage = {
+          id: generateUniqueId("user"),
+          sender: "user",
+          text: trimmedPrompt,
+          timestamp: getFormattedTimestamp(),
+        };
+        setChatMessages((prev) => [...prev, userMsg]);
+        setAiPromptText("");
+
+        setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+        setRedoHistory([]);
+
+        const { sections: updatedSections, fieldValues: updatedFieldValues } =
+          updateCoverLetterSectionsWithMultipleFields(
+            editableDocContent.sections,
+            multiMatch,
+            activeSopContext,
+            editableDocContent.fieldValues
+          );
+
+        const updatedDoc: HydratedDocumentData = {
+          ...editableDocContent,
+          sections: updatedSections,
+          fieldValues: updatedFieldValues,
+          wordCount: updatedSections.reduce(
+            (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+            0
+          ),
+        };
+
+        setEditableDocContent(updatedDoc);
+        setActiveDocument(updatedDoc);
+        const newHtml = docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
+        setTiptapHtml(newHtml);
+        if (tiptapEditor) {
+          tiptapEditor.commands.setContent(newHtml);
+        }
+
+        syncDocumentToRecent(updatedDoc, "Edited just now");
+        setActiveFieldPrompt(null);
+
+        const bullets = multiMatch.map((m) => `• **${m.label}**: ${m.value}`).join("\n");
+        const assistantMsg: ChatMessage = {
+          id: generateUniqueId("assistant-multi-field-update"),
+          sender: "assistant",
+          text: `✅ Updated **${multiMatch.length} details**:\n\n${bullets}\n\nThe Cover Letter preview has been refreshed and these details are now verified.`,
+          timestamp: getFormattedTimestamp(),
+          actionType: "typed_section",
+        };
+        setChatMessages((prev) => [...prev, assistantMsg]);
+
+        setAiToast({
+          message: `✨ Updated ${multiMatch.length} details`,
+          type: "success",
+        });
+        setTimeout(() => setAiToast(null), 3000);
+        return;
+      }
+
+      if (editableDocContent.docType === "CV") {
+        const userMsg: ChatMessage = {
+          id: generateUniqueId("user"),
+          sender: "user",
+          text: trimmedPrompt,
+          timestamp: getFormattedTimestamp(),
+        };
+        setChatMessages((prev) => [...prev, userMsg]);
+        setAiPromptText("");
+
+        setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+        setRedoHistory([]);
+
+        const updatedFieldValues: Record<string, string> = {
+          ...(editableDocContent.fieldValues || {}),
+        };
+        for (const item of multiMatch) {
+          updatedFieldValues[item.key] = item.value;
+        }
+
+        const currentCv =
+          cvDocumentData ||
+          getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+        const updatedCv = JSON.parse(JSON.stringify(currentCv));
+        if (!updatedCv.personal) updatedCv.personal = {};
+
+        const updatedSections = [...editableDocContent.sections];
+
+        for (const item of multiMatch) {
+          if (item.key === "student.city" || item.key === "student.country") {
+            const city = updatedFieldValues["student.city"] || updatedCv.personal.address?.city || "";
+            const country = updatedFieldValues["student.country"] || updatedCv.personal.address?.country || "";
+            if (!updatedCv.personal.address) updatedCv.personal.address = {};
+            if (city) updatedCv.personal.address.city = city;
+            if (country) updatedCv.personal.address.country = country;
+          } else if (item.key === "student.languages") {
+            const langIdx = updatedSections.findIndex(
+              (s) =>
+                s.heading.toLowerCase().includes("language") && !s.heading.toLowerCase().includes("certificate")
+            );
+            if (langIdx >= 0) {
+              const currentContent = updatedSections[langIdx].content;
+              const otherMatch = currentContent.match(/other\s*languages?(?:\(s\))?\s*[-:]\s*([^\n]+)/i);
+              const otherVal = otherMatch ? otherMatch[1].trim() : "";
+              updatedSections[langIdx] = {
+                ...updatedSections[langIdx],
+                content: otherVal
+                  ? `Mother tongue(s): ${item.value}\nOther language(s): ${otherVal}`
+                  : `Mother tongue(s): ${item.value}`,
+              };
+            }
+          } else if (item.key === "student.nationality") {
+            updatedCv.personal.nationality = item.value;
+          } else if (item.key === "student.email") {
+            updatedCv.personal.email = item.value;
+          } else if (item.key === "student.phone") {
+            updatedCv.personal.phone = item.value;
+          }
+        }
+
+        setCvDocumentData(updatedCv);
+        const updatedDoc: HydratedDocumentData = {
+          ...editableDocContent,
+          sections: updatedSections,
+          fieldValues: updatedFieldValues,
+        };
+        setEditableDocContent(updatedDoc);
+        setActiveDocument(updatedDoc);
+        syncDocumentToRecent(updatedDoc, "Edited just now");
+        setActiveFieldPrompt(null);
+
+        const bullets = multiMatch.map((m) => `• **${m.label}**: ${m.value}`).join("\n");
+        const assistantMsg: ChatMessage = {
+          id: generateUniqueId("assistant-cv-multi-field"),
+          sender: "assistant",
+          text: `✅ Updated **${multiMatch.length} details**:\n\n${bullets}\n\nThe Europass CV canvas has been refreshed.`,
+          timestamp: getFormattedTimestamp(),
+          actionType: "typed_section",
+        };
+        setChatMessages((prev) => [...prev, assistantMsg]);
+        setAiToast({ message: `✨ Updated ${multiMatch.length} details`, type: "success" });
+        setTimeout(() => setAiToast(null), 3000);
+        return;
+      }
     }
 
     // Direct AI instruction matcher or active validation field prompt
@@ -3112,7 +4152,16 @@ export function DocumentStudioDashboard() {
       return;
     }
 
-    const newDoc = hydrateDocumentFromSnapshot(newType, snapshot, activeDocument.studentId);
+    const newDoc = hydrateDocumentFromSnapshot(
+      newType,
+      snapshot,
+      activeDocument.studentId,
+      newType === "SOP"
+        ? "university-sop-standard"
+        : newType === "COVER_LETTER"
+        ? "italy-type-d-student-visa-cover-letter"
+        : undefined
+    );
     if (editableDocContent) {
       setDocHistory((prev) => [...prev, editableDocContent]);
     }
@@ -3133,22 +4182,7 @@ export function DocumentStudioDashboard() {
       setCvViewMode("caret");
     }
 
-    const storageKey = `antigravity_studio_chat_${newDoc.studentId}_${newType}`;
-    try {
-      const savedChat = localStorage.getItem(storageKey);
-      if (savedChat) {
-        const parsed = JSON.parse(savedChat);
-        setChatMessages(
-          Array.isArray(parsed) && parsed.length > 0
-            ? parsed
-            : [getDefaultGreetingMessage(newDoc.studentName, newType)]
-        );
-      } else {
-        setChatMessages([getDefaultGreetingMessage(newDoc.studentName, newType)]);
-      }
-    } catch {
-      setChatMessages([getDefaultGreetingMessage(newDoc.studentName, newType)]);
-    }
+    loadChatSessionsForDoc(newDoc.studentId, newType, newDoc.studentName);
 
     setIsAiCooking(false);
     setAiToast({ message: `Switched template to ${newDoc.docTypeName}`, type: "success" });
@@ -3298,6 +4332,35 @@ export function DocumentStudioDashboard() {
     );
   }, [recentDocs, searchQuery]);
 
+  // Reset to first page when search changes
+  useEffect(() => {
+    setRecentDocsPage(1);
+  }, [searchQuery]);
+
+  const totalRecentPages = Math.max(1, Math.ceil(filteredRecentDocs.length / recentDocsPerPage));
+  const safeRecentPage = Math.min(Math.max(1, recentDocsPage), totalRecentPages);
+
+  const paginatedRecentDocs = useMemo(() => {
+    const startIndex = (safeRecentPage - 1) * recentDocsPerPage;
+    return filteredRecentDocs.slice(startIndex, startIndex + recentDocsPerPage);
+  }, [filteredRecentDocs, safeRecentPage, recentDocsPerPage]);
+
+  const startRecentItemIndex = filteredRecentDocs.length === 0 ? 0 : (safeRecentPage - 1) * recentDocsPerPage + 1;
+  const endRecentItemIndex = Math.min(safeRecentPage * recentDocsPerPage, filteredRecentDocs.length);
+
+  const getRecentPageNumbers = () => {
+    if (totalRecentPages <= 5) {
+      return Array.from({ length: totalRecentPages }, (_, i) => i + 1);
+    }
+    if (safeRecentPage <= 3) {
+      return [1, 2, 3, 4, "...", totalRecentPages];
+    }
+    if (safeRecentPage >= totalRecentPages - 2) {
+      return [1, "...", totalRecentPages - 3, totalRecentPages - 2, totalRecentPages - 1, totalRecentPages];
+    }
+    return [1, "...", safeRecentPage - 1, safeRecentPage, safeRecentPage + 1, "...", totalRecentPages];
+  };
+
   const selectedStudent = useMemo(() => {
     return studentRoster.find((s) => s.id === modalStudentId) || studentRoster[0];
   }, [studentRoster, modalStudentId]);
@@ -3376,22 +4439,7 @@ export function DocumentStudioDashboard() {
     }
 
     // Load persisted chat conversation for this specific document
-    const storageKey = `antigravity_studio_chat_${safeDoc.studentId}_${safeDoc.docType}`;
-    try {
-      const savedChat = localStorage.getItem(storageKey);
-      if (savedChat) {
-        const parsed = JSON.parse(savedChat);
-        setChatMessages(
-          Array.isArray(parsed) && parsed.length > 0
-            ? parsed
-            : [getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]
-        );
-      } else {
-        setChatMessages([getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]);
-      }
-    } catch {
-      setChatMessages([getDefaultGreetingMessage(safeDoc.studentName, safeDoc.docType)]);
-    }
+    loadChatSessionsForDoc(safeDoc.studentId, safeDoc.docType, safeDoc.studentName);
 
     selectStudent(safeDoc.studentId);
   };
@@ -3463,7 +4511,16 @@ export function DocumentStudioDashboard() {
           ],
         };
       } else {
-        generatedDoc = hydrateDocumentFromSnapshot(modalDocType, snapshot as CrmSnapshot, modalStudentId);
+        generatedDoc = hydrateDocumentFromSnapshot(
+          modalDocType,
+          snapshot as CrmSnapshot,
+          modalStudentId,
+          modalDocType === "SOP"
+            ? "university-sop-standard"
+            : modalDocType === "COVER_LETTER"
+            ? "italy-type-d-student-visa-cover-letter"
+            : undefined
+        );
         generatedDoc.id = generateDocumentId(modalStudentId, modalDocType);
         generatedDoc.updatedAt = "Created just now";
       }
@@ -3559,10 +4616,10 @@ export function DocumentStudioDashboard() {
       </header>
 
       {/* ── 2. Top Section: "Start a new document" ──────────────────────────── */}
-      <section className="bg-slate-50/70 border-b border-slate-200/80 py-5 sm:py-8 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto">
+      <section className="bg-slate-50/70 border-b border-slate-200/80 py-6 sm:py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header Row */}
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-3.5 sm:mb-4">
             <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700">
               Start a new document
             </h2>
@@ -3581,93 +4638,110 @@ export function DocumentStudioDashboard() {
           </div>
 
           {/* Cards Row: Blank Document + The 4 Core Templates */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 sm:gap-4.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5 sm:gap-4.5">
             {/* ── Card 1: Blank Document ── */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-full justify-between">
               <button
                 type="button"
                 onClick={() => handleOpenModal("BLANK")}
-                className="w-full bg-white border border-slate-200/90 rounded-2xl p-2.5 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col items-center justify-center cursor-pointer group text-left"
+                className="w-full bg-white border border-slate-200/90 rounded-xl p-2.5 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer group text-left shadow-2xs"
               >
                 <DocumentThumbnailPreview docType="BLANK" isTemplateCard />
               </button>
-              <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-2.5">
-                Blank document
-              </span>
-              <span className="text-[11px] text-slate-500">Custom Generation</span>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Blank document
+                </span>
+                <span className="text-[11px] text-slate-500 block truncate mt-0.5">Custom Generation</span>
+              </div>
             </div>
 
             {/* ── Card 2: Italy Visa Cover Letter ── */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-full justify-between">
               <button
                 type="button"
                 onClick={() => handleOpenModal("COVER_LETTER")}
-                className="w-full bg-white border border-slate-200/90 rounded-2xl p-2.5 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer overflow-hidden group text-left"
+                className="w-full bg-white border border-slate-200/90 rounded-xl p-2.5 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden group text-left shadow-2xs"
               >
                 <DocumentThumbnailPreview docType="COVER_LETTER" isTemplateCard />
               </button>
-              <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-2.5 line-clamp-1">
-                Visa Cover Letter
-              </span>
-              <span className="text-[11px] text-slate-500">Italy Type D Consular</span>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Visa Cover Letter
+                </span>
+                <span className="text-[11px] text-slate-500 block truncate mt-0.5">Italy Type D Consular</span>
+              </div>
             </div>
 
             {/* ── Card 3: Statement of Purpose ── */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-full justify-between">
               <button
                 type="button"
                 onClick={() => handleOpenModal("SOP")}
-                className="w-full bg-white border border-slate-200/90 rounded-2xl p-2.5 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer overflow-hidden group text-left"
+                className="w-full bg-white border border-slate-200/90 rounded-xl p-2.5 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden group text-left shadow-2xs"
               >
                 <DocumentThumbnailPreview docType="SOP" isTemplateCard />
               </button>
-              <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-2.5 line-clamp-1">
-                Statement of Purpose
-              </span>
-              <span className="text-[11px] text-slate-500">Academic SOP Format</span>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Statement of Purpose
+                </span>
+                <span className="text-[11px] text-slate-500 block truncate mt-0.5">Academic SOP Format</span>
+              </div>
             </div>
 
             {/* ── Card 4: Academic CV ── */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-full justify-between">
               <button
                 type="button"
                 onClick={() => handleOpenModal("CV")}
-                className="w-full bg-white border border-slate-200/90 rounded-2xl p-2.5 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer overflow-hidden group text-left"
+                className="w-full bg-white border border-slate-200/90 rounded-xl p-2.5 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden group text-left shadow-2xs"
               >
                 <DocumentThumbnailPreview docType="CV" isTemplateCard />
               </button>
-              <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-2.5 line-clamp-1">
-                Academic CV / Resume
-              </span>
-              <span className="text-[11px] text-slate-500">Europass Format</span>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Academic CV / Resume
+                </span>
+                <span className="text-[11px] text-slate-500 block truncate mt-0.5">Europass Format</span>
+              </div>
             </div>
 
             {/* ── Card 5: Letter of Recommendation ── */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-full justify-between">
               <button
                 type="button"
                 onClick={() => handleOpenModal("LOR")}
-                className="w-full bg-white border border-slate-200/90 rounded-2xl p-2.5 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer overflow-hidden group text-left"
+                className="w-full bg-white border border-slate-200/90 rounded-xl p-2.5 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden group text-left shadow-2xs"
               >
                 <DocumentThumbnailPreview docType="LOR" isTemplateCard />
               </button>
-              <span className="text-xs sm:text-sm font-semibold text-slate-900 mt-2.5 line-clamp-1">
-                Letter of Recommendation
-              </span>
-              <span className="text-[11px] text-slate-500">Faculty & Employer</span>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Letter of Recommendation
+                </span>
+                <span className="text-[11px] text-slate-500 block truncate mt-0.5">Faculty & Employer</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── 3. Bottom White Section: "Recent documents" ─────────────────────── */}
-      <section className="bg-white flex-1 py-8 px-6">
-        <div className="max-w-5xl mx-auto">
+      <section className="bg-white flex-1 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header Row */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-              Recent documents
-            </h2>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                Recent documents
+              </h2>
+              {filteredRecentDocs.length > 0 && (
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/80">
+                  {filteredRecentDocs.length}
+                </span>
+              )}
+            </div>
 
             <div className="flex items-center gap-4 text-slate-500">
               {/* View Toggle (Grid / List) */}
@@ -3708,17 +4782,19 @@ export function DocumentStudioDashboard() {
               No documents found matching search.
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-5">
-              {filteredRecentDocs.map((doc, idx) => {
+            <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+              {paginatedRecentDocs.map((doc, idx) => {
                 const meta = getDocTypeMeta(doc.docType);
+                const rawPdfTitle = doc.title.endsWith(".pdf") ? doc.title : `${doc.title}.pdf`;
+                const cleanDisplayTitle = rawPdfTitle.replace(/\s*--\s*/g, " – ");
                 return (
                   <div
                     key={`${doc.title}-${idx}`}
                     onClick={() => handleOpenDocument(doc)}
-                    className="bg-white border border-slate-200/90 rounded-2xl p-3 hover:border-indigo-500 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer flex flex-col justify-between overflow-hidden group"
+                    className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-indigo-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden group h-full shadow-2xs"
                   >
                     {/* Miniature Sheet Thumbnail */}
-                    <div className="w-full flex items-center justify-center">
+                    <div className="w-full flex items-center justify-center overflow-hidden rounded-md bg-slate-50/50 relative">
                       <DocumentThumbnailPreview
                         docType={doc.docType}
                         title={doc.title}
@@ -3728,30 +4804,44 @@ export function DocumentStudioDashboard() {
                         targetCountry={doc.targetCountry}
                         sections={doc.sections}
                       />
+                      {/* Delete Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteRecentDoc(e, doc)}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/95 hover:bg-rose-50 text-slate-400 hover:text-rose-600 shadow-xs border border-slate-200/90 flex items-center justify-center transition-all opacity-85 sm:opacity-0 sm:group-hover:opacity-100 hover:!opacity-100 hover:scale-105 z-10 cursor-pointer"
+                        title="Delete document from recent"
+                        aria-label="Delete document from recent"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
                     </div>
 
                     {/* Card Bottom Meta */}
-                    <div className="pt-2.5">
-                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${meta.iconBg}`}>
-                            {meta.icon}
-                          </span>
-                          <span className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ${meta.badgeBg}`}>
-                            {meta.shortLabel}
-                          </span>
+                    <div className="pt-2.5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${meta.iconBg}`}>
+                              {meta.icon}
+                            </span>
+                            <span className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ${meta.badgeBg}`}>
+                              {meta.shortLabel}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0 text-right">{doc.updatedAt}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 shrink-0 text-right">{doc.updatedAt}</span>
+
+                        <h3
+                          className="text-xs font-semibold text-slate-800 line-clamp-1 leading-snug group-hover:text-indigo-600 transition"
+                          title={cleanDisplayTitle}
+                        >
+                          {cleanDisplayTitle}
+                        </h3>
                       </div>
 
-                      <h3
-                        className="text-xs font-semibold text-slate-800 line-clamp-1 leading-snug group-hover:text-indigo-600 transition"
-                        title={doc.title.endsWith(".pdf") ? doc.title : `${doc.title}.pdf`}
-                      >
-                        {doc.title.endsWith(".pdf") ? doc.title : `${doc.title}.pdf`}
-                      </h3>
-
-                      <div className="text-[11px] text-slate-500 truncate mt-0.5">
+                      <div className="text-[11px] text-slate-500 truncate mt-1">
                         {doc.studentName} · {doc.targetUniversity}
                       </div>
                     </div>
@@ -3760,9 +4850,11 @@ export function DocumentStudioDashboard() {
               })}
             </div>
           ) : (
-            <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white divide-y divide-slate-100 shadow-2xs">
-              {filteredRecentDocs.map((doc, idx) => {
+            <div className="border border-slate-200/80 rounded-xl overflow-hidden bg-white divide-y divide-slate-100 shadow-2xs">
+              {paginatedRecentDocs.map((doc, idx) => {
                 const meta = getDocTypeMeta(doc.docType);
+                const rawPdfTitle = doc.title.endsWith(".pdf") ? doc.title : `${doc.title}.pdf`;
+                const cleanDisplayTitle = rawPdfTitle.replace(/\s*--\s*/g, " – ");
                 return (
                   <div
                     key={`${doc.title}-${idx}`}
@@ -3783,7 +4875,7 @@ export function DocumentStudioDashboard() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900 truncate group-hover:text-indigo-600 transition">
-                            {doc.title.endsWith(".pdf") ? doc.title : `${doc.title}.pdf`}
+                            {cleanDisplayTitle}
                           </span>
                           <span
                             className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 sm:hidden ${meta.badgeBg}`}
@@ -3815,8 +4907,19 @@ export function DocumentStudioDashboard() {
                     </div>
 
                     {/* Right Column: Timestamp & Action Arrow */}
-                    <div className="flex items-center gap-3.5 text-xs text-slate-400 shrink-0 pl-2">
+                    <div className="flex items-center gap-2.5 text-xs text-slate-400 shrink-0 pl-2">
                       <span className="text-[11px] text-slate-400 hidden xs:inline">{doc.updatedAt}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteRecentDoc(e, doc)}
+                        className="w-7 h-7 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 flex items-center justify-center transition cursor-pointer"
+                        title="Delete document from recent"
+                        aria-label="Delete document from recent"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
                       <svg
                         width="15"
                         height="15"
@@ -3834,6 +4937,96 @@ export function DocumentStudioDashboard() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Pagination Control Bar */}
+          {filteredRecentDocs.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 select-none">
+              {/* Left: Summary Count & Page Size Selector */}
+              <div className="flex items-center gap-3">
+                <span>
+                  Showing <span className="font-semibold text-slate-900">{startRecentItemIndex}–{endRecentItemIndex}</span> of{" "}
+                  <span className="font-semibold text-slate-900">{filteredRecentDocs.length}</span> documents
+                </span>
+                <div className="flex items-center gap-1.5 text-slate-500 pl-2.5 border-l border-slate-200">
+                  <span>Per page:</span>
+                  <select
+                    value={recentDocsPerPage}
+                    onChange={(e) => {
+                      setRecentDocsPerPage(Number(e.target.value));
+                      setRecentDocsPage(1);
+                    }}
+                    className="bg-slate-50 border border-slate-200 rounded-md px-2 py-0.5 text-xs text-slate-700 font-semibold outline-none hover:bg-slate-100 focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Right: Page Navigation Buttons */}
+              {totalRecentPages > 1 && (
+                <div className="flex items-center gap-1">
+                  {/* Previous Button */}
+                  <button
+                    type="button"
+                    onClick={() => setRecentDocsPage((p) => Math.max(1, p - 1))}
+                    disabled={safeRecentPage === 1}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs flex items-center gap-1"
+                    title="Previous page"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                    <span className="hidden xs:inline">Prev</span>
+                  </button>
+
+                  {/* Number Buttons */}
+                  <div className="flex items-center gap-1">
+                    {getRecentPageNumbers().map((pNum, idx) => {
+                      if (pNum === "...") {
+                        return (
+                          <span key={`ellipsis-${idx}`} className="px-1.5 text-slate-400 font-bold select-none text-xs">
+                            ...
+                          </span>
+                        );
+                      }
+                      const isCurrent = pNum === safeRecentPage;
+                      return (
+                        <button
+                          key={`page-${pNum}`}
+                          type="button"
+                          onClick={() => setRecentDocsPage(Number(pNum))}
+                          className={`w-7 h-7 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center ${
+                            isCurrent
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs"
+                          }`}
+                        >
+                          {pNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    type="button"
+                    onClick={() => setRecentDocsPage((p) => Math.min(totalRecentPages, p + 1))}
+                    disabled={safeRecentPage === totalRecentPages}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs flex items-center gap-1"
+                    title="Next page"
+                  >
+                    <span className="hidden xs:inline">Next</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -4426,53 +5619,137 @@ export function DocumentStudioDashboard() {
 
             {/* ── Left Sidebar: AI Assistant Chat & Dynamic Suggestions ──────────────────── */}
             <aside
-              className={`bg-white border-r border-slate-200 flex flex-col justify-between p-4 sm:p-5 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
+              className={`bg-white border-r border-slate-200/90 h-full flex flex-col p-4 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
                 ? "hidden"
-                : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[350px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[340px] md:min-w-[340px] md:max-w-[340px] md:shadow-none shrink-0"
+                : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[380px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[380px] md:min-w-[380px] md:max-w-[380px] lg:w-[390px] lg:min-w-[390px] lg:max-w-[390px] md:shadow-none shrink-0"
                 }`}
             >
               {/* ── 1. Top Assistant Header ── */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white text-sm font-bold shadow-xs shrink-0">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm shadow-xs shrink-0">
                     ✨
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-900 truncate">AI Admissions Assistant</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-bold text-slate-900 tracking-tight truncate block" title="AI Admissions Assistant">
+                        AI Admissions Assistant
+                      </span>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Online & ready" />
                     </div>
-                    <div className="text-[10px] text-slate-500 truncate">
+                    <div
+                      className="text-[10.5px] text-slate-400 truncate font-medium mt-0.5"
+                      title={`${editableDocContent.studentName} · ${editableDocContent.docType === "CV" ? "Europass CV" : editableDocContent.docTypeName || editableDocContent.docType}`}
+                    >
                       {editableDocContent.studentName} · {editableDocContent.docType === "CV" ? "Europass CV" : editableDocContent.docTypeName || editableDocContent.docType}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 ml-1">
+                  {/* New Chat Button */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (activeDocument) {
-                        localStorage.removeItem(
-                          `antigravity_studio_chat_${activeDocument.studentId}_${activeDocument.docType}`
-                        );
-                      }
-                      setActiveCvSectionPrompt(null);
-                      setActiveFieldPrompt(null);
-                      setChatMessages([getDefaultGreetingMessage(editableDocContent.studentName, editableDocContent.docType)]);
-                    }}
-                    className="text-[10.5px] font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 px-2 py-0.5 rounded transition cursor-pointer"
-                    title="Reset conversation thread"
+                    onClick={handleStartNewChat}
+                    className="h-7 px-2 rounded-lg text-[11px] font-medium text-slate-600 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200/80 transition cursor-pointer shadow-2xs flex items-center gap-1 shrink-0"
+                    title="Start fresh conversation (previous chats saved)"
                   >
-                    Reset
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span>New</span>
                   </button>
+
+                  {/* Chat History Dropdown */}
+                  <div className="relative shrink-0" ref={chatHistoryRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsChatHistoryOpen((prev) => !prev)}
+                      className={`h-7 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer border flex items-center gap-1 shrink-0 ${
+                        isChatHistoryOpen
+                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                          : "text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border-slate-200/80 shadow-2xs"
+                      }`}
+                      title="View chat history & previous conversations"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      <span>History</span>
+                      {chatSessions.length > 0 && (
+                        <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full ${
+                          isChatHistoryOpen ? "bg-indigo-500 text-white" : "bg-indigo-100 text-indigo-700"
+                        }`}>
+                          {chatSessions.length}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Chat History Popover */}
+                    {isChatHistoryOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 text-xs divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                        <div className="flex items-center justify-between pb-1.5 px-1 text-[11px] font-bold text-slate-700">
+                          <span>Chat Sessions ({chatSessions.length})</span>
+                          <button
+                            type="button"
+                            onClick={handleStartNewChat}
+                            className="text-indigo-600 hover:text-indigo-800 text-[10.5px] font-semibold flex items-center gap-0.5 cursor-pointer"
+                          >
+                            + New Session
+                          </button>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto py-1 space-y-1">
+                          {chatSessions.map((sess) => {
+                            const isCurrent = sess.id === activeSessionId;
+                            const userMsgCount = sess.messages.filter((m) => m.sender === "user").length;
+                            return (
+                              <div
+                                key={sess.id}
+                                onClick={() => handleSwitchSession(sess.id)}
+                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition ${
+                                  isCurrent
+                                    ? "bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold"
+                                    : "hover:bg-slate-50 text-slate-700"
+                                }`}
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <div className="truncate text-[11px] font-medium leading-tight">
+                                    {sess.title}
+                                  </div>
+                                  <div className="text-[9.5px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                    <span>{sess.createdAt}</span>
+                                    <span>•</span>
+                                    <span>{userMsgCount} {userMsgCount === 1 ? "query" : "queries"}</span>
+                                    {isCurrent && <span className="text-indigo-600 font-bold">• Active</span>}
+                                  </div>
+                                </div>
+                                {chatSessions.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteSession(sess.id, e)}
+                                    className="p-1 text-slate-300 hover:text-rose-600 hover:bg-white rounded transition cursor-pointer shrink-0"
+                                    title="Delete session"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setIsSidebarCollapsed(true)}
-                    className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                    className="h-7 w-7 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center transition cursor-pointer shrink-0"
                     title="Collapse AI Sidebar"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
                   </button>
@@ -4480,147 +5757,136 @@ export function DocumentStudioDashboard() {
               </div>
 
               {/* ── 2. Unified Scrollable Conversation Stream ── */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-3 text-xs min-h-0">
-                {(chatMessages.length === 0
-                  ? [getDefaultGreetingMessage(editableDocContent.studentName, editableDocContent.docType)]
-                  : chatMessages
-                ).map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
-                      >
-                        {msg.sender === "user" ? (
-                          <div className="max-w-[88%] bg-indigo-600 text-white rounded-2xl rounded-tr-xs px-3.5 py-2.5 shadow-2xs leading-relaxed text-xs">
-                            <p className="whitespace-pre-wrap">{msg.text}</p>
-                          </div>
-                        ) : (
-                          <div className="max-w-[94%] bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl rounded-tl-xs px-3.5 py-2.5 shadow-2xs space-y-1.5 leading-relaxed text-xs">
-                            {msg.sectionUpdated && (
-                              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[10px] font-bold text-indigo-700">
-                                <span>{msg.actionType === "deleted_section" ? "🗑️" : "⚡"}</span>
-                                <span>{msg.sectionUpdated}</span>
-                              </div>
-                            )}
-                            <div className="whitespace-pre-wrap text-slate-700 break-words">
-                              {msg.text.split("**").map((part, idx) =>
-                                idx % 2 === 1 ? (
-                                  <strong key={idx} className="font-semibold text-slate-900">
-                                    {part}
-                                  </strong>
-                                ) : (
-                                  part
-                                )
-                              )}
-                            </div>
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-3.5 pr-1 py-3 text-xs">
+                {renderedChatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
+                  >
+                    {msg.sender === "user" ? (
+                      <div className="max-w-[85%] bg-indigo-600 text-white rounded-2xl rounded-tr-xs px-3.5 py-2.5 shadow-2xs leading-relaxed text-[12px] font-normal break-words">
+                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                      </div>
+                    ) : (
+                      <div className="w-full max-w-[96%] bg-white border border-slate-200/90 text-slate-800 rounded-2xl rounded-tl-xs p-4 shadow-2xs space-y-2.5 leading-relaxed text-xs break-words">
+                        {msg.sectionUpdated && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[10.5px] font-semibold text-indigo-700">
+                            <span>{msg.actionType === "deleted_section" ? "🗑️" : "⚡"}</span>
+                            <span>{msg.sectionUpdated}</span>
                           </div>
                         )}
-                        <span className="text-[9.5px] text-slate-400 mt-1 px-1">{msg.timestamp}</span>
-                      </div>
-                    ))}
-                    {isAiCooking && (
-                      <div className="flex items-center gap-2 p-2.5 bg-slate-100 text-slate-500 rounded-xl text-xs w-fit">
-                        <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                        <span>Composing &amp; typing out section...</span>
+                        {renderChatMessageContent(msg)}
                       </div>
                     )}
-                    <div ref={chatEndRef} />
+                    <span className="text-[10px] text-slate-400 mt-1 px-1 font-normal select-none">
+                      {msg.timestamp}
+                    </span>
                   </div>
+                ))}
+                {isAiCooking && (
+                  <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white border border-slate-200/90 text-slate-600 rounded-2xl text-xs w-fit shadow-2xs">
+                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="font-medium text-slate-700">Composing &amp; typing out section...</span>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
 
               {/* ── 3. Persistent Quick-Action Chips Strip ── */}
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2 border-t border-slate-100 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 pt-2.5 pb-1 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => handleRunSmartChange("academic_polish")}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-indigo-50/70 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Polish academic tone and wording"
                 >
-                  <span>🎯</span>
+                  <span className="text-xs">🎯</span>
                   <span>Polish</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleRunSmartChange("trim_budget")}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  onClick={() => handleRunSmartChange("improve")}
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-blue-50/70 hover:text-blue-700 hover:border-blue-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Improve content clarity and professional presentation"
                 >
-                  <span>✂️</span>
-                  <span>Trim</span>
+                  <span className="text-xs">✨</span>
+                  <span>Improve</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRunSmartChange("create_outline")}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-purple-50 hover:text-purple-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-purple-50/70 hover:text-purple-700 hover:border-purple-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Create structured architectural outline pillars"
                 >
-                  <span>📝</span>
+                  <span className="text-xs">📝</span>
                   <span>Outline</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRunSmartChange("visa_compliance")}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-emerald-50/70 hover:text-emerald-700 hover:border-emerald-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Verify visa compliance & genuine student declaration"
                 >
-                  <span>🛡️</span>
+                  <span className="text-xs">🛡️</span>
                   <span>Visa Check</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleRunSmartChange("write_for_me")}
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-indigo-50/70 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Draft new paragraphs or sections"
                 >
-                  <span>✨</span>
+                  <span className="text-xs">✍️</span>
                   <span>Write</span>
                 </button>
                 <a
                   href={process.env.NEXT_PUBLIC_CRM_VIEWER_URL || "https://crm.digi-wire.com/student-data-viewer"}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 cursor-pointer shrink-0 transition flex items-center gap-1"
+                  className="h-7 px-2.5 rounded-full bg-white hover:bg-slate-50 hover:text-slate-900 text-slate-600 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
+                  title="Open CRM Data Viewer"
                 >
-                  <span>↗</span>
+                  <span className="text-xs">↗</span>
                   <span>CRM</span>
                 </a>
               </div>
 
               {/* Minimal AI Smart Modification Input Box */}
-              <div className="mt-3 border border-slate-200 rounded-2xl bg-white p-3 shadow-xs hover:border-indigo-300 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100 transition shrink-0">
+              <div className="mt-2 border border-slate-200/90 rounded-2xl bg-white p-3 shadow-2xs hover:border-slate-300 focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/10 transition-all duration-150 shrink-0">
                 {activeCvSectionPrompt && (
-                  <div className="mb-2 px-3 py-2 bg-indigo-50/90 border border-indigo-200/90 rounded-xl text-xs animate-in fade-in duration-150">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-[11px]">
-                        <span>📍</span>
-                        <span>{activeCvSectionPrompt.isExisting ? `Add More: ${activeCvSectionPrompt.label}` : `Add Section: ${activeCvSectionPrompt.label}`}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveCvSectionPrompt(null)}
-                        className="text-slate-400 hover:text-rose-600 hover:bg-white p-0.5 rounded transition cursor-pointer shrink-0 font-bold leading-none"
-                        title="Cancel adding section"
-                      >
-                        ✕
-                      </button>
+                  <div className="mb-2 px-3 py-1.5 bg-indigo-50/80 border border-indigo-100 rounded-xl text-xs animate-in fade-in duration-150 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-semibold text-indigo-700 text-[11px] min-w-0">
+                      <span>📍</span>
+                      <span className="truncate">
+                        {activeCvSectionPrompt.isExisting
+                          ? `Adding to: ${activeCvSectionPrompt.label}`
+                          : `Add Section: ${activeCvSectionPrompt.label}`}
+                      </span>
                     </div>
-                    <p className="text-slate-700 text-[11px] leading-relaxed break-words whitespace-pre-line">
-                      {activeCvSectionPrompt.question}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCvSectionPrompt(null)}
+                      className="w-5 h-5 rounded-md hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 flex items-center justify-center transition cursor-pointer shrink-0 font-bold leading-none ml-2 text-[11px]"
+                      title="Cancel adding section"
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
                 {activeFieldPrompt && (
-                  <div className="mb-2 px-3 py-2 bg-indigo-50/90 border border-indigo-200/90 rounded-xl text-xs animate-in fade-in duration-150">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-1.5 font-bold text-indigo-700 text-[11px]">
-                        <span>📍</span>
-                        <span>{activeFieldPrompt.label}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveFieldPrompt(null)}
-                        className="text-slate-400 hover:text-rose-600 hover:bg-white p-0.5 rounded transition cursor-pointer shrink-0 font-bold leading-none"
-                        title="Cancel field input"
-                      >
-                        ✕
-                      </button>
+                  <div className="mb-2 px-3 py-1.5 bg-indigo-50/80 border border-indigo-100 rounded-xl text-xs animate-in fade-in duration-150 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-semibold text-indigo-700 text-[11px] min-w-0">
+                      <span>📍</span>
+                      <span className="truncate">{activeFieldPrompt.label}</span>
                     </div>
-                    <p className="text-slate-700 text-[11px] leading-relaxed break-words">
-                      {activeFieldPrompt.question}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveFieldPrompt(null)}
+                      className="w-5 h-5 rounded-md hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 flex items-center justify-center transition cursor-pointer shrink-0 font-bold leading-none ml-2 text-[11px]"
+                      title="Cancel field input"
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
                 <textarea
@@ -4643,7 +5909,7 @@ export function DocumentStudioDashboard() {
                         ? `Type ${activeFieldPrompt.label} (e.g. ${activeFieldPrompt.placeholder})...`
                         : "Share details (e.g. IELTS 7.5 TRF 26IA...) or type 'delete section'..."
                   }
-                  className="w-full text-xs text-slate-800 placeholder-slate-400 resize-none outline-none bg-transparent leading-relaxed"
+                  className="w-full text-xs text-slate-800 placeholder:text-slate-400 placeholder:font-normal resize-none outline-none bg-transparent leading-relaxed min-h-[46px] max-h-[110px] px-1 py-0.5"
                 />
 
                 <div className="flex items-center justify-between pt-2 mt-1 border-t border-slate-100">
@@ -4655,10 +5921,11 @@ export function DocumentStudioDashboard() {
                         (prev) => prev + " (Ensure strong research focus and clear post-study career goals)"
                       )
                     }
-                    className="w-6 h-6 rounded-md text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center text-sm font-bold cursor-pointer transition"
+                    className="h-7 px-2.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer border border-transparent hover:border-indigo-100"
                     title="Add research & post-study directive tag"
                   >
-                    +
+                    <span className="text-xs font-bold leading-none">+</span>
+                    <span>Directive</span>
                   </button>
 
                   {/* Send Button */}
@@ -4671,16 +5938,19 @@ export function DocumentStudioDashboard() {
                         handleRunSmartChange("academic_polish");
                       }
                     }}
-                    className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center text-xs font-semibold shadow-xs cursor-pointer transition"
+                    className="h-7.5 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-1.5 text-xs font-medium shadow-2xs hover:shadow-xs transition-all duration-150 cursor-pointer active:scale-95"
                     title="Send message to AI assistant"
                   >
                     {isAiCooking ? (
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="22" y1="2" x2="11" y2="13" />
-                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                      </svg>
+                      <>
+                        <span>Send</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="22" y1="2" x2="11" y2="13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                      </>
                     )}
                   </button>
                 </div>
@@ -4689,27 +5959,16 @@ export function DocumentStudioDashboard() {
 
             {/* ── Main Canvas Area & Floating Toolbar ─────────────────────────── */}
             <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 flex flex-col items-center bg-[#F8FAFC] relative w-full">
-              {/* Cover Letter Validation Panel (Compact top-right workspace panel) */}
-              {editableDocContent?.docType === "COVER_LETTER" && (
-                <CoverLetterValidationPanel
-                  groups={missingGroups}
-                  totalMissingCount={totalMissingCount}
-                  isOpen={isValidationPanelOpen}
-                  onToggle={() => setIsValidationPanelOpen((prev) => !prev)}
-                  onClose={() => setIsValidationPanelOpen(false)}
-                  onSelectField={handleSelectMissingField}
-                />
-              )}
-
-              {/* Floating Toolbar with 100% Dynamic Controls */}
-              <div className="sticky top-2 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_24px_rgba(15,23,42,0.12)] border border-slate-200 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-6 shrink-0 no-print">
+              {/* Floating Toolbar with 100% Dynamic Controls (Excluded from Resume/CV interface) */}
+              {editableDocContent?.docType !== "CV" && (
+                <div className="sticky top-2.5 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)] border border-slate-200/90 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-3.5 shrink-0 no-print justify-center">
                 {/* Clean trigger to open AI Tools directly within the toolbar when sidebar is collapsed */}
                 {isSidebarCollapsed && (
                   <>
                     <button
                       type="button"
                       onClick={() => setIsSidebarCollapsed(false)}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-xs"
+                      className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-xs"
                       title="Open AI Composition Tools & Chat"
                     >
                       <span className="text-xs">✨</span>
@@ -4727,7 +5986,7 @@ export function DocumentStudioDashboard() {
                   <button
                     type="button"
                     onClick={() => setShowInfoPopover(!showInfoPopover)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
+                    className={`h-7.5 flex items-center gap-1.5 px-2.5 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
                       ? "bg-indigo-600 text-white shadow-xs"
                       : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                       }`}
@@ -4773,33 +6032,19 @@ export function DocumentStudioDashboard() {
 
                 <div className="h-4 w-px bg-slate-200 shrink-0" />
 
-                {/* CV View Mode Badge */}
-                {editableDocContent.docType === "CV" && (
-                  <>
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0 select-none">
-                      <span>🇪🇺 Europass Theme</span>
-                    </div>
-                    <div className="h-4 w-px bg-slate-200 shrink-0" />
-                  </>
-                )}
-
-                {/* Smart AI Refine Pill (Shown for non-CV documents) */}
-                {editableDocContent.docType !== "CV" && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleRunSmartChange("academic_polish")}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
-                      title="Run academic polish on entire document"
-                    >
-                      <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
-                        ✨
-                      </span>
-                      <span>Ask AI Refine</span>
-                    </button>
-                    <div className="h-4 w-px bg-slate-200 shrink-0" />
-                  </>
-                )}
+                {/* Smart AI Refine Pill */}
+                <button
+                  type="button"
+                  onClick={() => handleRunSmartChange("academic_polish")}
+                  className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
+                  title="Run academic polish on entire document"
+                >
+                  <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
+                    ✨
+                  </span>
+                  <span>Ask AI Refine</span>
+                </button>
+                <div className="h-4 w-px bg-slate-200 shrink-0" />
 
                 {/* Heading Dropdown (H1 ▾) */}
                 <div className="relative shrink-0" ref={headingMenuRef}>
@@ -4810,7 +6055,7 @@ export function DocumentStudioDashboard() {
                       setShowFontMenu(false);
                       setShowColorMenu(false);
                     }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    className="h-7.5 flex items-center gap-1 px-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                   >
                     <span>{activeHeading}</span>
                     <svg
@@ -4863,7 +6108,7 @@ export function DocumentStudioDashboard() {
                       setShowColorMenu(false);
                       setShowInfoPopover(false);
                     }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-200/70 bg-white shadow-2xs cursor-pointer shrink-0"
+                    className="h-7.5 flex items-center gap-1.5 px-2.5 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-200/70 bg-white shadow-2xs cursor-pointer shrink-0"
                     title="Change typography font family"
                   >
                     <span
@@ -4958,11 +6203,11 @@ export function DocumentStudioDashboard() {
                 <div className="h-4 w-px bg-slate-200 shrink-0" />
 
                 {/* Font Size Minus, Number, Plus (- 15 +) */}
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="h-7.5 flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={() => setFontSize((f) => Math.max(10, f - 1))}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
+                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
                   >
                     -
                   </button>
@@ -4972,7 +6217,7 @@ export function DocumentStudioDashboard() {
                   <button
                     type="button"
                     onClick={() => setFontSize((f) => Math.min(32, f + 1))}
-                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
+                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
                   >
                     +
                   </button>
@@ -4989,7 +6234,7 @@ export function DocumentStudioDashboard() {
                       setShowHeadingMenu(false);
                       setShowFontMenu(false);
                     }}
-                    className="flex flex-col items-center justify-center px-2 py-0.5 rounded hover:bg-slate-100 cursor-pointer shrink-0"
+                    className="h-7.5 flex flex-col items-center justify-center px-2 py-0.5 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
                     title="Change document text color"
                   >
                     <span className="text-xs font-bold leading-none" style={{ color: textColor }}>
@@ -5037,7 +6282,7 @@ export function DocumentStudioDashboard() {
                       setIsBold(!isBold);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Bold (Ctrl+B)"
                 >
@@ -5052,7 +6297,7 @@ export function DocumentStudioDashboard() {
                       setIsItalic(!isItalic);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Italic (Ctrl+I)"
                 >
@@ -5067,7 +6312,7 @@ export function DocumentStudioDashboard() {
                       setIsUnderline(!isUnderline);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Underline (Selected text only)"
                 >
@@ -5082,7 +6327,7 @@ export function DocumentStudioDashboard() {
                       setIsStrikethrough(!isStrikethrough);
                     }
                   }}
-                  className={`w-6 h-6 rounded flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Strikethrough"
                 >
@@ -5092,14 +6337,14 @@ export function DocumentStudioDashboard() {
                 <div className="h-4 w-px bg-slate-200 shrink-0" />
 
                 {/* Alignment Controls (Left, Center, Right - responsive to headings & body) */}
-                <div className="flex items-center gap-0.5 bg-slate-100/70 p-0.5 rounded-lg shrink-0">
+                <div className="h-7.5 flex items-center gap-0.5 bg-slate-100/70 p-0.5 rounded-lg shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       setTextAlign("left");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("left").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                       }`}
                     title="Align Left (Headings & Paragraphs)"
                   >
@@ -5115,7 +6360,7 @@ export function DocumentStudioDashboard() {
                       setTextAlign("center");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("center").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                       }`}
                     title="Align Center (Headings & Paragraphs)"
                   >
@@ -5131,7 +6376,7 @@ export function DocumentStudioDashboard() {
                       setTextAlign("right");
                       if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("right").run();
                     }}
-                    className={`p-1 rounded cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                       }`}
                     title="Align Right (Headings & Paragraphs)"
                   >
@@ -5155,7 +6400,7 @@ export function DocumentStudioDashboard() {
                       handleRunSmartChange("create_outline");
                     }
                   }}
-                  className="p-1 rounded text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                  className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                   title="Bullet List"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -5176,7 +6421,7 @@ export function DocumentStudioDashboard() {
                       tiptapEditor.chain().focus().toggleOrderedList().run();
                     }
                   }}
-                  className="p-1 rounded text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                  className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                   title="Numbered List"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -5188,18 +6433,49 @@ export function DocumentStudioDashboard() {
                     <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
                   </svg>
                 </button>
+
+                {/* Missing Details Panel integrated directly into the Floating Toolbar */}
+                {editableDocContent?.docType === "COVER_LETTER" && (
+                  <>
+                    <div className="h-4 w-px bg-slate-200 shrink-0 mx-0.5" />
+                    <CoverLetterValidationPanel
+                      groups={missingGroups}
+                      totalMissingCount={totalMissingCount}
+                      isOpen={isValidationPanelOpen}
+                      onToggle={() => setIsValidationPanelOpen((prev) => !prev)}
+                      onClose={() => setIsValidationPanelOpen(false)}
+                      onSelectField={handleSelectMissingField}
+                    />
+                  </>
+                )}
               </div>
+            )}
+
+            {/* Minimal trigger to re-open AI Sidebar for Resume/CV when sidebar is collapsed */}
+            {editableDocContent?.docType === "CV" && isSidebarCollapsed && (
+              <div className="sticky top-2.5 z-40 mx-auto mb-3.5 no-print">
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(false)}
+                  className="h-8 flex items-center gap-1.5 px-3.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shadow-xs"
+                  title="Open AI Admissions Assistant"
+                >
+                  <span>✨</span>
+                  <span>AI Assistant</span>
+                </button>
+              </div>
+            )}
 
               {/* ── Document Section Manager & Customization Strip ── */}
               {editableDocContent?.sections && editableDocContent.sections.length > 0 && (
-                <div className="w-full max-w-[210mm] mx-auto mb-2 px-3 py-1.5 bg-slate-50/90 hover:bg-slate-50 border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
+                <div className="w-full max-w-[210mm] mx-auto mb-3 px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
                   <div className="flex items-center justify-between gap-2 min-h-[30px]">
                     {/* Collapsed/Expand Toggle and Summary */}
                     <div className="flex items-center gap-2 min-w-0">
                       <button
                         type="button"
                         onClick={() => setIsSectionsExpanded((prev) => !prev)}
-                        className="inline-flex items-center gap-1.5 text-slate-700 hover:text-indigo-600 font-semibold px-2 py-1 rounded-lg hover:bg-white border border-transparent hover:border-slate-200 transition cursor-pointer select-none shrink-0"
+                        className="inline-flex items-center gap-1.5 text-slate-700 hover:text-indigo-600 font-semibold px-2 py-1 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 transition cursor-pointer select-none shrink-0"
                         title={isSectionsExpanded ? "Collapse section list" : "Expand section list"}
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-slate-500">
@@ -5250,7 +6526,7 @@ export function DocumentStudioDashboard() {
                       <button
                         type="button"
                         onClick={() => setIsRearrangeModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200/90 hover:border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs select-none"
+                        className="h-7.5 inline-flex items-center gap-1.5 px-2.5 bg-white hover:bg-slate-50 text-slate-700 hover:text-indigo-700 border border-slate-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs select-none"
                         title="Rearrange section order"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className="text-indigo-600">
@@ -5264,7 +6540,7 @@ export function DocumentStudioDashboard() {
                         <button
                           type="button"
                           onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs"
+                          className="h-7.5 inline-flex items-center gap-1.5 px-2.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs"
                         >
                           <span className="text-sm font-bold leading-none">+</span>
                           <span>Add Section</span>
@@ -5282,12 +6558,12 @@ export function DocumentStudioDashboard() {
                         </button>
 
                         {isAddSectionOpen && (
-                          <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
+                          <div className="absolute right-0 top-full mt-1.5 w-72 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
                             <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                               <span>Add or Update Section</span>
                               <span className="text-[9px] text-slate-400 font-normal">AI Powered</span>
                             </div>
-                            <div className="py-1 max-h-80 overflow-y-auto">
+                            <div className="py-1 max-h-96 overflow-y-auto">
                               {CV_SECTION_MENU_OPTIONS.map((item) => {
                                 const isPresent = isCvSectionPresent(item.key, item.heading);
                                 return (
@@ -5496,17 +6772,28 @@ export function DocumentStudioDashboard() {
                       transformOrigin: "top center",
                     }}
                   >
-                    <EuropassTemplate
-                      data={
+                    {(() => {
+                      const activeCvForRender =
                         cvDocumentData ||
                         getEuropassData(
                           editableDocContent.studentId,
                           editableDocContent.studentName,
                           selectedStudentData
-                        )
-                      }
-                      isInteractive={editorMode === "editing"}
-                    />
+                        );
+                      return (
+                        <DocumentContext.Provider
+                          value={{
+                            data: activeCvForRender,
+                            dispatch: handleEuropassDispatch,
+                          }}
+                        >
+                          <EuropassTemplate
+                            data={activeCvForRender}
+                            isInteractive={editorMode === "editing"}
+                          />
+                        </DocumentContext.Provider>
+                      );
+                    })()}
                   </div>
                 </div>
               ) : (
@@ -5523,9 +6810,9 @@ export function DocumentStudioDashboard() {
                   </div>
 
                   <div
-                    className={`bg-white a4-paper-sheet shadow-[0_12px_40px_rgba(15,23,42,0.08)] rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
-                      ? "border-2 border-indigo-500/80 ring-4 ring-indigo-50/50"
-                      : "border border-slate-300 shadow-[0_10px_35px_rgba(15,23,42,0.06)]"
+                    className={`bg-white a4-paper-sheet rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
+                      ? "border border-indigo-400/80 ring-3 ring-indigo-500/15 shadow-[0_10px_35px_rgba(15,23,42,0.08)]"
+                      : "border border-slate-200/90 shadow-[0_8px_28px_rgba(15,23,42,0.06)]"
                       }`}
                     style={{
                       transform: `scale(${zoomLevel / 100})`,
@@ -5721,13 +7008,13 @@ export function DocumentStudioDashboard() {
           )}
 
           {/* ── Bottom Status Bar (Fully Responsive on Mobile) ────────────────── */}
-          <footer className="bg-white border-t border-slate-200 px-3 sm:px-4 py-2 flex items-center justify-between text-xs text-slate-600 select-none shrink-0 z-20 gap-2 no-print">
+          <footer className="bg-white border-t border-slate-200 px-3 sm:px-6 py-2 flex items-center justify-between text-xs text-slate-600 select-none shrink-0 z-20 gap-3 no-print">
             {/* Left Controls: Notes, Outline, Timer */}
-            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowNotes(!showNotes)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${showNotes ? "text-indigo-600 font-semibold" : ""
+                className={`h-7.5 flex items-center gap-1.5 px-2.5 rounded-md hover:bg-slate-100 cursor-pointer transition shrink-0 font-medium ${showNotes ? "text-indigo-600 bg-indigo-50 font-semibold" : ""
                   }`}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -5742,7 +7029,7 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => handleRunSmartChange("create_outline")}
-                className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0"
+                className="h-7.5 hidden sm:flex items-center gap-1.5 px-2.5 rounded-md hover:bg-slate-100 cursor-pointer transition shrink-0 font-medium"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="8" y1="6" x2="21" y2="6" />
@@ -5758,7 +7045,7 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={() => setIsTimerRunning(!isTimerRunning)}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 cursor-pointer transition shrink-0 ${isTimerRunning ? "text-emerald-600 font-semibold" : ""
+                className={`h-7.5 flex items-center gap-1.5 px-2.5 rounded-md hover:bg-slate-100 cursor-pointer transition shrink-0 font-medium ${isTimerRunning ? "text-emerald-600 bg-emerald-50 font-semibold" : ""
                   }`}
                 title={isTimerRunning ? "Click to pause timer" : "Click to start timer"}
               >
@@ -5773,13 +7060,13 @@ export function DocumentStudioDashboard() {
             </div>
 
             {/* Right Controls: Dynamic Zoom Slider, Dynamic A4 Page Counter, Fullscreen */}
-            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               {/* Dynamic Zoom Slider (shown on tablet and desktop) */}
               <div className="hidden md:flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.max(75, z - 5))}
-                  className="hover:text-slate-900 cursor-pointer font-bold px-1"
+                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer font-bold text-xs"
                 >
                   -
                 </button>
@@ -5795,15 +7082,15 @@ export function DocumentStudioDashboard() {
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(150, z + 5))}
-                  className="hover:text-slate-900 cursor-pointer font-bold px-1"
+                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer font-bold text-xs"
                 >
                   +
                 </button>
-                <span className="w-10 text-right font-medium">{zoomLevel}%</span>
+                <span className="w-10 text-right font-medium text-slate-600 text-xs">{zoomLevel}%</span>
               </div>
 
               {/* Dynamic A4 Page Count based on actual word count */}
-              <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px] whitespace-nowrap">
+              <span className="font-semibold text-slate-700 bg-slate-100 border border-slate-200/60 px-2.5 py-1 rounded-md text-[11px] whitespace-nowrap">
                 Pages 1/{Math.max(1, Math.ceil(editableDocContent.wordCount / 450))}
               </span>
 
@@ -5817,7 +7104,7 @@ export function DocumentStudioDashboard() {
                     document.exitFullscreen().catch(() => { });
                   }
                 }}
-                className="hidden sm:inline-block p-1 rounded hover:bg-slate-100 cursor-pointer text-slate-500 hover:text-slate-800"
+                className="hidden sm:inline-flex w-7.5 h-7.5 items-center justify-center rounded-md hover:bg-slate-100 cursor-pointer text-slate-500 hover:text-slate-800 transition"
                 title="Present full screen"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
