@@ -40,9 +40,15 @@ import {
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
 import { syncSectionsToCvData, syncCvDataToSections } from "../utils/documentStudioSync";
+import { processCvChatInstruction, isValidSkillNoun } from "../utils/cvChatIntentEngine";
 import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
 import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
 import { docSectionsToHtml } from "../utils/docSectionsToHtml";
+import {
+  extractUserDirectiveAndSnippet,
+  findSnippetInSections,
+  type TextSnippetAnchor,
+} from "../utils/documentAnchorMatcher";
 
 export { RECENT_DOCS_STORAGE_KEY, syncSectionsToCvData, syncCvDataToSections };
 
@@ -673,6 +679,15 @@ export function parseDirectCvSectionInstruction(prompt: string): {
 } | null {
   const p = prompt.trim();
 
+  // Guard: Never treat enhancement, rephrasing, humanizing, About Me directives, or deletion commands as adding a section
+  if (
+    /^(?:enhance|improve|polish|humanize|rephrase|rewrite|make|delete|remove|clear|drop)\b/i.test(p) ||
+    /^(?:in|for|to|on)\s+(?:my\s+)?(?:about\s+me|summary|profile|bio)\b/i.test(p) ||
+    /\b(?:about\s+me|summary|profile)\b/i.test(p)
+  ) {
+    return null;
+  }
+
   // Structured key-value Work Experience (even without "Add work experience")
   if (
     /(?:position|job\s*title|role)\s*[:=-]/i.test(p) &&
@@ -699,7 +714,7 @@ export function parseDirectCvSectionInstruction(prompt: string): {
 
   // Skills: e.g. "Add skills Python, React, Next.js", "Skills: Python, SQL"
   const skillsMatch = p.match(/^(?:add|set)?\s*(?:technical\s*|digital\s*)?skills\s*(?:are|is|to|:|-)?\s*(.+)$/i);
-  if (skillsMatch && skillsMatch[1].trim()) {
+  if (skillsMatch && skillsMatch[1].trim() && !/\b(?:about\s+me|summary|as\s+well|in\s+my)\b/i.test(skillsMatch[1])) {
     return {
       heading: "DIGITAL SKILLS",
       sectionKey: "skills",
@@ -1023,6 +1038,8 @@ export function DocumentStudioDashboard() {
   // Studio & Smart Changes Engine State
   const [docHistory, setDocHistory] = useState<HydratedDocumentData[]>([]);
   const [redoHistory, setRedoHistory] = useState<HydratedDocumentData[]>([]);
+  const [cvHistory, setCvHistory] = useState<DocumentData[]>([]);
+  const [cvRedoHistory, setCvRedoHistory] = useState<DocumentData[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [aiPromptText, setAiPromptText] = useState("");
   const [isAiCooking, setIsAiCooking] = useState(false);
@@ -1840,47 +1857,110 @@ export function DocumentStudioDashboard() {
 
   // Caret Engine & Studio Undo & Redo Handlers
   const handleUndo = () => {
-    if (tiptapEditor && tiptapEditor.can().undo()) {
+    const isCvEuropass = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+
+    if (!isCvEuropass && tiptapEditor && tiptapEditor.can().undo()) {
       tiptapEditor.chain().focus().undo().run();
       setAiToast({ message: "Reverted via Caret Engine", type: "info" });
       return;
     }
-    if (docHistory.length === 0 || !editableDocContent) return;
-    const previous = docHistory[docHistory.length - 1];
-    setRedoHistory((prev) => [editableDocContent, ...prev]);
-    setDocHistory((prev) => prev.slice(0, prev.length - 1));
-    setEditableDocContent(previous);
-    const html = docSectionsToHtml(previous.sections, previous.docType, previous.title);
-    setTiptapHtml(html);
-    if (tiptapEditor) {
-      tiptapEditor.commands.setContent(html);
+
+    if ((docHistory.length === 0 && cvHistory.length === 0) || !editableDocContent) {
+      setAiToast({ message: "Nothing to undo", type: "info" });
+      return;
     }
-    setAiToast({ message: "Reverted to previous revision", type: "info" });
+
+    let previousDoc = editableDocContent;
+    if (docHistory.length > 0) {
+      previousDoc = docHistory[docHistory.length - 1];
+      setRedoHistory((prev) => [JSON.parse(JSON.stringify(editableDocContent)), ...prev]);
+      setDocHistory((prev) => prev.slice(0, prev.length - 1));
+      setEditableDocContent(previousDoc);
+      setActiveDocument(previousDoc);
+      syncDocumentToRecent(previousDoc, "Reverted just now");
+
+      const html = docSectionsToHtml(previousDoc.sections, previousDoc.docType, previousDoc.title);
+      setTiptapHtml(html);
+      if (tiptapEditor) {
+        tiptapEditor.commands.setContent(html);
+      }
+    }
+
+    if (editableDocContent.docType === "CV") {
+      if (cvHistory.length > 0) {
+        const previousCv = cvHistory[cvHistory.length - 1];
+        if (cvDocumentData) {
+          setCvRedoHistory((prev) => [JSON.parse(JSON.stringify(cvDocumentData)), ...prev]);
+        }
+        setCvHistory((prev) => prev.slice(0, prev.length - 1));
+        setCvDocumentData(previousCv);
+      } else {
+        const baseCv = cvDocumentData || getEuropassData(previousDoc.studentId, previousDoc.studentName, selectedStudentData);
+        const synced = syncSectionsToCvData(previousDoc.sections, baseCv);
+        setCvDocumentData(synced);
+      }
+    }
+
+    setAiToast({ message: "↩️ Reverted to previous revision", type: "info" });
   };
 
   const handleRedo = () => {
-    if (tiptapEditor && tiptapEditor.can().redo()) {
+    const isCvEuropass = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+
+    if (!isCvEuropass && tiptapEditor && tiptapEditor.can().redo()) {
       tiptapEditor.chain().focus().redo().run();
       setAiToast({ message: "Redone via Caret Engine", type: "info" });
       return;
     }
-    if (redoHistory.length === 0 || !editableDocContent) return;
-    const next = redoHistory[0];
-    setDocHistory((prev) => [...prev, editableDocContent]);
-    setRedoHistory((prev) => prev.slice(1));
-    setEditableDocContent(next);
-    const html = docSectionsToHtml(next.sections, next.docType, next.title);
-    setTiptapHtml(html);
-    if (tiptapEditor) {
-      tiptapEditor.commands.setContent(html);
+
+    if ((redoHistory.length === 0 && cvRedoHistory.length === 0) || !editableDocContent) {
+      setAiToast({ message: "Nothing to redo", type: "info" });
+      return;
     }
-    setAiToast({ message: "Redone", type: "info" });
+
+    let nextDoc = editableDocContent;
+    if (redoHistory.length > 0) {
+      nextDoc = redoHistory[0];
+      setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+      setRedoHistory((prev) => prev.slice(1));
+      setEditableDocContent(nextDoc);
+      setActiveDocument(nextDoc);
+      syncDocumentToRecent(nextDoc, "Redone just now");
+
+      const html = docSectionsToHtml(nextDoc.sections, nextDoc.docType, nextDoc.title);
+      setTiptapHtml(html);
+      if (tiptapEditor) {
+        tiptapEditor.commands.setContent(html);
+      }
+    }
+
+    if (editableDocContent.docType === "CV") {
+      if (cvRedoHistory.length > 0) {
+        const nextCv = cvRedoHistory[0];
+        if (cvDocumentData) {
+          setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(cvDocumentData))]);
+        }
+        setCvRedoHistory((prev) => prev.slice(1));
+        setCvDocumentData(nextCv);
+      } else {
+        const baseCv = cvDocumentData || getEuropassData(nextDoc.studentId, nextDoc.studentName, selectedStudentData);
+        const synced = syncSectionsToCvData(nextDoc.sections, baseCv);
+        setCvDocumentData(synced);
+      }
+    }
+
+    setAiToast({ message: "🔁 Redone", type: "info" });
   };
 
   // Canvas Section Management: Delete Section
   const handleDeleteSection = (index: number) => {
     if (!editableDocContent || !editableDocContent.sections[index]) return;
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+    if (editableDocContent.docType === "CV") {
+      const baseCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+      setCvRedoHistory([]);
+    }
     setRedoHistory([]);
 
     const removed = editableDocContent.sections[index];
@@ -1900,7 +1980,7 @@ export function DocumentStudioDashboard() {
       tiptapEditor.commands.setContent(html);
     }
     if (updated.docType === "CV") {
-      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
       const synced = syncSectionsToCvData(updated.sections, baseCv);
       setCvDocumentData(synced);
     }
@@ -1921,6 +2001,11 @@ export function DocumentStudioDashboard() {
   const handleMoveSection = (fromIndex: number, toIndex: number) => {
     if (!editableDocContent || toIndex < 0 || toIndex >= editableDocContent.sections.length) return;
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+    if (editableDocContent.docType === "CV") {
+      const baseCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+      setCvRedoHistory([]);
+    }
     setRedoHistory([]);
 
     const nextSections = [...editableDocContent.sections];
@@ -1942,7 +2027,7 @@ export function DocumentStudioDashboard() {
       tiptapEditor.commands.setContent(html);
     }
     if (updated.docType === "CV") {
-      const baseCv = getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
+      const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
       const synced = syncSectionsToCvData(updated.sections, baseCv);
       setCvDocumentData(synced);
     }
@@ -2046,6 +2131,11 @@ export function DocumentStudioDashboard() {
     }
 
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+    if (editableDocContent.docType === "CV") {
+      const baseCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+      setCvRedoHistory([]);
+    }
     setRedoHistory([]);
 
     const updatedSections = [...editableDocContent.sections, { heading, content: defaultContent }];
@@ -2105,6 +2195,11 @@ export function DocumentStudioDashboard() {
 
     // Snapshot current state for Undo
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+    if (editableDocContent.docType === "CV") {
+      const baseCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+      setCvRedoHistory([]);
+    }
     setRedoHistory([]);
     setIsAiCooking(true);
 
@@ -2115,6 +2210,27 @@ export function DocumentStudioDashboard() {
         pLower.startsWith("remove ") ||
         pLower.includes("delete section") ||
         pLower.includes("remove section");
+
+      const extracted = extractUserDirectiveAndSnippet(customPrompt);
+      const anchor = (extracted.isSnippetProvided && extracted.snippet)
+        ? findSnippetInSections(extracted.snippet, editableDocContent.sections)
+        : null;
+
+      const isEnhanceInstruction =
+        Boolean(anchor) ||
+        /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?better|make\s+(?:it|this\s+)?(?:more\s+)?(?:professional|humanized|impactful)|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine)\b/i.test(customPrompt) ||
+        customPrompt.includes(":") ||
+        customPrompt.includes('"') ||
+        customPrompt.includes('“');
+
+      if (isEnhanceInstruction || anchor) {
+        void runAiEdit(
+          customPrompt.trim(),
+          undefined,
+          anchor ? { heading: anchor.sectionHeading, snippet: anchor.matchedText } : undefined
+        );
+        return;
+      }
 
       // For Cover Letter, SOP, and LOR, any natural conversational prompt goes directly to Gemini AI
       if (editableDocContent.docType !== "CV" && !isDeleteRequest) {
@@ -2923,7 +3039,11 @@ export function DocumentStudioDashboard() {
     commitAssistantEdit(updated, appliedFeedback, sectionUpdated, actionType);
   };
 
-  const runAiEdit = async (instruction: string, fallbackKey?: string) => {
+  const runAiEdit = async (
+    instruction: string,
+    fallbackKey?: string,
+    targetAnchor?: { heading: string; snippet: string }
+  ) => {
     if (!editableDocContent) return;
     const doc = ensureDocumentIdentity(editableDocContent);
 
@@ -2960,6 +3080,7 @@ export function DocumentStudioDashboard() {
         },
       ]);
       setDocHistory((prev) => prev.slice(0, -1));
+      setCvHistory((prev) => prev.slice(0, -1));
       setIsAiCooking(false);
     };
 
@@ -2975,6 +3096,7 @@ export function DocumentStudioDashboard() {
           sections: doc.sections,
           instruction,
           history,
+          targetAnchor,
         }),
       });
       const json = await res.json();
@@ -3020,7 +3142,8 @@ export function DocumentStudioDashboard() {
         (unverified.length
           ? `\n\n⚠️ Please verify these values — they weren't in the document or your message: ${unverified.join(", ")}`
           : "");
-      commitAssistantEdit(updated, feedback, changed[0], "typed_section");
+      const changedHeadingTarget = targetAnchor?.heading || changed[0];
+      commitAssistantEdit(updated, feedback, changedHeadingTarget, "typed_section");
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         // Request aborted due to new operator action or switch - ignore cleanly
@@ -3038,9 +3161,192 @@ export function DocumentStudioDashboard() {
     const trimmedPrompt = promptText.trim();
     if (!trimmedPrompt || !editableDocContent) return;
 
-    // Direct CV section matcher or active CV section question flow
+    const extracted = extractUserDirectiveAndSnippet(trimmedPrompt);
+    const anchor = (extracted.isSnippetProvided && extracted.snippet)
+      ? findSnippetInSections(extracted.snippet, editableDocContent.sections)
+      : null;
+
+    const isEnhanceOrRewrite =
+      Boolean(anchor) ||
+      /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?better|make\s+(?:it|this\s+)?(?:more\s+)?(?:professional|humanized|impactful)|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine)\b/i.test(trimmedPrompt);
+
+    // ── Intelligent CV Chat Intent Engine ─────────────────────────────────────
+    if (editableDocContent.docType === "CV" && !activeCvSectionPrompt) {
+      const userMsg: ChatMessage = {
+        id: generateUniqueId("user"),
+        sender: "user",
+        text: trimmedPrompt,
+        timestamp: getFormattedTimestamp(),
+      };
+      setChatMessages((prev) => [...prev, userMsg]);
+      setAiPromptText("");
+
+      const baseCv =
+        cvDocumentData ||
+        getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+
+      const recentHistory = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
+
+      void (async () => {
+        setIsAiCooking(true);
+        try {
+          const intentResult = await processCvChatInstruction(
+            trimmedPrompt,
+            editableDocContent,
+            baseCv,
+            recentHistory
+          );
+
+          if (intentResult.isUndo) {
+            handleUndo();
+            const asstMsg: ChatMessage = {
+              id: generateUniqueId("asst-undo"),
+              sender: "assistant",
+              text: intentResult.reply,
+              timestamp: getFormattedTimestamp(),
+              actionType: "general",
+            };
+            setChatMessages((prev) => [...prev, asstMsg]);
+            setIsAiCooking(false);
+            return;
+          }
+
+          if (intentResult.isRedo) {
+            handleRedo();
+            const asstMsg: ChatMessage = {
+              id: generateUniqueId("asst-redo"),
+              sender: "assistant",
+              text: intentResult.reply,
+              timestamp: getFormattedTimestamp(),
+              actionType: "general",
+            };
+            setChatMessages((prev) => [...prev, asstMsg]);
+            setIsAiCooking(false);
+            return;
+          }
+
+          if (intentResult.needsAiRewrite) {
+            setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+            setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+            setRedoHistory([]);
+            setCvRedoHistory([]);
+            setIsAiCooking(false);
+
+            let promptToSend = intentResult.aiPrompt || trimmedPrompt;
+            let targetHeading = intentResult.targetHeading || anchor?.sectionHeading;
+
+            // Cross-Section Context Injection for ABOUT ME:
+            // When targeting ABOUT ME and asking to incorporate skills/experience,
+            // pull the student's actual CV data into the AI prompt so OpenAI weaves it in!
+            if (intentResult.targetHeading === "ABOUT ME" && intentResult.isCrossSectionSynthesis) {
+              const currentSkills = (baseCv.skills || []).map((s) => s.name?.trim()).filter(Boolean);
+              const currentInternships = (baseCv.internships || [])
+                .map((w) => `${w.role || "Intern"} at ${w.company || "organization"}`)
+                .filter(Boolean);
+
+              const contextLines: string[] = [];
+              if (currentSkills.length > 0) {
+                contextLines.push(`- Existing Skills in CV: ${currentSkills.join(", ")}`);
+              }
+              if (currentInternships.length > 0) {
+                contextLines.push(`- Work Experience in CV: ${currentInternships.join("; ")}`);
+              }
+
+              promptToSend =
+                `Instruction from user: "${trimmedPrompt}"\n\n` +
+                `Context from Student's Europass CV:\n${contextLines.join("\n")}\n\n` +
+                `Directive: Rewrite and enhance ONLY the "ABOUT ME" section. Seamlessly weave in the student's key skills/competencies in a natural, cohesive, professional first-person personal statement. Strictly preserve all student facts, dates, and institutions. Leave all other sections completely unchanged.`;
+            }
+
+            void runAiEdit(
+              promptToSend,
+              undefined,
+              targetHeading ? { heading: targetHeading, snippet: anchor ? anchor.matchedText : "" } : undefined
+            );
+            return;
+          }
+
+          if (intentResult.updatedSections && intentResult.updatedCv) {
+            // Snapshot current state for Undo before applying updates
+            setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+            setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+            setRedoHistory([]);
+            setCvRedoHistory([]);
+
+            const updatedDoc: HydratedDocumentData = {
+              ...editableDocContent,
+              sections: intentResult.updatedSections,
+              wordCount: intentResult.updatedSections.reduce(
+                (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+                0
+              ),
+            };
+
+            setCvDocumentData(intentResult.updatedCv);
+            setEditableDocContent(updatedDoc);
+            setActiveDocument(updatedDoc);
+            syncDocumentToRecent(updatedDoc, "Edited just now");
+
+            const newHtml = docSectionsToHtml(intentResult.updatedSections, updatedDoc.docType, updatedDoc.title);
+            setTiptapHtml(newHtml);
+            if (tiptapEditor) {
+              tiptapEditor.commands.setContent(newHtml);
+            }
+
+            const asstMsg: ChatMessage = {
+              id: generateUniqueId("assistant-cv-intent"),
+              sender: "assistant",
+              text: intentResult.reply,
+              timestamp: getFormattedTimestamp(),
+              actionType: intentResult.actionType,
+              sectionUpdated: intentResult.sectionUpdated,
+            };
+            setChatMessages((prev) => [...prev, asstMsg]);
+
+            setAiToast({
+              message: intentResult.sectionUpdated ? `✨ Updated ${intentResult.sectionUpdated}` : "✨ CV updated",
+              type: "success",
+            });
+            setTimeout(() => setAiToast(null), 3000);
+
+            if (intentResult.sectionUpdated) {
+              setTimeout(() => {
+                handleScrollToSection(intentResult.sectionUpdated);
+              }, 350);
+            }
+          } else {
+            const asstMsg: ChatMessage = {
+              id: generateUniqueId("assistant-cv-clarify"),
+              sender: "assistant",
+              text: intentResult.reply,
+              timestamp: getFormattedTimestamp(),
+              actionType: "general",
+            };
+            setChatMessages((prev) => [...prev, asstMsg]);
+          }
+        } catch (err) {
+          console.error("[processCvChatInstruction] error:", err);
+          const asstMsg: ChatMessage = {
+            id: generateUniqueId("assistant-err"),
+            sender: "assistant",
+            text: "⚠️ Something went wrong applying that change. Please try again.",
+            timestamp: getFormattedTimestamp(),
+            actionType: "general",
+          };
+          setChatMessages((prev) => [...prev, asstMsg]);
+        } finally {
+          setIsAiCooking(false);
+        }
+      })();
+
+      return;
+    }
+
+    // Direct CV section matcher or active CV section question flow (only if NOT an enhancement or in-place edit)
     const directCvSectionMatch =
-      editableDocContent.docType === "CV" ? parseDirectCvSectionInstruction(trimmedPrompt) : null;
+      !isEnhanceOrRewrite && editableDocContent.docType === "CV"
+        ? parseDirectCvSectionInstruction(trimmedPrompt)
+        : null;
     const activeSectionPrompt = activeCvSectionPrompt || (directCvSectionMatch ? {
       heading: directCvSectionMatch.heading,
       sectionKey: directCvSectionMatch.sectionKey,
@@ -3066,9 +3372,10 @@ export function DocumentStudioDashboard() {
 
       // 2. Snapshot current state for Undo
       setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
-      setRedoHistory([]);
-
       const currentCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(currentCv))]);
+      setRedoHistory([]);
+      setCvRedoHistory([]);
       const updatedCv = JSON.parse(JSON.stringify(currentCv));
 
       // Preserve photoUrl if set
@@ -3090,7 +3397,7 @@ export function DocumentStudioDashboard() {
             .map((h) => h.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
             .filter(Boolean);
           const rawItems = parsed.length > 0 ? parsed : [cleanAnswer];
-          const items = rawItems.map((h) => h.charAt(0).toUpperCase() + h.slice(1));
+          const items = rawItems.filter(isValidSkillNoun).map((h) => h.charAt(0).toUpperCase() + h.slice(1));
 
           // Deduplicate against existing hobbies
           const existingHobbies = updatedCv.hobbies || [];
@@ -3098,7 +3405,7 @@ export function DocumentStudioDashboard() {
           const newUniqueItems = items.filter((item) => !existingNames.has(item.toLowerCase()));
           const itemsToAdd = newUniqueItems.length > 0 ? newUniqueItems : items;
 
-          formattedContent = itemsToAdd.join(" • ");
+          formattedContent = itemsToAdd.map((s) => `• ${s}`).join("\n");
           summaryText = itemsToAdd.join(", ");
 
           const newHobbyEntries = itemsToAdd.map((name, idx) => ({
@@ -3875,8 +4182,14 @@ export function DocumentStudioDashboard() {
         setChatMessages((prev) => [...prev, userMsg]);
         setAiPromptText("");
 
+        const currentCv =
+          cvDocumentData ||
+          getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
+
         setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+        setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(currentCv))]);
         setRedoHistory([]);
+        setCvRedoHistory([]);
 
         const updatedFieldValues: Record<string, string> = {
           ...(editableDocContent.fieldValues || {}),
@@ -3885,9 +4198,6 @@ export function DocumentStudioDashboard() {
           updatedFieldValues[item.key] = item.value;
         }
 
-        const currentCv =
-          cvDocumentData ||
-          getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
         const updatedCv = JSON.parse(JSON.stringify(currentCv));
         if (!updatedCv.personal) updatedCv.personal = {};
 
@@ -4054,15 +4364,17 @@ export function DocumentStudioDashboard() {
       setChatMessages((prev) => [...prev, userMsg]);
       setAiPromptText("");
 
+      const currentCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
       setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(currentCv))]);
       setRedoHistory([]);
+      setCvRedoHistory([]);
 
       const updatedFieldValues: Record<string, string> = {
         ...(editableDocContent.fieldValues || {}),
         [targetFieldKey]: targetValue,
       };
 
-      const currentCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
       const updatedCv = JSON.parse(JSON.stringify(currentCv));
       if (!updatedCv.personal) updatedCv.personal = {};
 
@@ -4409,6 +4721,8 @@ export function DocumentStudioDashboard() {
     setEditableDocContent(JSON.parse(JSON.stringify(safeDoc)));
     setDocHistory([]);
     setRedoHistory([]);
+    setCvHistory([]);
+    setCvRedoHistory([]);
     const html = docSectionsToHtml(safeDoc.sections, safeDoc.docType, safeDoc.title);
     setTiptapHtml(html);
     if (tiptapEditor) {
@@ -5440,7 +5754,7 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={handleUndo}
-                disabled={!(tiptapEditor?.can().undo() || docHistory.length > 0)}
+                disabled={!(tiptapEditor?.can().undo() || docHistory.length > 0 || cvHistory.length > 0)}
                 className="p-1 sm:p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg cursor-pointer transition shrink-0"
                 title="Undo (Ctrl+Z)"
               >
@@ -5454,7 +5768,7 @@ export function DocumentStudioDashboard() {
               <button
                 type="button"
                 onClick={handleRedo}
-                disabled={!(tiptapEditor?.can().redo() || redoHistory.length > 0)}
+                disabled={!(tiptapEditor?.can().redo() || redoHistory.length > 0 || cvRedoHistory.length > 0)}
                 className="p-1 sm:p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg cursor-pointer transition shrink-0"
                 title="Redo (Ctrl+Y)"
               >

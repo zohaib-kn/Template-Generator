@@ -365,9 +365,40 @@ export async function generateDocumentPdf(
                   text === "[ ]" ||
                   text === "[-]" ||
                   text === "[ - ]" ||
-                  text === "[ – ]"
+                  text === "[ – ]" ||
+                  text.includes("Add dates") ||
+                  /^\[\s*[-–—\s]*\]$/.test(text)
                 ) {
                   badge.remove();
+                }
+              });
+
+            // Clean up any inputs or interactive edit elements in the cloned DOM for pure vector presentation
+            clonedElement
+              .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[data-editable="true"], textarea[data-editable="true"]')
+              .forEach((input) => {
+                const span = clonedDoc.createElement("span");
+                span.textContent = input.value || "";
+                span.className = input.className;
+                input.parentNode?.replaceChild(span, input);
+              });
+
+            // Strip interactive dashed borders & focus styles from cloned export DOM
+            clonedElement
+              .querySelectorAll<HTMLElement>("*")
+              .forEach((el) => {
+                if (el.style.borderBottomStyle === "dashed" || el.style.borderBottom?.includes("dashed")) {
+                  el.style.borderBottom = "none";
+                }
+              });
+
+            // Strip empty bullet rows with trailing hyphens e.g. "• Listening - "
+            clonedElement
+              .querySelectorAll<HTMLElement>('[class*="bulletItem"]')
+              .forEach((item) => {
+                const text = item.textContent?.replace(/^[•\s*-]+/, "").trim() || "";
+                if (text.endsWith("-") || text.endsWith(":") || !text) {
+                  item.remove();
                 }
               });
 

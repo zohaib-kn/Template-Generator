@@ -19,6 +19,11 @@ export interface StudioChatTurn {
   text: string;
 }
 
+export interface StudioTargetAnchor {
+  heading: string;
+  snippet: string;
+}
+
 export interface StudioEditRequest {
   studentId?: string;
   docType: string;
@@ -26,6 +31,7 @@ export interface StudioEditRequest {
   sections: StudioSection[];
   instruction: string;
   history?: StudioChatTurn[];
+  targetAnchor?: StudioTargetAnchor;
 }
 
 export interface StudioEditResult {
@@ -45,7 +51,18 @@ Rules — follow all of them:
 5. If the instruction is a question or cannot be done without inventing facts, do not edit — explain in "reply" what information you need.
 6. CV CONTACT & HEADER INFO: In CV documents, personal contact details (Home Address, Phone Number, Email Address, Mother Tongue, Nationality, Date of Birth) belong exclusively in the student contact header, NOT inside "ABOUT ME" or narrative body sections. NEVER append or insert home address, phone numbers, or emails into the "ABOUT ME" section.
 7. SECTION PRESERVATION: You must return the EXACT same list of sections provided in the input. Return each section as a separate object in the "sections" array with its original "heading". NEVER merge or collapse multiple sections into a single section. NEVER embed "### Heading" or section titles inside the "content" text.
-
+8. IN-PLACE TARGET REPLACEMENT & HUMANIZATION: When the counsellor asks to enhance, humanize, rephrase, rewrite, or improve a specific quoted text snippet, bullet point, or paragraph:
+   - Identify the exact location of that snippet within the corresponding section.
+   - Rephrase, polish, or humanize ONLY that specific text. Elevate clarity, diction, and impact using active, natural, professional English without artificial buzzwords or clichés.
+   - Insert the enhanced text directly back into the EXACT SAME POSITION where the original snippet was located.
+   - Keep all other bullets, paragraphs, dates, organizations, and surrounding sections 100% identical and undisturbed.
+9. TARGETED ADDITIONS & REMOVALS:
+   - When asked to add a skill, bullet, or metric to an existing work experience, education, or section, append or insert it under that specific entry without creating duplicate sections.
+   - When asked to remove or delete a specific phrase, bullet, role, or skill, cleanly excise ONLY that targeted item without wiping out the rest of the entry or inserting the user's deletion command as document content.
+10. CV ABOUT ME NARRATIVE SYNTHESIS:
+   - When asked to add, integrate, highlight, or weave skills, experiences, or achievements into the "ABOUT ME" (or Personal Statement / Summary) section, synthesize them into a fluent, cohesive, professional first-person paragraph.
+   - Do NOT append raw bullet lists, comma dumps, or conversational instructions into "ABOUT ME". Write natural, flowing sentences.
+   - Strictly leave dedicated sections like "SKILLS" or "WORK EXPERIENCE" completely untouched unless explicitly requested.
 Respond with ONE JSON object only:
 {"reply": "<one or two sentences telling the counsellor what you changed or what you need>",
  "sections": [{"heading": "<heading>", "content": "<full section text>"}, ...],   // the COMPLETE document after your edit, in order
@@ -57,9 +74,13 @@ export function buildStudioPrompt(req: StudioEditRequest): string {
     .slice(-6)
     .map((t) => `${t.sender === "user" ? "Counsellor" : "Assistant"}: ${t.text}`)
     .join("\n");
+  const anchorNotice = req.targetAnchor
+    ? `TARGETED IN-PLACE EDIT: The counsellor is specifically targeting this text snippet inside section "${req.targetAnchor.heading}":\n<<<TARGET_SNIPPET>>>\n${req.targetAnchor.snippet}\n<<<END_TARGET_SNIPPET>>>\nReplace/enhance ONLY this snippet in-place inside section "${req.targetAnchor.heading}", keeping its exact position and leaving all other text untouched.`
+    : "";
   return [
     `Document type: ${req.docType}${req.title ? ` — "${req.title}"` : ""}`,
     `IMPORTANT: This document has ${req.sections.length} distinct sections. In your JSON response, you MUST return all ${req.sections.length} sections separately in the "sections" array with their original headings. Do NOT merge them into one section. Do NOT write "###" in section content.`,
+    anchorNotice,
     history ? `Recent conversation:\n${history}` : "",
     `Current document:\n${doc}`,
     `Counsellor instruction:\n<<<\n${req.instruction}\n>>>`,

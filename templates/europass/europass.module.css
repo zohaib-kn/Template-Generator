@@ -135,7 +135,7 @@
 .pageContent {
   position: relative;
   z-index: 1;
-  padding: 7.3mm 8.9mm 11.2mm 9.2mm;
+  padding: 7.0mm 8.9mm 9.5mm 9.2mm;
   box-sizing: border-box;
   height: 100%;
   display: flex;
@@ -148,7 +148,7 @@
   width: 100%;
   margin-top: 0;
   /* Balanced bottom margin for header */
-  margin-bottom: 3.5mm;
+  margin-bottom: 2.2mm;
 }
 
 .headerTopRow {
@@ -170,7 +170,7 @@
   align-items: flex-start;
   z-index: 2;
   /* Generous top & right breathing space so logo floats away from the page edge and blue ear */
-  padding-top: 6.5mm;
+  padding-top: 5.5mm;
   padding-right: 4.5mm;
 }
 
@@ -188,12 +188,12 @@
   flex-direction: row;
   align-items: center;
   /* Wider gap between photo and identity block */
-  gap: 5.5mm;
+  gap: 3.5mm;
   width: 100%;
   min-width: 0;
   /* Shift personal details block down for breathing room below the top edge and logo */
-  padding-top: 13.5mm;
-  padding-bottom: 3.5mm;
+  padding-top: 5.5mm;
+  padding-bottom: 2.0mm;
 }
 
 /* Photo wrapper — visible silver ring matching reference Europass frame */
@@ -253,7 +253,7 @@
   color: #0c56a5;
   line-height: 1.25;
   /* Spacing between name and personal details rows */
-  margin: 0 0 2.5mm 0;
+  margin: 0 0 1.8mm 0;
   /* Reserve 54mm on the right so the name never runs under the logo */
   padding-right: 54mm;
   letter-spacing: 0.1px;
@@ -263,10 +263,10 @@
   display: flex;
   flex-direction: column;
   /* More row-to-row gap matching reference vertical rhythm */
-  gap: 2mm;
+  gap: 1.4mm;
   /* Slightly larger font to match reference detail text size */
   font-size: 10.5pt;
-  line-height: 1.45;
+  line-height: 1.40;
   color: #333333;
 }
 
@@ -376,7 +376,7 @@
 
 /* --- Section Headings ---------------------------------------------------- */
 .sectionWrapper {
-  margin-top: 3.6mm;
+  margin-top: 2.4mm;
   margin-bottom: 0;
 }
 
@@ -406,16 +406,16 @@
   height: 0.75pt;
   background-color: #979797;
   width: 100%;
-  margin: 1.5mm 0 2.0mm 0;
+  margin: 1.0mm 0 1.6mm 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
 .aboutMeText {
   font-size: 9.97pt;
-  line-height: 1.42;
+  line-height: 1.36;
   color: #333333;
   text-align: justify;
-  margin: 0 0 2.2mm 0;
+  margin: 0 0 1.5mm 0;
 }
 
 .aboutMeText:last-child {
@@ -429,7 +429,7 @@
 
 /* --- Education Entries -------------------------------------------------- */
 .educationEntry {
-  margin-bottom: 3.2mm;
+  margin-bottom: 2.0mm;
 }
 
 .educationEntry:last-child {
@@ -440,7 +440,7 @@
   font-size: 10.97pt;
   font-weight: 700;
   color: #0c56a5;
-  margin: 0 0 1.0mm 0;
+  margin: 0 0 0.8mm 0;
   line-height: 1.25;
 }
 
@@ -452,7 +452,7 @@
   font-size: 10.97pt;
   line-height: 1.35;
   color: #333333;
-  margin-bottom: 1.2mm;
+  margin-bottom: 0.8mm;
 }
 
 .entrySubRow {
@@ -548,11 +548,11 @@
 
 /* --- Work Experience & Internship Custom Bullet List (Exact Reference Indentation: 8.1mm / 22.94pt from section text margin = 49.02pt from page boundary) --- */
 .bulletList {
-  margin-top: 1.4mm;
+  margin-top: 1.0mm;
   margin-left: 8.1mm;
   display: flex;
   flex-direction: column;
-  gap: 1.4mm;
+  gap: 1.0mm;
 }
 
 .bulletItem {
@@ -561,7 +561,7 @@
   align-items: flex-start;
   gap: 1.8mm;
   font-size: 9.97pt;
-  line-height: 1.38;
+  line-height: 1.34;
   color: #333333;
 }
 
@@ -972,7 +972,35 @@
   line-height: 1.4;
 }
 
-/* --- Inline Slash Skills Format ---------------------------------------- */
+/* --- Skills Vertical Bullet List (One Above Another) ------------------- */
+.skillsBulletList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  margin-top: 1.2mm;
+}
+
+.skillsBulletItem {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 2mm;
+  font-size: 9.97pt;
+  line-height: 1.45;
+  color: #333333;
+}
+
+.skillsBulletDot {
+  display: inline-block;
+  width: 2.2mm;
+  flex-shrink: 0;
+  color: #333333;
+  font-size: 8.5pt;
+  line-height: 1.45;
+  text-align: center;
+}
+
+/* --- Inline Slash Skills Format (Legacy) -------------------------------- */
 .slashSkillsContainer {
   display: flex;
   flex-wrap: wrap;

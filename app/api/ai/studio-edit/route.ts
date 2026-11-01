@@ -69,6 +69,15 @@ export async function POST(req: NextRequest) {
           .slice(-6)
           .map((t) => ({ sender: t.sender, text: t.text.slice(0, 1000) }))
       : [],
+    targetAnchor:
+      body.targetAnchor &&
+      typeof body.targetAnchor.heading === "string" &&
+      typeof body.targetAnchor.snippet === "string"
+        ? {
+            heading: body.targetAnchor.heading.slice(0, 120),
+            snippet: body.targetAnchor.snippet.slice(0, 3000),
+          }
+        : undefined,
   };
 
   const result = await aiService.generate({

@@ -35,7 +35,9 @@ export const InternshipSection = memo(function InternshipSection({
   if (!entries || entries.length === 0) return null;
 
   const visible = entries.filter(
-    (e) => isInteractive || e.role || e.company || e.description || e.location
+    (e) => (e.role && e.role.trim().length > 0 && e.role.length < 100) ||
+           (e.company && e.company.trim().length > 0) ||
+           (e.description && e.description.trim().length > 0)
   );
   if (visible.length === 0) return null;
 

@@ -62,7 +62,12 @@ export function deriveDomain(course?: string, degree?: string, fieldOfStudy?: st
 
 export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): string {
   const p = profile.personal;
-  const fullName = p?.fullName?.trim() || "Candidate";
+  const rawFullName = p?.fullName?.trim() || "Candidate";
+  const nameWords = rawFullName.split(/\s+/).filter((w, i, arr) => i === 0 || w.toLowerCase() !== arr[i - 1].toLowerCase());
+  let fullName = nameWords.join(" ");
+  if (/^[A-Z\s]+$/.test(fullName) && fullName.length > 3) {
+    fullName = fullName.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+  }
   const salutation = getSalutation(p?.gender);
 
   // 1. Identify primary degree qualification

@@ -24,6 +24,7 @@ export function sanitizeAddressValue(raw: string): string {
 }
 
 import type { DocumentData } from "@/types/document";
+import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
 
 /**
  * Synchronizes sections edited in the Caret Editor back into the structured DocumentData model.
@@ -61,35 +62,54 @@ export function syncSectionsToCvData(
       s.heading?.toLowerCase().includes("employment")
   );
   if (workSec && workSec.content.trim()) {
-    const entries = workSec.content.split(/\n\n+/).filter(Boolean);
-    updatedCv.internships = entries.map((entryStr, idx) => {
-      const lines = entryStr.split("\n").map((l) => l.trim()).filter(Boolean);
-      const roleLine = lines[0] || "Role";
-      const compLine = lines[1] || "";
-      const datesMatch = compLine.match(/\[\s*([^\]]+)\s*\]/);
-      const withoutDates = compLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
-      let compName = withoutDates;
-      let locName = "";
-      if (withoutDates.includes("|")) {
-        const p = withoutDates.split("|").map((x) => x.trim()).filter(Boolean);
-        compName = p[0] || "Company";
-        locName = p.slice(1).join(", ").replace(/^Location:\s*/i, "").trim();
-      } else if (/Location:\s*/i.test(withoutDates)) {
-        const locM = withoutDates.match(/Location:\s*([^,.\n]+)/i);
-        if (locM) locName = locM[1].trim();
-        compName = withoutDates.replace(/Location:\s*[^,.\n]+/i, "").trim();
+    const rawChunks = workSec.content.split(/\n\s*\n+/).filter(Boolean);
+    const consolidatedChunks: string[] = [];
+    for (const chunk of rawChunks) {
+      const trimmed = chunk.trim();
+      const firstLine = trimmed.split("\n")[0].trim();
+      const isNewEntry =
+        /^(?:\d+\.|(?:role|position|company|employer)[:=-]|(?:german|social|marketing|software|frontend|backend|full\s*stack|data|product|trainee|intern|analyst))/i.test(firstLine) ||
+        (!/^[•\-\*]/.test(firstLine) && (trimmed.includes("[") || trimmed.includes("–") || trimmed.includes("-")));
+      const isBullet = /^[•\-\*]/.test(firstLine);
+      if (!isNewEntry && isBullet && consolidatedChunks.length > 0) {
+        consolidatedChunks[consolidatedChunks.length - 1] += "\n" + trimmed;
+      } else {
+        consolidatedChunks.push(trimmed);
       }
-      const descLines = lines.slice(2);
-      return {
-        id: `intern-${idx}`,
-        role: roleLine,
-        company: compName || "Company",
-        location: locName || undefined,
-        startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
-        endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
-        description: descLines.join("\n"),
-      };
-    });
+    }
+
+    updatedCv.internships = consolidatedChunks
+      .map((entryStr, idx) => {
+        const lines = entryStr.split("\n").map((l) => l.trim()).filter(Boolean);
+        const roleLine = lines[0] || "Role";
+        const compLine = lines[1] || "";
+        const datesMatch = compLine.match(/\[\s*([^\]]+)\s*\]/);
+        const withoutDates = compLine.replace(/\[\s*([^\]]+)\s*\]/, "").trim();
+        let compName = withoutDates;
+        let locName = "";
+        if (withoutDates.includes("|")) {
+          const p = withoutDates.split("|").map((x) => x.trim()).filter(Boolean);
+          compName = p[0] || "Company";
+          locName = p.slice(1).join(", ").replace(/^Location:\s*/i, "").trim();
+        } else if (/Location:\s*/i.test(withoutDates)) {
+          const locM = withoutDates.match(/Location:\s*([^,.\n]+)/i);
+          if (locM) locName = locM[1].trim();
+          compName = withoutDates.replace(/Location:\s*[^,.\n]+/i, "").trim();
+        }
+        const descLines = lines.slice(2);
+        const bullets = parseDescriptionToBullets(descLines.join("\n"));
+        const cleanDesc = bullets.filter(Boolean).map((b) => `• ${stripLeadingMarkers(b)}`).join("\n");
+        return {
+          id: `intern-${idx}`,
+          role: roleLine,
+          company: compName || "Company",
+          location: locName || undefined,
+          startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
+          endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
+          description: cleanDesc,
+        };
+      })
+      .filter((exp) => exp.role && exp.role.length < 100 && (exp.company || exp.description));
   } else if (workSec && !workSec.content.trim()) {
     updatedCv.internships = [];
   } else if (!workSec) {
@@ -121,8 +141,8 @@ export function syncSectionsToCvData(
         id: `edu-${idx}`,
         qualification: qual,
         institution: instName,
-        startDate: datesMatch ? datesMatch[1].split("–")[0]?.trim() || "" : "",
-        endDate: datesMatch ? datesMatch[1].split("–")[1]?.trim() || "" : "",
+        startDate: datesMatch ? datesMatch[1].split(/[–—\-]|to/i)[0]?.trim() || "" : "",
+        endDate: datesMatch ? datesMatch[1].split(/[–—\-]|to/i)[1]?.trim() || "" : "",
         finalGrade: gradeMatch ? gradeMatch[1].trim() : undefined,
         address: locMatch ? locMatch[1].trim() : undefined,
         website: webMatch ? webMatch[1].trim() : undefined,
@@ -174,15 +194,16 @@ export function syncSectionsToCvData(
   }
 
   // 5. Skills
-  const skillsSec = sections.find(
+  const skillsSecs = sections.filter(
     (s) =>
-      s.heading?.toLowerCase().includes("skills") &&
+      s.heading?.toLowerCase().includes("skill") &&
       !s.heading?.toLowerCase().includes("language")
   );
+  const skillsSec = skillsSecs.find((s) => s.content && s.content.trim().length > 0) || skillsSecs[0];
   if (skillsSec && skillsSec.content.trim()) {
     const skillList = skillsSec.content
-      .split(/[/•,\n]+/)
-      .map((s) => s.trim())
+      .split(/\n+|[/•,]+/)
+      .map((s) => s.replace(/^[•*\-\s/]+/, "").trim())
       .filter(Boolean);
     updatedCv.skills = skillList.map((name, idx) => ({ id: `skill-${idx}`, name }));
   } else if (skillsSec && !skillsSec.content.trim()) {
@@ -534,7 +555,12 @@ export function syncSectionsToCvData(
       mergedOrder.push(id);
     }
   }
-  updatedCv.sectionOrder = mergedOrder.filter((id) => !removedSectionIds.has(id));
+  const filteredOrder = mergedOrder.filter((id) => !removedSectionIds.has(id));
+  const nonDecl = filteredOrder.filter((id) => id !== "declaration");
+  if (filteredOrder.includes("declaration")) {
+    nonDecl.push("declaration");
+  }
+  updatedCv.sectionOrder = nonDecl;
 
   return updatedCv;
 }
@@ -563,7 +589,9 @@ export function syncCvDataToSections(
       s.heading?.toLowerCase().includes("employment")
   );
   if (cv.internships !== undefined && workIdx >= 0) {
-    const validInternships = (cv.internships || []).filter((e) => e.role || e.company || e.description);
+    const validInternships = (cv.internships || []).filter(
+      (e) => e.role && e.role.length < 100 && (e.company || e.description)
+    );
     sections[workIdx].content = validInternships
       .map((exp) => {
         const lines: string[] = [];
@@ -574,7 +602,11 @@ export function syncCvDataToSections(
         const dateStr = exp.startDate || exp.endDate ? `[ ${exp.startDate || ""} – ${exp.endDate || ""} ]` : "";
         if (dateStr) compParts.push(dateStr);
         if (compParts.length > 0) lines.push(compParts.join(" | "));
-        if (exp.description) lines.push(exp.description);
+        if (exp.description) {
+          const bullets = parseDescriptionToBullets(exp.description);
+          const formatted = bullets.filter(Boolean).map((b) => `• ${stripLeadingMarkers(b)}`).join("\n");
+          lines.push(formatted || exp.description);
+        }
         return lines.join("\n");
       })
       .join("\n\n");
@@ -609,9 +641,21 @@ export function syncCvDataToSections(
   }
 
   // 4. Skills
-  const skillsIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("skill"));
+  let skillsIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("skill"));
+  if (cv.skills && cv.skills.length > 0 && skillsIdx < 0) {
+    const declIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("declaration"));
+    const insertPos = declIdx >= 0 ? declIdx : sections.length;
+    sections.splice(insertPos, 0, { heading: "DIGITAL SKILLS", content: "" });
+    skillsIdx = insertPos;
+  }
   if (cv.skills !== undefined && skillsIdx >= 0) {
-    sections[skillsIdx].content = (cv.skills || []).map((s) => s.name).filter(Boolean).join(" / ");
+    sections[skillsIdx].content = (cv.skills || [])
+      .map((s) => {
+        const clean = (s.name ?? "").replace(/^[•*\-\s/]+/, "").trim();
+        return clean ? `• ${clean}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
   }
 
   // 5. Hobbies
@@ -629,7 +673,13 @@ export function syncCvDataToSections(
   }
 
   // 7. Languages
-  const langIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("language") && !s.heading?.toLowerCase().includes("certificate"));
+  let langIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("language") && !s.heading?.toLowerCase().includes("certificate"));
+  if ((cv.motherTongue || (cv.languages && cv.languages.length > 0)) && langIdx < 0) {
+    const declIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("declaration"));
+    const insertPos = declIdx >= 0 ? declIdx : sections.length;
+    sections.splice(insertPos, 0, { heading: "LANGUAGE SKILLS", content: "" });
+    langIdx = insertPos;
+  }
   if ((cv.motherTongue !== undefined || cv.languages !== undefined) && langIdx >= 0) {
     const parts: string[] = [];
     if (cv.motherTongue?.trim()) parts.push(`Mother tongue(s): ${cv.motherTongue.trim()}`);
@@ -639,7 +689,13 @@ export function syncCvDataToSections(
   }
 
   // 8. Academic Projects
-  const projIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("project"));
+  let projIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("project"));
+  if (cv.academicProjects && cv.academicProjects.length > 0 && projIdx < 0) {
+    const declIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("declaration"));
+    const insertPos = declIdx >= 0 ? declIdx : sections.length;
+    sections.splice(insertPos, 0, { heading: "PROJECTS", content: "" });
+    projIdx = insertPos;
+  }
   if (cv.academicProjects !== undefined && projIdx >= 0) {
     sections[projIdx].content = (cv.academicProjects || [])
       .map((p) => [p.title, p.description].filter(Boolean).join("\n"))
@@ -680,6 +736,23 @@ export function syncCvDataToSections(
     sections[recIdx].content = (cv.recommendations || [])
       .map((r) => [r.recommenderName, [r.recommenderTitle, r.organization].filter(Boolean).join(", "), r.text ? `"${r.text}"` : null].filter(Boolean).join("\n"))
       .join("\n\n");
+  }
+
+  // 14. Custom Sections (e.g. Publications, Projects)
+  if (cv.customSections && cv.customSections.length > 0) {
+    for (const cs of cv.customSections) {
+      const existingIdx = sections.findIndex((s) => s.heading?.toLowerCase() === cs.title.toLowerCase());
+      if (existingIdx >= 0) {
+        sections[existingIdx].content = cs.content;
+      } else {
+        const declIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("declaration"));
+        const targetPos = declIdx >= 0 ? declIdx : sections.length;
+        sections.splice(targetPos, 0, {
+          heading: cs.title.toUpperCase(),
+          content: cs.content,
+        });
+      }
+    }
   }
 
   return sections;
