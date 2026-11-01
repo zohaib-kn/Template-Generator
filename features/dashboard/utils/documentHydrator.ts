@@ -23,6 +23,7 @@ import {
   mapNormalizedToResume,
 } from "@/services/normalization";
 
+import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
 export const RECENT_DOCS_STORAGE_KEY = "antigravity_recent_documents_v3";
 
 export interface HydratedDocumentData {
@@ -327,7 +328,10 @@ export function hydrateDocumentFromSnapshot(
                 exp.role || "Role",
                 `${exp.company || ""} [ ${exp.startDate || ""} – ${exp.endDate || ""} ]`,
               ];
-              if (exp.description) lines.push(exp.description);
+              if (exp.description) {
+                const b = parseDescriptionToBullets(exp.description);
+                lines.push(b.map(stripLeadingMarkers).map((x) => `• ${x}`).join("\n"));
+              }
               return lines.join("\n");
             })
             .join("\n\n")

@@ -543,7 +543,9 @@ export function mapCrmToNormalizedStudent(
       : rawLastName.replace(/[\s\-_]+$/, "").trim();
   const cleanFirstName = firstName.replace(/[\s\-_]+$/, "").trim();
   const rawFullName = joinParts([cleanFirstName, middleName, lastName]) || "Student";
-  const fullName = rawFullName.replace(/[\s\-_]+$/, "").trim() || "Student";
+  const nameTokens = rawFullName.replace(/[\s\-_]+$/, "").trim().split(/\s+/);
+  const dedupedTokens = nameTokens.filter((token, idx, arr) => idx === 0 || token.toLowerCase() !== arr[idx - 1].toLowerCase());
+  const fullName = dedupedTokens.join(" ") || "Student";
 
   // 2. Personal Nationality & Countries
   const natInfo = resolveCountryAndNationality(nat.nationality);

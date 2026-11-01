@@ -46,6 +46,12 @@ export interface PersonalDetails {
   photoUrl?: string;
   /** Link to student's portfolio, website, or projects. */
   portfolioUrl?: string;
+  /** Link to student's LinkedIn profile. */
+  linkedinUrl?: string;
+  /** Link to student's GitHub profile. */
+  githubUrl?: string;
+  /** Driving licence categories, e.g. "B", "A, B". */
+  drivingLicence?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +187,12 @@ export interface InternshipEntry {
 }
 
 // ---------------------------------------------------------------------------
+export interface CustomSectionEntry {
+  id: string;
+  title: string;
+  content: string;
+}
+
 // Singleton section blocks
 // ---------------------------------------------------------------------------
 
@@ -223,12 +235,20 @@ export interface DocumentData {
   declaration?: string;
   /** Link to student's portfolio, website, or projects (also accessible via personal.portfolioUrl) */
   portfolioUrl?: string;
+  /** Link to student's LinkedIn profile. */
+  linkedinUrl?: string;
+  /** Link to student's GitHub profile. */
+  githubUrl?: string;
+  /** Driving licence categories, e.g. "B", "A, B". */
+  drivingLicence?: string;
   // University-admissions sections (all optional)
   academicInterests?: AcademicInterest[];
   academicProjects?: AcademicProject[];
   achievements?: Achievement[];
   leadershipActivities?: LeadershipActivity[];
   certifications?: Certification[];
+  /** Dynamically created custom sections (e.g. Publications, Projects, etc.) */
+  customSections?: CustomSectionEntry[];
   /** Custom section order chosen by counselor (excluding pinned personalDetails) */
   sectionOrder?: string[];
 }

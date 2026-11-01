@@ -29,6 +29,7 @@ export type {
   Achievement,
   LeadershipActivity,
   Certification,
+  CustomSectionEntry,
 } from "./document";
 
 export { DEFAULT_MOVABLE_SECTION_ORDER } from "./document";

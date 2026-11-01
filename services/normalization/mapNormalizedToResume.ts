@@ -20,6 +20,7 @@ import type { ApplicationTarget, DestinationCountry } from "@/features/document-
 import type { NormalizedStudentProfile, NormalizedQualification, NormalizedWorkExperience } from "@/types/normalizedStudent";
 import { getInstitutionWebsite } from "@/features/document-generator/utils/institutionWebsites";
 import { synthesizeEuropassAboutMe } from "./synthesizeEuropassAboutMe";
+import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
 
 const KNOWN_DESTINATIONS: DestinationCountry[] = [
   "United Kingdom",
@@ -193,11 +194,11 @@ function mapWorkEntry(w: NormalizedWorkExperience, index: number): InternshipEnt
   return {
     id: w.id || `work-${index}`,
     role: w.position,
-    company: w.organisation,
+    company: w.organisation ? w.organisation.replace(/genuishub/i, "Geniushub").trim() : "",
     location: w.location,
     startDate: w.workingFrom,
     endDate: w.workingUpto,
-    description: w.jobProfile,
+    description: parseDescriptionToBullets(w.jobProfile || "").map(stripLeadingMarkers).map(b => "• " + b).join("\n"),
   };
 }
 
@@ -327,13 +328,6 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
       provider: c.provider,
       completionDate: c.date,
       credentialLink: c.url,
-    }));
-  } else if (achievements.length > 0) {
-    certifications = achievements.map((a, idx) => ({
-      id: `cert-${idx}`,
-      name: a.title,
-      provider: a.organisation,
-      completionDate: a.dateYear,
     }));
   } else {
     certifications = [];

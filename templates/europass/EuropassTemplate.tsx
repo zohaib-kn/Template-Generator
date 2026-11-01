@@ -354,6 +354,19 @@ export function EuropassTemplate({
             allItems.push({ key: "declaration", secKey: "declaration", title: "DECLARATION" });
           }
           break;
+        default: {
+          const customEntry = (data.customSections || []).find(
+            (c) => c.id === secId || `custom_${c.id}` === secId || c.title.toLowerCase() === secId.toLowerCase()
+          );
+          if (customEntry && customEntry.content?.trim()) {
+            allItems.push({
+              key: `custom_${customEntry.id}`,
+              secKey: `custom_${customEntry.id}`,
+              title: customEntry.title.toUpperCase(),
+            });
+          }
+          break;
+        }
       }
     }
 
@@ -666,8 +679,31 @@ export function EuropassTemplate({
               onUpdate={setDeclaration}
             />
           ) : null;
-        default:
+        default: {
+          const customEntry = (data.customSections || []).find(
+            (c) => c.id === item.secKey || `custom_${c.id}` === item.secKey || c.title.toLowerCase() === item.title?.toLowerCase()
+          );
+          if (customEntry && customEntry.content?.trim()) {
+            return (
+              <section key={item.key} className={styles.sectionWrapper}>
+                <EuropassSectionTitle title={item.title || customEntry.title.toUpperCase()} />
+                <div className={styles.bulletList}>
+                  {customEntry.content.split("\n").filter(Boolean).map((line, idx) => {
+                    const isBullet = line.startsWith("•") || line.startsWith("-");
+                    const text = line.replace(/^[•\-\*]\s*/, "");
+                    return (
+                      <div key={idx} className={isBullet ? styles.bulletItem : undefined}>
+                        {isBullet && <span className={styles.bulletDot} aria-hidden="true">•</span>}
+                        <span className={isBullet ? styles.bulletText : undefined}>{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          }
           return null;
+        }
       }
     },
     [
@@ -717,7 +753,7 @@ export function EuropassTemplate({
     // Usable height inside padding: 278.5mm (~1052.6px at 96 DPI).
     // Reserve 28px safety buffer (~7.4mm) to account for sub-pixel text rendering,
     // interactive focus borders, and avoid clipping near the bottom page decoration.
-    const PAGE_SAFETY_BUFFER = 28;
+    const PAGE_SAFETY_BUFFER = 12;
     const A4_USABLE_HEIGHT_PX = 278.5 * (96 / 25.4) - PAGE_SAFETY_BUFFER;
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
@@ -810,14 +846,13 @@ export function EuropassTemplate({
 
         const bulletHeights = Array.from(bulletEls).map((b) => getElementHeightWithMargins(b));
         const totalBulletsHeight = bulletHeights.reduce((a, b) => a + b, 0);
-        const headerHeight = Math.max(30, entryHeights[entryIdx] - totalBulletsHeight);
+        const headerHeight = Math.max(24, entryHeights[entryIdx] - totalBulletsHeight);
 
         // Header + at least 1 bullet must fit with small buffer
-        if (headerHeight + bulletHeights[0] + 4 > availableHeight) {
+        if (headerHeight + bulletHeights[0] + 2 > availableHeight) {
           return null;
         }
-
-        let remH = availableHeight - headerHeight - 4;
+        let remH = availableHeight - headerHeight - 2;
         let bCount = 0;
         while (bCount < bulletHeights.length && bulletHeights[bCount] <= remH) {
           remH -= bulletHeights[bCount];
@@ -940,25 +975,53 @@ export function EuropassTemplate({
               rem2 -= remHeights[k2];
               k2++;
             }
-            computedPages[pageIdx].push({
-              key: `${secKey}_part2`,
-              secKey,
-              title: "",
-              startIndex: k,
-              endIndex: k + k2,
-            });
-            advanceToNextPage();
-            computedPages[pageIdx].push({
-              key: `${secKey}_part3`,
-              secKey,
-              title: "",
-              startIndex: k + k2,
-              endIndex: entries.length,
-            });
-            const remHeights3 = remHeights.slice(k2);
-            remainingHeight =
-              maxPageN -
-              remHeights3.reduce((acc, val) => acc + val, 0);
+            const splitEntryGlobalIdx = k + k2;
+            const splitInfo2 = splitEntryGlobalIdx < entries.length ? getBulletSplitInfo(splitEntryGlobalIdx, rem2) : null;
+            if (splitInfo2) {
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: splitEntryGlobalIdx + 1,
+                splitEntryIndex: splitEntryGlobalIdx,
+                bulletSplitCount: splitInfo2.bCount,
+                splitPart: 1,
+              });
+              advanceToNextPage();
+              computedPages[pageIdx].push({
+                key: `${secKey}_part3`,
+                secKey,
+                title: "",
+                startIndex: splitEntryGlobalIdx,
+                endIndex: entries.length,
+                splitEntryIndex: splitEntryGlobalIdx,
+                bulletSplitCount: splitInfo2.bCount,
+                splitPart: 2,
+              });
+              const remAfter = entryHeights.slice(splitEntryGlobalIdx + 1).reduce((acc, val) => acc + val, 0);
+              remainingHeight = maxPageN - (splitInfo2.part2Height + remAfter);
+            } else {
+              computedPages[pageIdx].push({
+                key: `${secKey}_part2`,
+                secKey,
+                title: "",
+                startIndex: k,
+                endIndex: k + k2,
+              });
+              advanceToNextPage();
+              computedPages[pageIdx].push({
+                key: `${secKey}_part3`,
+                secKey,
+                title: "",
+                startIndex: k + k2,
+                endIndex: entries.length,
+              });
+              const remHeights3 = remHeights.slice(k2);
+              remainingHeight =
+                maxPageN -
+                remHeights3.reduce((acc, val) => acc + val, 0);
+            }
           }
           return;
         }
@@ -1170,6 +1233,15 @@ export function EuropassTemplate({
             placeAtomic("declaration", "DECLARATION");
           }
           break;
+        default: {
+          const customEntry = (data.customSections || []).find(
+            (c) => c.id === secId || `custom_${c.id}` === secId || c.title.toLowerCase() === secId.toLowerCase()
+          );
+          if (customEntry && customEntry.content?.trim()) {
+            placeAtomic(`custom_${customEntry.id}`, customEntry.title.toUpperCase());
+          }
+          break;
+        }
       }
     }
 
@@ -1269,6 +1341,26 @@ export function EuropassTemplate({
             <DeclarationSection text={data.declaration} />
           </div>
         )}
+
+        {(data.customSections || []).map((cs) => (
+          <div key={cs.id} data-measure={`custom_${cs.id}`}>
+            <section className={styles.sectionWrapper}>
+              <EuropassSectionTitle title={cs.title.toUpperCase()} />
+              <div className={styles.bulletList}>
+                {cs.content.split("\n").filter(Boolean).map((line, idx) => {
+                  const isBullet = line.startsWith("•") || line.startsWith("-");
+                  const text = line.replace(/^[•\-\*]\s*/, "");
+                  return (
+                    <div key={idx} className={isBullet ? styles.bulletItem : undefined}>
+                      {isBullet && <span className={styles.bulletDot} aria-hidden="true">•</span>}
+                      <span className={isBullet ? styles.bulletText : undefined}>{text}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        ))}
 
         {/* Splittable repeatable sections */}
         {/* Education */}
