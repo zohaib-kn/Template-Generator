@@ -974,7 +974,7 @@ export function DocumentStudioDashboard() {
           });
         }
       }
-    } catch {}
+    } catch { }
     return INITIAL_RECENT_DOCS;
   });
 
@@ -1563,7 +1563,7 @@ export function DocumentStudioDashboard() {
           url.searchParams.delete("student");
           window.history.pushState({}, "", url.pathname || "/");
         }
-      } catch {}
+      } catch { }
     }
   };
 
@@ -1582,7 +1582,7 @@ export function DocumentStudioDashboard() {
             loadedSessions = parsed;
           }
         }
-      } catch {}
+      } catch { }
 
       // Backward compatibility: load legacy single thread if sessions list is empty
       if (loadedSessions.length === 0) {
@@ -1601,7 +1601,7 @@ export function DocumentStudioDashboard() {
               ];
             }
           }
-        } catch {}
+        } catch { }
       }
 
       // If still empty, initialize with default welcome session
@@ -1647,7 +1647,7 @@ export function DocumentStudioDashboard() {
             `antigravity_studio_chat_sessions_${activeDocument.studentId}_${activeDocument.docType}`,
             JSON.stringify(updated)
           );
-        } catch {}
+        } catch { }
       }
       return updated;
     });
@@ -1684,7 +1684,7 @@ export function DocumentStudioDashboard() {
             `antigravity_studio_chat_sessions_${activeDocument.studentId}_${activeDocument.docType}`,
             JSON.stringify(filtered)
           );
-        } catch {}
+        } catch { }
       }
       if (sessionId === activeSessionId) {
         if (filtered.length > 0) {
@@ -1755,7 +1755,7 @@ export function DocumentStudioDashboard() {
       try {
         localStorage.setItem(sessionsKey, JSON.stringify(updated));
         localStorage.setItem(legacyKey, JSON.stringify(chatMessages));
-      } catch {}
+      } catch { }
       return updated;
     });
 
@@ -2116,7 +2116,7 @@ export function DocumentStudioDashboard() {
     try {
       const cmd = format === "bold" ? "bold" : format === "italic" ? "italic" : format === "underline" ? "underline" : "strikeThrough";
       document.execCommand(cmd, false);
-    } catch {}
+    } catch { }
 
     if (format === "bold") setIsBold((prev) => !prev);
     else if (format === "italic") setIsItalic((prev) => !prev);
@@ -2188,8 +2188,8 @@ export function DocumentStudioDashboard() {
     const changedSentences: string[] = Array.isArray(changedSentencesInput)
       ? changedSentencesInput.filter(Boolean)
       : changedSentencesInput
-      ? [changedSentencesInput]
-      : [];
+        ? [changedSentencesInput]
+        : [];
 
     setActiveAiHighlight({
       sectionName,
@@ -2285,7 +2285,7 @@ export function DocumentStudioDashboard() {
                   break;
                 }
               }
-            } catch {}
+            } catch { }
           }
         }
       }
@@ -3434,9 +3434,9 @@ export function DocumentStudioDashboard() {
       const cleanedSections =
         doc.docType === "COVER_LETTER"
           ? (json.sections || []).map((s: { heading: string; content: string }) => ({
-              ...s,
-              content: cleanCoverLetterText(s.content),
-            }))
+            ...s,
+            content: cleanCoverLetterText(s.content),
+          }))
           : json.sections;
       const updated: HydratedDocumentData = { ...doc, sections: cleanedSections };
       const feedback =
@@ -3553,8 +3553,8 @@ export function DocumentStudioDashboard() {
           if (result.targetSection) {
             const matchedSection = editableDocContent.sections.find(
               (s) => s.heading.toLowerCase() === result.targetSection!.toLowerCase() ||
-                     s.heading.toLowerCase().includes(result.targetSection!.toLowerCase()) ||
-                     result.targetSection!.toLowerCase().includes(s.heading.toLowerCase())
+                s.heading.toLowerCase().includes(result.targetSection!.toLowerCase()) ||
+                result.targetSection!.toLowerCase().includes(s.heading.toLowerCase())
             );
             if (matchedSection) {
               setLastActiveTargetSection(matchedSection.heading);
@@ -3671,7 +3671,7 @@ export function DocumentStudioDashboard() {
             setIsAiCooking(false);
           }
         }
-      })();      return;
+      })(); return;
     }
 
     // Direct CV section matcher or active CV section question flow (only if NOT an enhancement or in-place edit)
@@ -4324,10 +4324,10 @@ export function DocumentStudioDashboard() {
         activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies" || activeSectionPrompt.sectionKey === "academicInterests"
           ? " • "
           : activeSectionPrompt.sectionKey === "certifications" || activeSectionPrompt.sectionKey === "achievements"
-          ? "\n"
-          : activeSectionPrompt.sectionKey === "englishCertificate" || activeSectionPrompt.sectionKey === "aboutMe" || activeSectionPrompt.sectionKey === "about" || activeSectionPrompt.sectionKey === "languageSkills" || activeSectionPrompt.sectionKey === "languages"
-          ? "REPLACE"
-          : "\n\n";
+            ? "\n"
+            : activeSectionPrompt.sectionKey === "englishCertificate" || activeSectionPrompt.sectionKey === "aboutMe" || activeSectionPrompt.sectionKey === "about" || activeSectionPrompt.sectionKey === "languageSkills" || activeSectionPrompt.sectionKey === "languages"
+              ? "REPLACE"
+              : "\n\n";
 
       let updatedSections = [...editableDocContent.sections];
       if (existingSectionIdx >= 0) {
@@ -4803,8 +4803,8 @@ export function DocumentStudioDashboard() {
       newType === "SOP"
         ? "university-sop-standard"
         : newType === "COVER_LETTER"
-        ? "italy-type-d-student-visa-cover-letter"
-        : undefined
+          ? "italy-type-d-student-visa-cover-letter"
+          : undefined
     );
     if (editableDocContent) {
       setDocHistory((prev) => [...prev, editableDocContent]);
@@ -5164,8 +5164,8 @@ export function DocumentStudioDashboard() {
           modalDocType === "SOP"
             ? "university-sop-standard"
             : modalDocType === "COVER_LETTER"
-            ? "italy-type-d-student-visa-cover-letter"
-            : undefined
+              ? "italy-type-d-student-visa-cover-letter"
+              : undefined
         );
         generatedDoc.id = generateDocumentId(modalStudentId, modalDocType);
         generatedDoc.updatedAt = "Created just now";
@@ -5646,11 +5646,10 @@ export function DocumentStudioDashboard() {
                           key={`page-${pNum}`}
                           type="button"
                           onClick={() => setRecentDocsPage(Number(pNum))}
-                          className={`w-7 h-7 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center ${
-                            isCurrent
+                          className={`w-7 h-7 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center ${isCurrent
                               ? "bg-indigo-600 text-white shadow-xs"
                               : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs"
-                          }`}
+                            }`}
                         >
                           {pNum}
                         </button>
@@ -6310,11 +6309,10 @@ export function DocumentStudioDashboard() {
                     <button
                       type="button"
                       onClick={() => setIsChatHistoryOpen((prev) => !prev)}
-                      className={`h-7.5 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                        isChatHistoryOpen
+                      className={`h-7.5 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 ${isChatHistoryOpen
                           ? "bg-slate-100 text-slate-900 font-semibold"
                           : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
-                      }`}
+                        }`}
                       title="View chat history"
                     >
                       <svg
@@ -6360,11 +6358,10 @@ export function DocumentStudioDashboard() {
                               <div
                                 key={sess.id}
                                 onClick={() => handleSwitchSession(sess.id)}
-                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition ${
-                                  isCurrent
+                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition ${isCurrent
                                     ? "bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold"
                                     : "hover:bg-slate-50 text-slate-700"
-                                }`}
+                                  }`}
                               >
                                 <div className="min-w-0 pr-2">
                                   <div className="truncate text-[11px] font-medium leading-tight">
@@ -6597,466 +6594,466 @@ export function DocumentStudioDashboard() {
               {/* Floating Toolbar with 100% Dynamic Controls (Excluded from Resume/CV interface) */}
               {editableDocContent && (
                 <div className="sticky top-2.5 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)] border border-slate-200/90 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-3.5 shrink-0 no-print justify-center">
-                {/* Chatbot Image Trigger Button (replaces AI Tools) */}
-                {isSidebarCollapsed && (
-                  <>
+                  {/* Chatbot Image Trigger Button (replaces AI Tools) */}
+                  {isSidebarCollapsed && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setIsSidebarCollapsed(false)}
+                        className="h-8 flex items-center gap-2 pl-1 pr-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-sm hover:shadow group"
+                        title="Open AI Admissions Assistant"
+                      >
+                        <div className="w-6 h-6 rounded-full overflow-hidden border border-white/60 bg-white shrink-0 flex items-center justify-center p-0.5">
+                          <img
+                            src="/images/ai-bot-character.jpg"
+                            alt="AI Assistant"
+                            className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-150"
+                          />
+                        </div>
+                        <span className="whitespace-nowrap font-medium text-[11.5px]">AI Assistant</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                      </button>
+                      <div className="h-4 w-px bg-slate-200 shrink-0" />
+                    </>
+                  )}
+
+                  {/* Candidate & CRM Info Icon (Outside Document Area) */}
+                  <div className="relative shrink-0" ref={infoMenuRef}>
                     <button
                       type="button"
-                      onClick={() => setIsSidebarCollapsed(false)}
-                      className="h-8 flex items-center gap-2 pl-1 pr-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-sm hover:shadow group"
-                      title="Open AI Admissions Assistant"
+                      onClick={() => setShowInfoPopover(!showInfoPopover)}
+                      className={`h-7.5 flex items-center gap-1.5 px-2.5 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        }`}
+                      title="Student Profile"
                     >
-                      <div className="w-6 h-6 rounded-full overflow-hidden border border-white/60 bg-white shrink-0 flex items-center justify-center p-0.5">
-                        <img
-                          src="/images/ai-bot-character.jpg"
-                          alt="AI Assistant"
-                          className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-150"
-                        />
+                      <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[10px] font-bold">
+                        ℹ
+                      </span>
+                      <span className="font-medium text-slate-800 hidden sm:inline truncate max-w-[140px]">
+                        {editableDocContent.studentName}
+                      </span>
+                    </button>
+
+                    {showInfoPopover && (
+                      <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 w-80 z-50 animate-in fade-in zoom-in-95 duration-100 text-xs text-slate-800">
+                        <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
+                          <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                            <span>👤</span>
+                            <span>Candidate Profile</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2.5 text-slate-600">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Candidate Name</span>
+                            <span className="font-bold text-slate-900 text-sm">{editableDocContent.studentName}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Target University</span>
+                            <span className="font-medium text-slate-800">{editableDocContent.targetUniversity || "Not Specified"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Target Course</span>
+                            <span className="font-semibold text-indigo-600">{editableDocContent.targetCourse || "Not Specified"}</span>
+                          </div>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-500">
+                            <span className="text-[11px]">Document Word Count</span>
+                            <span className="font-bold text-slate-900 text-xs">{editableDocContent.wordCount} words</span>
+                          </div>
+                        </div>
                       </div>
-                      <span className="whitespace-nowrap font-medium text-[11.5px]">AI Assistant</span>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M9 18l6-6-6-6" />
+                    )}
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Smart AI Refine Pill */}
+                  <button
+                    type="button"
+                    onClick={() => handleRunSmartChange("academic_polish")}
+                    className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
+                    title="Run academic polish on entire document"
+                  >
+                    <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
+                      ✨
+                    </span>
+                    <span>Ask AI Refine</span>
+                  </button>
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Heading Dropdown (H1 ▾) */}
+                  <div className="relative shrink-0" ref={headingMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowHeadingMenu(!showHeadingMenu);
+                        setShowFontMenu(false);
+                        setShowColorMenu(false);
+                      }}
+                      className="h-7.5 flex items-center gap-1 px-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    >
+                      <span>{activeHeading}</span>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        className={`transition-transform duration-150 ${showHeadingMenu ? "rotate-180" : ""}`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
                       </svg>
                     </button>
-                    <div className="h-4 w-px bg-slate-200 shrink-0" />
-                  </>
-                )}
 
-                {/* Candidate & CRM Info Icon (Outside Document Area) */}
-                <div className="relative shrink-0" ref={infoMenuRef}>
+                    {showHeadingMenu && (
+                      <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-28 z-50 divide-y divide-slate-100 text-xs animate-in fade-in zoom-in-95 duration-100">
+                        {(["H1", "H2", "H3", "Body"] as const).map((h) => (
+                          <div
+                            key={h}
+                            onClick={() => {
+                              setActiveHeading(h);
+                              setShowHeadingMenu(false);
+                              if (tiptapEditor) {
+                                if (h === "H1") tiptapEditor.chain().focus().toggleHeading({ level: 1 }).run();
+                                else if (h === "H2") tiptapEditor.chain().focus().toggleHeading({ level: 2 }).run();
+                                else if (h === "H3") tiptapEditor.chain().focus().toggleHeading({ level: 3 }).run();
+                                else tiptapEditor.chain().focus().setParagraph().run();
+                              }
+                            }}
+                            className={`px-3 py-1.5 cursor-pointer font-medium hover:bg-slate-100 ${activeHeading === h ? "text-indigo-700 font-bold bg-indigo-50" : "text-slate-700"
+                              }`}
+                          >
+                            {h === "Body" ? "Normal (Body)" : `Heading ${h.replace("H", "")}`}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Dynamic Font Family Selector Dropdown */}
+                  <div className="relative shrink-0" ref={fontMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowFontMenu(!showFontMenu);
+                        setShowHeadingMenu(false);
+                        setShowColorMenu(false);
+                        setShowInfoPopover(false);
+                      }}
+                      className="h-7.5 flex items-center gap-1.5 px-2.5 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-200/70 bg-white shadow-2xs cursor-pointer shrink-0"
+                      title="Change typography font family"
+                    >
+                      <span
+                        className="max-w-[110px] truncate font-medium text-slate-800"
+                        style={{ fontFamily }}
+                      >
+                        {fontFamilyLabel}
+                      </span>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        className={`transition-transform duration-150 text-slate-400 ${showFontMenu ? "rotate-180" : ""
+                          }`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {showFontMenu && (
+                      <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 w-64 z-50 max-h-80 overflow-y-auto text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
+                        <div className="px-3 py-1.5 bg-slate-50/90 text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                          <span>Select Font</span>
+                          <span className="text-[9px] text-slate-400 font-normal">10 Fonts</span>
+                        </div>
+                        <div className="py-1">
+                          {AVAILABLE_FONTS.map((item) => {
+                            const isSelected =
+                              fontFamily === item.val ||
+                              fontFamilyLabel.toLowerCase() === item.name.toLowerCase();
+                            return (
+                              <button
+                                key={item.name}
+                                type="button"
+                                onClick={() => {
+                                  setFontFamily(item.val);
+                                  setFontFamilyLabel(item.name);
+                                  setShowFontMenu(false);
+                                  if (tiptapEditor) {
+                                    tiptapEditor.chain().focus().setFontFamily(item.val).run();
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 text-left flex items-center justify-between group transition-colors cursor-pointer ${isSelected
+                                  ? "bg-indigo-50/80 text-indigo-900"
+                                  : "hover:bg-slate-50 text-slate-800"
+                                  }`}
+                              >
+                                <div className="flex flex-col min-w-0 pr-2">
+                                  <span
+                                    className="text-[13px] font-semibold truncate leading-tight text-slate-800"
+                                    style={{ fontFamily: item.val }}
+                                  >
+                                    {item.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 group-hover:text-slate-500 transition-colors">
+                                    {item.category}
+                                  </span>
+                                </div>
+                                {isSelected ? (
+                                  <svg
+                                    className="w-4 h-4 text-indigo-600 shrink-0"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                ) : (
+                                  <span
+                                    className="text-xs text-slate-300 group-hover:text-slate-500 transition-colors shrink-0 font-medium"
+                                    style={{ fontFamily: item.val }}
+                                  >
+                                    Aa
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Font Size Minus, Number, Plus (- 15 +) */}
+                  <div className="h-7.5 flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setFontSize((f) => Math.max(10, f - 1))}
+                      className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-semibold text-slate-700 px-1 min-w-[20px] text-center">
+                      {fontSize}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFontSize((f) => Math.min(32, f + 1))}
+                      className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Dynamic Text Color Picker */}
+                  <div className="relative shrink-0" ref={colorMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowColorMenu(!showColorMenu);
+                        setShowHeadingMenu(false);
+                        setShowFontMenu(false);
+                      }}
+                      className="h-7.5 flex flex-col items-center justify-center px-2 py-0.5 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                      title="Change document text color"
+                    >
+                      <span className="text-xs font-bold leading-none" style={{ color: textColor }}>
+                        A
+                      </span>
+                      <div className="w-3.5 h-0.5 mt-0.5 rounded-full" style={{ backgroundColor: textColor }} />
+                    </button>
+
+                    {showColorMenu && (
+                      <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-100">
+                        {[
+                          { color: "#0f172a", label: "Charcoal Slate" },
+                          { color: "#1e3a8a", label: "Deep Academic Navy" },
+                          { color: "#000000", label: "Pure Formal Black" },
+                          { color: "#881337", label: "Burgundy" },
+                        ].map((c) => (
+                          <div
+                            key={c.color}
+                            onClick={() => {
+                              setTextColor(c.color);
+                              setShowColorMenu(false);
+                              if (tiptapEditor) {
+                                tiptapEditor.chain().focus().setColor(c.color).run();
+                              }
+                            }}
+                            className={`w-5 h-5 rounded-full cursor-pointer border transition-transform hover:scale-110 ${textColor === c.color ? "ring-2 ring-indigo-500 scale-110" : "border-slate-300"
+                              }`}
+                            style={{ backgroundColor: c.color }}
+                            title={c.label}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* B I U S formatting toggles (Targets active selection) */}
                   <button
                     type="button"
-                    onClick={() => setShowInfoPopover(!showInfoPopover)}
-                    className={`h-7.5 flex items-center gap-1.5 px-2.5 rounded-full text-xs font-semibold cursor-pointer transition shrink-0 ${showInfoPopover
-                      ? "bg-indigo-600 text-white shadow-xs"
-                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                    onClick={() => applyInlineFormatToActiveSelection("bold")}
+                    className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                       }`}
-                    title="Student Profile"
+                    title="Bold (Ctrl+B)"
                   >
-                    <span className="w-4 h-4 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[10px] font-bold">
-                      ℹ
-                    </span>
-                    <span className="font-medium text-slate-800 hidden sm:inline truncate max-w-[140px]">
-                      {editableDocContent.studentName}
-                    </span>
+                    B
                   </button>
-
-                  {showInfoPopover && (
-                    <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 w-80 z-50 animate-in fade-in zoom-in-95 duration-100 text-xs text-slate-800">
-                      <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
-                        <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                          <span>👤</span>
-                          <span>Candidate Profile</span>
-                        </div>
-                      </div>
-                      <div className="space-y-2.5 text-slate-600">
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Candidate Name</span>
-                          <span className="font-bold text-slate-900 text-sm">{editableDocContent.studentName}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Target University</span>
-                          <span className="font-medium text-slate-800">{editableDocContent.targetUniversity || "Not Specified"}</span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Target Course</span>
-                          <span className="font-semibold text-indigo-600">{editableDocContent.targetCourse || "Not Specified"}</span>
-                        </div>
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-500">
-                          <span className="text-[11px]">Document Word Count</span>
-                          <span className="font-bold text-slate-900 text-xs">{editableDocContent.wordCount} words</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Smart AI Refine Pill */}
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("academic_polish")}
-                  className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap"
-                  title="Run academic polish on entire document"
-                >
-                  <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white flex items-center justify-center text-[9px] font-bold">
-                    ✨
-                  </span>
-                  <span>Ask AI Refine</span>
-                </button>
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Heading Dropdown (H1 ▾) */}
-                <div className="relative shrink-0" ref={headingMenuRef}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowHeadingMenu(!showHeadingMenu);
-                      setShowFontMenu(false);
-                      setShowColorMenu(false);
-                    }}
-                    className="h-7.5 flex items-center gap-1 px-2 rounded-md text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    onClick={() => applyInlineFormatToActiveSelection("italic")}
+                    className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                    title="Italic (Ctrl+I)"
                   >
-                    <span>{activeHeading}</span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className={`transition-transform duration-150 ${showHeadingMenu ? "rotate-180" : ""}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    I
                   </button>
-
-                  {showHeadingMenu && (
-                    <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-28 z-50 divide-y divide-slate-100 text-xs animate-in fade-in zoom-in-95 duration-100">
-                      {(["H1", "H2", "H3", "Body"] as const).map((h) => (
-                        <div
-                          key={h}
-                          onClick={() => {
-                            setActiveHeading(h);
-                            setShowHeadingMenu(false);
-                            if (tiptapEditor) {
-                              if (h === "H1") tiptapEditor.chain().focus().toggleHeading({ level: 1 }).run();
-                              else if (h === "H2") tiptapEditor.chain().focus().toggleHeading({ level: 2 }).run();
-                              else if (h === "H3") tiptapEditor.chain().focus().toggleHeading({ level: 3 }).run();
-                              else tiptapEditor.chain().focus().setParagraph().run();
-                            }
-                          }}
-                          className={`px-3 py-1.5 cursor-pointer font-medium hover:bg-slate-100 ${activeHeading === h ? "text-indigo-700 font-bold bg-indigo-50" : "text-slate-700"
-                            }`}
-                        >
-                          {h === "Body" ? "Normal (Body)" : `Heading ${h.replace("H", "")}`}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Dynamic Font Family Selector Dropdown */}
-                <div className="relative shrink-0" ref={fontMenuRef}>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowFontMenu(!showFontMenu);
-                      setShowHeadingMenu(false);
-                      setShowColorMenu(false);
-                      setShowInfoPopover(false);
-                    }}
-                    className="h-7.5 flex items-center gap-1.5 px-2.5 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-200/70 bg-white shadow-2xs cursor-pointer shrink-0"
-                    title="Change typography font family"
+                    onClick={() => applyInlineFormatToActiveSelection("underline")}
+                    className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                    title="Underline (Selected text only)"
                   >
-                    <span
-                      className="max-w-[110px] truncate font-medium text-slate-800"
-                      style={{ fontFamily }}
-                    >
-                      {fontFamilyLabel}
-                    </span>
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className={`transition-transform duration-150 text-slate-400 ${showFontMenu ? "rotate-180" : ""
+                    U
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyInlineFormatToActiveSelection("strike")}
+                    className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                    title="Strikethrough"
+                  >
+                    S
+                  </button>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Alignment Controls (Left, Center, Right - responsive to headings & body) */}
+                  <div className="h-7.5 flex items-center gap-0.5 bg-slate-100/70 p-0.5 rounded-lg shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTextAlign("left");
+                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("left").run();
+                      }}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                         }`}
+                      title="Align Left (Headings & Paragraphs)"
                     >
-                      <path d="M6 9l6 6 6-6" />
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <line x1="21" y1="6" x2="3" y2="6" />
+                        <line x1="15" y1="12" x2="3" y2="12" />
+                        <line x1="19" y1="18" x2="3" y2="18" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTextAlign("center");
+                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("center").run();
+                      }}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                        }`}
+                      title="Align Center (Headings & Paragraphs)"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <line x1="21" y1="6" x2="3" y2="6" />
+                        <line x1="17" y1="12" x2="7" y2="12" />
+                        <line x1="19" y1="18" x2="5" y2="18" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTextAlign("right");
+                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("right").run();
+                      }}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
+                        }`}
+                      title="Align Right (Headings & Paragraphs)"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <line x1="21" y1="6" x2="3" y2="6" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                        <line x1="21" y1="18" x2="5" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Bullet List Icon */}
+                  <button
+                    type="button"
+                    onClick={() => handleListFormat("bullet")}
+                    className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    title="Bullet List"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="8" y1="6" x2="21" y2="6" />
+                      <line x1="8" y1="12" x2="21" y2="12" />
+                      <line x1="8" y1="18" x2="21" y2="18" />
+                      <circle cx="4" cy="6" r="1.5" fill="currentColor" />
+                      <circle cx="4" cy="12" r="1.5" fill="currentColor" />
+                      <circle cx="4" cy="18" r="1.5" fill="currentColor" />
                     </svg>
                   </button>
 
-                  {showFontMenu && (
-                    <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 w-64 z-50 max-h-80 overflow-y-auto text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
-                      <div className="px-3 py-1.5 bg-slate-50/90 text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-                        <span>Select Font</span>
-                        <span className="text-[9px] text-slate-400 font-normal">10 Fonts</span>
-                      </div>
-                      <div className="py-1">
-                        {AVAILABLE_FONTS.map((item) => {
-                          const isSelected =
-                            fontFamily === item.val ||
-                            fontFamilyLabel.toLowerCase() === item.name.toLowerCase();
-                          return (
-                            <button
-                              key={item.name}
-                              type="button"
-                              onClick={() => {
-                                setFontFamily(item.val);
-                                setFontFamilyLabel(item.name);
-                                setShowFontMenu(false);
-                                if (tiptapEditor) {
-                                  tiptapEditor.chain().focus().setFontFamily(item.val).run();
-                                }
-                              }}
-                              className={`w-full px-3 py-2 text-left flex items-center justify-between group transition-colors cursor-pointer ${isSelected
-                                ? "bg-indigo-50/80 text-indigo-900"
-                                : "hover:bg-slate-50 text-slate-800"
-                                }`}
-                            >
-                              <div className="flex flex-col min-w-0 pr-2">
-                                <span
-                                  className="text-[13px] font-semibold truncate leading-tight text-slate-800"
-                                  style={{ fontFamily: item.val }}
-                                >
-                                  {item.name}
-                                </span>
-                                <span className="text-[10px] text-slate-400 group-hover:text-slate-500 transition-colors">
-                                  {item.category}
-                                </span>
-                              </div>
-                              {isSelected ? (
-                                <svg
-                                  className="w-4 h-4 text-indigo-600 shrink-0"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                  />
-                                </svg>
-                              ) : (
-                                <span
-                                  className="text-xs text-slate-300 group-hover:text-slate-500 transition-colors shrink-0 font-medium"
-                                  style={{ fontFamily: item.val }}
-                                >
-                                  Aa
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  {/* Ordered List Icon */}
+                  <button
+                    type="button"
+                    onClick={() => handleListFormat("ordered")}
+                    className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
+                    title="Numbered List"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="10" y1="6" x2="21" y2="6" />
+                      <line x1="10" y1="12" x2="21" y2="12" />
+                      <line x1="10" y1="18" x2="21" y2="18" />
+                      <path d="M4 6h1v4" />
+                      <path d="M4 10h2" />
+                      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+                    </svg>
+                  </button>
+
+                  {/* Missing Details Panel integrated directly into the Floating Toolbar */}
+                  {editableDocContent?.docType === "COVER_LETTER" && (
+                    <>
+                      <div className="h-4 w-px bg-slate-200 shrink-0 mx-0.5" />
+                      <CoverLetterValidationPanel
+                        groups={missingGroups}
+                        totalMissingCount={totalMissingCount}
+                        isOpen={isValidationPanelOpen}
+                        onToggle={() => setIsValidationPanelOpen((prev) => !prev)}
+                        onClose={() => setIsValidationPanelOpen(false)}
+                        onSelectField={handleSelectMissingField}
+                      />
+                    </>
                   )}
                 </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Font Size Minus, Number, Plus (- 15 +) */}
-                <div className="h-7.5 flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setFontSize((f) => Math.max(10, f - 1))}
-                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs font-semibold text-slate-700 px-1 min-w-[20px] text-center">
-                    {fontSize}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setFontSize((f) => Math.min(32, f + 1))}
-                    className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Dynamic Text Color Picker */}
-                <div className="relative shrink-0" ref={colorMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowColorMenu(!showColorMenu);
-                      setShowHeadingMenu(false);
-                      setShowFontMenu(false);
-                    }}
-                    className="h-7.5 flex flex-col items-center justify-center px-2 py-0.5 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
-                    title="Change document text color"
-                  >
-                    <span className="text-xs font-bold leading-none" style={{ color: textColor }}>
-                      A
-                    </span>
-                    <div className="w-3.5 h-0.5 mt-0.5 rounded-full" style={{ backgroundColor: textColor }} />
-                  </button>
-
-                  {showColorMenu && (
-                    <div className="absolute top-full left-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl p-2.5 z-50 flex items-center gap-2 animate-in fade-in zoom-in-95 duration-100">
-                      {[
-                        { color: "#0f172a", label: "Charcoal Slate" },
-                        { color: "#1e3a8a", label: "Deep Academic Navy" },
-                        { color: "#000000", label: "Pure Formal Black" },
-                        { color: "#881337", label: "Burgundy" },
-                      ].map((c) => (
-                        <div
-                          key={c.color}
-                          onClick={() => {
-                            setTextColor(c.color);
-                            setShowColorMenu(false);
-                            if (tiptapEditor) {
-                              tiptapEditor.chain().focus().setColor(c.color).run();
-                            }
-                          }}
-                          className={`w-5 h-5 rounded-full cursor-pointer border transition-transform hover:scale-110 ${textColor === c.color ? "ring-2 ring-indigo-500 scale-110" : "border-slate-300"
-                            }`}
-                          style={{ backgroundColor: c.color }}
-                          title={c.label}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* B I U S formatting toggles (Targets active selection) */}
-                <button
-                  type="button"
-                  onClick={() => applyInlineFormatToActiveSelection("bold")}
-                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  title="Bold (Ctrl+B)"
-                >
-                  B
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyInlineFormatToActiveSelection("italic")}
-                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  title="Italic (Ctrl+I)"
-                >
-                  I
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyInlineFormatToActiveSelection("underline")}
-                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  title="Underline (Selected text only)"
-                >
-                  U
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyInlineFormatToActiveSelection("strike")}
-                  className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
-                    }`}
-                  title="Strikethrough"
-                >
-                  S
-                </button>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Alignment Controls (Left, Center, Right - responsive to headings & body) */}
-                <div className="h-7.5 flex items-center gap-0.5 bg-slate-100/70 p-0.5 rounded-lg shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTextAlign("left");
-                      if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("left").run();
-                    }}
-                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                      }`}
-                    title="Align Left (Headings & Paragraphs)"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                      <line x1="21" y1="6" x2="3" y2="6" />
-                      <line x1="15" y1="12" x2="3" y2="12" />
-                      <line x1="19" y1="18" x2="3" y2="18" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTextAlign("center");
-                      if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("center").run();
-                    }}
-                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                      }`}
-                    title="Align Center (Headings & Paragraphs)"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                      <line x1="21" y1="6" x2="3" y2="6" />
-                      <line x1="17" y1="12" x2="7" y2="12" />
-                      <line x1="19" y1="18" x2="5" y2="18" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTextAlign("right");
-                      if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("right").run();
-                    }}
-                    className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
-                      }`}
-                    title="Align Right (Headings & Paragraphs)"
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                      <line x1="21" y1="6" x2="3" y2="6" />
-                      <line x1="21" y1="12" x2="9" y2="12" />
-                      <line x1="21" y1="18" x2="5" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="h-4 w-px bg-slate-200 shrink-0" />
-
-                {/* Bullet List Icon */}
-                <button
-                  type="button"
-                  onClick={() => handleListFormat("bullet")}
-                  className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
-                  title="Bullet List"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="8" y1="6" x2="21" y2="6" />
-                    <line x1="8" y1="12" x2="21" y2="12" />
-                    <line x1="8" y1="18" x2="21" y2="18" />
-                    <circle cx="4" cy="6" r="1.5" fill="currentColor" />
-                    <circle cx="4" cy="12" r="1.5" fill="currentColor" />
-                    <circle cx="4" cy="18" r="1.5" fill="currentColor" />
-                  </svg>
-                </button>
-
-                {/* Ordered List Icon */}
-                <button
-                  type="button"
-                  onClick={() => handleListFormat("ordered")}
-                  className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
-                  title="Numbered List"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="10" y1="6" x2="21" y2="6" />
-                    <line x1="10" y1="12" x2="21" y2="12" />
-                    <line x1="10" y1="18" x2="21" y2="18" />
-                    <path d="M4 6h1v4" />
-                    <path d="M4 10h2" />
-                    <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
-                  </svg>
-                </button>
-
-                {/* Missing Details Panel integrated directly into the Floating Toolbar */}
-                {editableDocContent?.docType === "COVER_LETTER" && (
-                  <>
-                    <div className="h-4 w-px bg-slate-200 shrink-0 mx-0.5" />
-                    <CoverLetterValidationPanel
-                      groups={missingGroups}
-                      totalMissingCount={totalMissingCount}
-                      isOpen={isValidationPanelOpen}
-                      onToggle={() => setIsValidationPanelOpen((prev) => !prev)}
-                      onClose={() => setIsValidationPanelOpen(false)}
-                      onSelectField={handleSelectMissingField}
-                    />
-                  </>
-                )}
-              </div>
-            )}
+              )}
 
 
 
