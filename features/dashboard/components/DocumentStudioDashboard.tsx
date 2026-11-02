@@ -45,6 +45,11 @@ import { DocumentContext } from "@/features/document-generator/state/DocumentCon
 import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
 import { docSectionsToHtml } from "../utils/docSectionsToHtml";
 import {
+  processUnifiedMessage,
+  type AssistantDiagnostic,
+  type PendingClarificationTask,
+} from "../utils/unifiedAssistantEngine";
+import {
   extractUserDirectiveAndSnippet,
   findSnippetInSections,
   type TextSnippetAnchor,
@@ -77,6 +82,7 @@ export interface ChatMessage {
   timestamp: string;
   sectionUpdated?: string;
   actionType?: "typed_section" | "deleted_section" | "polished" | "trimmed" | "outline" | "general";
+  diagnostic?: AssistantDiagnostic;
 }
 
 export interface ChatSession {
@@ -1010,6 +1016,14 @@ export function DocumentStudioDashboard() {
   const [editableDocContent, setEditableDocContent] = useState<HydratedDocumentData | null>(null);
   const [cvDocumentData, setCvDocumentData] = useState<DocumentData | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [pendingClarificationTask, setPendingClarificationTask] = useState<PendingClarificationTask | null>(null);
+  const [lastActiveTargetSection, setLastActiveTargetSection] = useState<string | null>(null);
+  const [activeAiHighlight, setActiveAiHighlight] = useState<{
+    sectionName: string;
+    phrase?: string;
+    timestamp: number;
+  } | null>(null);
+  const [activeAiCvSectionKey, setActiveAiCvSectionKey] = useState<string | null>(null);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>("");
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
@@ -1746,7 +1760,7 @@ export function DocumentStudioDashboard() {
     });
 
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, activeDocument, activeSessionId]);
+  }, [chatMessages, activeDocument, activeSessionId, isAiCooking]);
 
   // Continuous Auto-Save: debounced sync of in-progress edits to recentDocs & localStorage
   useEffect(() => {
@@ -2039,6 +2053,7 @@ export function DocumentStudioDashboard() {
   // Canvas Section Management: Scroll into view when clicking a section chip
   const handleScrollToSection = (heading?: string) => {
     if (!heading) return;
+    setLastActiveTargetSection(heading);
     const paper = document.querySelector(".a4-paper-sheet");
     if (!paper) return;
     const elements = paper.querySelectorAll("h1, h2, h3, p, strong, div");
@@ -2050,6 +2065,265 @@ export function DocumentStudioDashboard() {
         setTimeout(() => el.classList.remove("ring-2", "ring-indigo-400"), 1500);
         break;
       }
+    }
+  };
+
+  // ── Inline Canvas & Input Formatting Helpers (Supports CV & Rich-Text) ────
+  const applyInlineFormatToActiveSelection = (format: "bold" | "italic" | "underline" | "strike") => {
+    if (tiptapEditor) {
+      if (format === "bold") tiptapEditor.chain().focus().toggleBold().run();
+      else if (format === "italic") tiptapEditor.chain().focus().toggleItalic().run();
+      else if (format === "underline") tiptapEditor.chain().focus().toggleUnderline().run();
+      else if (format === "strike") tiptapEditor.chain().focus().toggleStrike().run();
+      return;
+    }
+
+    // In CV / Europass mode:
+    const activeEl = document.activeElement;
+    if (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) {
+      const start = activeEl.selectionStart ?? 0;
+      const end = activeEl.selectionEnd ?? 0;
+      const val = activeEl.value;
+      const selected = val.slice(start, end);
+
+      let prefix = "**";
+      let suffix = "**";
+      if (format === "italic") { prefix = "*"; suffix = "*"; }
+      else if (format === "underline") { prefix = "<u>"; suffix = "</u>"; }
+      else if (format === "strike") { prefix = "~~"; suffix = "~~"; }
+
+      let nextVal = val;
+      if (selected.length > 0) {
+        if (selected.startsWith(prefix) && selected.endsWith(suffix)) {
+          nextVal = val.slice(0, start) + selected.slice(prefix.length, -suffix.length) + val.slice(end);
+        } else {
+          nextVal = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+        }
+      } else {
+        nextVal = val.slice(0, start) + prefix + suffix + val.slice(end);
+      }
+
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        activeEl instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      nativeSetter?.call(activeEl, nextVal);
+      activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+      activeEl.focus();
+      return;
+    }
+
+    try {
+      const cmd = format === "bold" ? "bold" : format === "italic" ? "italic" : format === "underline" ? "underline" : "strikeThrough";
+      document.execCommand(cmd, false);
+    } catch {}
+
+    if (format === "bold") setIsBold((prev) => !prev);
+    else if (format === "italic") setIsItalic((prev) => !prev);
+    else if (format === "underline") setIsUnderline((prev) => !prev);
+    else if (format === "strike") setIsStrikethrough((prev) => !prev);
+  };
+
+  const handleListFormat = (type: "bullet" | "ordered") => {
+    if (tiptapEditor) {
+      if (type === "bullet") tiptapEditor.chain().focus().toggleBulletList().run();
+      else tiptapEditor.chain().focus().toggleOrderedList().run();
+      return;
+    }
+
+    const activeEl = document.activeElement;
+    if (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) {
+      const start = activeEl.selectionStart ?? 0;
+      const end = activeEl.selectionEnd ?? 0;
+      const val = activeEl.value;
+      const bulletChar = type === "bullet" ? "• " : "1. ";
+      const nextVal = val.slice(0, start) + (start > 0 && val[start - 1] !== "\n" ? "\n" : "") + bulletChar + val.slice(end);
+
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        activeEl instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      nativeSetter?.call(activeEl, nextVal);
+      activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+      activeEl.focus();
+    } else {
+      setAiToast({ message: "Tip: Click into any CV text field to insert bullets", type: "info" });
+    }
+  };
+
+  // ── Sentence-Level AI Change Diffing & Highlighting ────────────────────────
+  const extractChangedSentences = (oldText: string, newText: string): string[] => {
+    const cleanOld = (oldText || "").replace(/\*\*/g, "").replace(/\r?\n+/g, " ").trim();
+    const cleanNew = (newText || "").replace(/\*\*/g, "").replace(/\r?\n+/g, " ").trim();
+
+    if (!cleanOld) {
+      return cleanNew
+        .split(/(?<=[.?!])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 5);
+    }
+
+    const oldSentences = cleanOld
+      .split(/(?<=[.?!])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 5);
+
+    const newSentences = cleanNew
+      .split(/(?<=[.?!])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 5);
+
+    const changed = newSentences.filter(
+      (ns) => !oldSentences.some((os) => os === ns || os.includes(ns) || ns.includes(os))
+    );
+    return changed.length > 0 ? changed : (newSentences.length > 0 ? [newSentences[0]] : []);
+  };
+
+  const highlightChangedSentenceInCanvas = (
+    sectionName?: string,
+    changedSentencesInput?: string[] | string
+  ) => {
+    if (!sectionName) return;
+
+    const changedSentences: string[] = Array.isArray(changedSentencesInput)
+      ? changedSentencesInput.filter(Boolean)
+      : changedSentencesInput
+      ? [changedSentencesInput]
+      : [];
+
+    setActiveAiHighlight({
+      sectionName,
+      phrase: changedSentences[0] || "",
+      timestamp: Date.now(),
+    });
+
+    if (editableDocContent?.docType === "CV" && cvViewMode === "europass") {
+      const sLower = sectionName.toLowerCase();
+      let canonical = "aboutMe";
+      if (sLower.includes("work") || sLower.includes("internship")) canonical = "internships";
+      else if (sLower.includes("education") || sLower.includes("academic")) canonical = "education";
+      else if (sLower.includes("skill") && !sLower.includes("language")) canonical = "skills";
+      else if (sLower.includes("language") || sLower.includes("mother tongue")) canonical = "languageSkills";
+      else if (sLower.includes("project")) canonical = "academicProjects";
+      else if (sLower.includes("achievement") || sLower.includes("award")) canonical = "achievements";
+      else if (sLower.includes("certificate") || sLower.includes("ielts")) canonical = "englishCertificate";
+      else if (sLower.includes("phone") || sLower.includes("email") || sLower.includes("address") || sLower.includes("personal")) canonical = "personalDetails";
+
+      setActiveAiCvSectionKey(canonical);
+      setTimeout(() => {
+        const cvSectionEl = document.querySelector(`[data-section-id="${canonical}"]`);
+        if (cvSectionEl) {
+          cvSectionEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 200);
+      return;
+    }
+
+    setTimeout(() => {
+      const paper = document.querySelector(".a4-paper-sheet");
+      if (!paper) return;
+
+      // 1. Remove previous sentence highlights cleanly
+      paper.querySelectorAll(".ai-sentence-highlight, .ai-phrase-highlight").forEach((el) => {
+        const parent = el.parentNode;
+        if (parent) {
+          parent.replaceChild(document.createTextNode(el.textContent || ""), el);
+          parent.normalize();
+        }
+      });
+      paper.querySelectorAll(".ai-change-highlight-glow").forEach((el) => {
+        el.classList.remove("ai-change-highlight-glow");
+        (el as HTMLElement).style.removeProperty("background");
+        (el as HTMLElement).style.removeProperty("border-left");
+        (el as HTMLElement).style.removeProperty("box-shadow");
+        (el as HTMLElement).style.removeProperty("padding-left");
+        (el as HTMLElement).style.removeProperty("border-radius");
+      });
+
+      if (!changedSentences || changedSentences.length === 0) return;
+
+      // 2. Query ONLY leaf elements - NEVER container divs!
+      const elements = Array.from(
+        paper.querySelectorAll(".tiptap p, .tiptap li, .tiptap h1, .tiptap h2, .tiptap h3, .tiptap div, .a4-paper-sheet p, .a4-paper-sheet li, .a4-paper-sheet div")
+      ).filter((el) => el.querySelectorAll("p, div, ul, ol").length === 0) as HTMLElement[];
+
+      let firstHighlightedEl: HTMLElement | null = null;
+
+      for (const rawSentence of changedSentences) {
+        const cleanSentence = (rawSentence || "").replace(/\*\*/g, "").replace(/\r?\n+/g, " ").trim();
+        if (cleanSentence.length < 5) continue;
+
+        // Try exact sentence match first, then a 35-character signature snippet
+        const snippet = cleanSentence.length > 35 ? cleanSentence.slice(0, 35) : cleanSentence;
+
+        for (const el of elements) {
+          const text = (el.textContent || "").replace(/\s+/g, " ");
+          if (text.includes(cleanSentence) || text.includes(snippet)) {
+            try {
+              const html = el.innerHTML;
+              if (html.includes("ai-sentence-highlight")) continue;
+
+              const target = text.includes(cleanSentence) ? cleanSentence : snippet;
+              const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const rx = new RegExp(`(${escaped}[^.?!]*[.?!]?)`, "i");
+
+              if (rx.test(html)) {
+                el.innerHTML = html.replace(
+                  rx,
+                  `<mark class="ai-sentence-highlight" style="background-color: #fef08a; color: inherit; padding: 1px 3px; border-radius: 2px;">$1</mark>`
+                );
+                if (!firstHighlightedEl) firstHighlightedEl = el;
+                break;
+              } else {
+                const simpleRx = new RegExp(`(${escaped})`, "i");
+                if (simpleRx.test(html)) {
+                  el.innerHTML = html.replace(
+                    simpleRx,
+                    `<mark class="ai-sentence-highlight" style="background-color: #fef08a; color: inherit; padding: 1px 3px; border-radius: 2px;">$1</mark>`
+                  );
+                  if (!firstHighlightedEl) firstHighlightedEl = el;
+                  break;
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+
+      if (firstHighlightedEl) {
+        firstHighlightedEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 200);
+  };
+
+  const highlightChangedSectionInCanvas = highlightChangedSentenceInCanvas;
+
+  const handleClearAiHighlight = () => {
+    setActiveAiHighlight(null);
+    setActiveAiCvSectionKey(null);
+    const paper = document.querySelector(".a4-paper-sheet");
+    if (paper) {
+      paper.querySelectorAll(".ai-sentence-highlight, .ai-phrase-highlight").forEach((el) => {
+        const parent = el.parentNode;
+        if (parent) {
+          parent.replaceChild(document.createTextNode(el.textContent || ""), el);
+          parent.normalize();
+        }
+      });
+      paper.querySelectorAll(".ai-change-highlight-glow").forEach((el) => {
+        el.classList.remove("ai-change-highlight-glow");
+        (el as HTMLElement).style.removeProperty("background");
+        (el as HTMLElement).style.removeProperty("border-left");
+        (el as HTMLElement).style.removeProperty("box-shadow");
+        (el as HTMLElement).style.removeProperty("padding-left");
+        (el as HTMLElement).style.removeProperty("border-radius");
+      });
+    }
+  };
+
+  const handleJumpToAiHighlight = () => {
+    if (activeAiHighlight) {
+      highlightChangedSentenceInCanvas(activeAiHighlight.sectionName, activeAiHighlight.phrase);
     }
   };
 
@@ -2131,11 +2405,6 @@ export function DocumentStudioDashboard() {
     }
 
     setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
-    if (editableDocContent.docType === "CV") {
-      const baseCv = cvDocumentData || getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
-      setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
-      setCvRedoHistory([]);
-    }
     setRedoHistory([]);
 
     const updatedSections = [...editableDocContent.sections, { heading, content: defaultContent }];
@@ -2152,11 +2421,6 @@ export function DocumentStudioDashboard() {
     setTiptapHtml(html);
     if (tiptapEditor) {
       tiptapEditor.commands.setContent(html);
-    }
-    if (updated.docType === "CV") {
-      const baseCv = cvDocumentData || getEuropassData(updated.studentId, updated.studentName, selectedStudentData);
-      const synced = syncSectionsToCvData(updated.sections, baseCv);
-      setCvDocumentData(synced);
     }
 
     const addNotice: ChatMessage = {
@@ -2938,12 +3202,12 @@ export function DocumentStudioDashboard() {
   };
 
   // Applies an assistant edit to the document, editor, Europass view, recents and chat
-  // Applies an assistant edit to the document, editor, Europass view, recents and chat
   const commitAssistantEdit = (
     updated: HydratedDocumentData,
     feedback: string,
     sectionUpdated: string | undefined,
-    actionType: ChatMessage["actionType"]
+    actionType: ChatMessage["actionType"],
+    diagnostic?: AssistantDiagnostic
   ) => {
     // Sync Europass layout if active document is CV
     if (updated.docType === "CV") {
@@ -2977,11 +3241,25 @@ export function DocumentStudioDashboard() {
       timestamp: getFormattedTimestamp(),
       sectionUpdated,
       actionType,
+      diagnostic,
     };
     setChatMessages((prev) => [...prev, assistantMsg]);
     setAiToast({ message: `✨ AI Assistant: ${feedback.replace(/\*\*/g, "")}`, type: "success" });
     setAiPromptText("");
     setIsAiCooking(false);
+
+    if (sectionUpdated) {
+      const oldSec = editableDocContent?.sections?.find(
+        (s) => s.heading.toLowerCase() === (sectionUpdated || "").toLowerCase()
+      );
+      const newSec = updated.sections.find(
+        (s) => s.heading.toLowerCase() === (sectionUpdated || "").toLowerCase()
+      );
+      const changedSentences = oldSec && newSec
+        ? extractChangedSentences(oldSec.content, newSec.content)
+        : [];
+      highlightChangedSentenceInCanvas(sectionUpdated, changedSentences);
+    }
   };
 
   // Instructions the real AI handles (chat box, Polish, Improve). Other quick actions stay built-in.
@@ -3045,6 +3323,7 @@ export function DocumentStudioDashboard() {
     targetAnchor?: { heading: string; snippet: string }
   ) => {
     if (!editableDocContent) return;
+    setIsAiCooking(true);
     const doc = ensureDocumentIdentity(editableDocContent);
 
     // Cancel any previous in-flight AI request
@@ -3124,8 +3403,31 @@ export function DocumentStudioDashboard() {
       const changed: string[] = json.changedHeadings || [];
       const unverified: string[] = json.unverifiedValues || [];
       if (changed.length === 0) {
-        // Question or not possible without inventing facts: answer only, document untouched
-        reportFailure(json.reply);
+        const isEditDirective = /\b(make|improve|enhance|polish|rewrite|rephrase|add|update|change|delete|remove|fix)\b/i.test(instruction);
+        const replyText = isEditDirective
+          ? `I could not apply any text changes to that section. Please specify the exact sentence or paragraph you'd like to improve.`
+          : json.reply;
+        const asstMsg: ChatMessage = {
+          id: generateUniqueId("asst"),
+          sender: "assistant",
+          text: replyText,
+          timestamp: getFormattedTimestamp(),
+          actionType: "general",
+          diagnostic: {
+            instruction,
+            detectedIntent: isEditDirective ? "REWRITE_SECTION" : "ANSWER_QUESTION",
+            selectedDocument: doc.docType,
+            clarificationNeeded: isEditDirective,
+            processingRoute: "openai",
+            proposedOperation: isEditDirective
+              ? "AI proposed no changes; reported status accurately"
+              : "OpenAI answered inquiry or requested clarification without mutating document",
+            saveResult: "not_applicable",
+            actualChangedFields: [],
+          },
+        };
+        setChatMessages((prev) => [...prev, asstMsg]);
+        setIsAiCooking(false);
         return;
       }
 
@@ -3143,10 +3445,22 @@ export function DocumentStudioDashboard() {
           ? `\n\n⚠️ Please verify these values — they weren't in the document or your message: ${unverified.join(", ")}`
           : "");
       const changedHeadingTarget = targetAnchor?.heading || changed[0];
-      commitAssistantEdit(updated, feedback, changedHeadingTarget, "typed_section");
+      const diag: AssistantDiagnostic = {
+        instruction,
+        detectedIntent: "REWRITE_SECTION",
+        selectedDocument: doc.docType,
+        targetSectionOrField: changedHeadingTarget,
+        clarificationNeeded: false,
+        processingRoute: "openai",
+        proposedOperation: `Updated ${changed.join(", ")} via OpenAI API`,
+        saveResult: "persisted",
+        actualChangedFields: changed,
+      };
+      commitAssistantEdit(updated, feedback, changedHeadingTarget, "typed_section", diag);
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         // Request aborted due to new operator action or switch - ignore cleanly
+        setIsAiCooking(false);
         return;
       }
       if (fallbackKey) {
@@ -3170,8 +3484,8 @@ export function DocumentStudioDashboard() {
       Boolean(anchor) ||
       /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?better|make\s+(?:it|this\s+)?(?:more\s+)?(?:professional|humanized|impactful)|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine)\b/i.test(trimmedPrompt);
 
-    // ── Intelligent CV Chat Intent Engine ─────────────────────────────────────
-    if (editableDocContent.docType === "CV" && !activeCvSectionPrompt) {
+    // ── Unified Intelligent Admissions Assistant Engine (CV, Cover Letter, SOP) ──
+    if (!activeCvSectionPrompt && !activeFieldPrompt) {
       const userMsg: ChatMessage = {
         id: generateUniqueId("user"),
         sender: "user",
@@ -3180,6 +3494,7 @@ export function DocumentStudioDashboard() {
       };
       setChatMessages((prev) => [...prev, userMsg]);
       setAiPromptText("");
+      setIsAiCooking(true);
 
       const baseCv =
         cvDocumentData ||
@@ -3188,144 +3503,161 @@ export function DocumentStudioDashboard() {
       const recentHistory = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
 
       void (async () => {
-        setIsAiCooking(true);
+        let isHandledByAiEdit = false;
         try {
-          const intentResult = await processCvChatInstruction(
+          const result = await processUnifiedMessage(
             trimmedPrompt,
             editableDocContent,
             baseCv,
-            recentHistory
+            activeSopContext,
+            selectedStudentData,
+            recentHistory,
+            pendingClarificationTask,
+            lastActiveTargetSection
           );
 
-          if (intentResult.isUndo) {
+          if (result.isUndo) {
             handleUndo();
             const asstMsg: ChatMessage = {
               id: generateUniqueId("asst-undo"),
               sender: "assistant",
-              text: intentResult.reply,
+              text: result.reply,
               timestamp: getFormattedTimestamp(),
               actionType: "general",
+              diagnostic: result.diagnostic,
             };
             setChatMessages((prev) => [...prev, asstMsg]);
             setIsAiCooking(false);
             return;
           }
 
-          if (intentResult.isRedo) {
+          if (result.isRedo) {
             handleRedo();
             const asstMsg: ChatMessage = {
               id: generateUniqueId("asst-redo"),
               sender: "assistant",
-              text: intentResult.reply,
+              text: result.reply,
               timestamp: getFormattedTimestamp(),
               actionType: "general",
+              diagnostic: result.diagnostic,
             };
             setChatMessages((prev) => [...prev, asstMsg]);
             setIsAiCooking(false);
             return;
           }
 
-          if (intentResult.needsAiRewrite) {
-            setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
-            setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
-            setRedoHistory([]);
-            setCvRedoHistory([]);
-            setIsAiCooking(false);
+          if (result.pendingTask !== undefined) {
+            setPendingClarificationTask(result.pendingTask);
+          }
 
-            let promptToSend = intentResult.aiPrompt || trimmedPrompt;
-            let targetHeading = intentResult.targetHeading || anchor?.sectionHeading;
-
-            // Cross-Section Context Injection for ABOUT ME:
-            // When targeting ABOUT ME and asking to incorporate skills/experience,
-            // pull the student's actual CV data into the AI prompt so OpenAI weaves it in!
-            if (intentResult.targetHeading === "ABOUT ME" && intentResult.isCrossSectionSynthesis) {
-              const currentSkills = (baseCv.skills || []).map((s) => s.name?.trim()).filter(Boolean);
-              const currentInternships = (baseCv.internships || [])
-                .map((w) => `${w.role || "Intern"} at ${w.company || "organization"}`)
-                .filter(Boolean);
-
-              const contextLines: string[] = [];
-              if (currentSkills.length > 0) {
-                contextLines.push(`- Existing Skills in CV: ${currentSkills.join(", ")}`);
-              }
-              if (currentInternships.length > 0) {
-                contextLines.push(`- Work Experience in CV: ${currentInternships.join("; ")}`);
-              }
-
-              promptToSend =
-                `Instruction from user: "${trimmedPrompt}"\n\n` +
-                `Context from Student's Europass CV:\n${contextLines.join("\n")}\n\n` +
-                `Directive: Rewrite and enhance ONLY the "ABOUT ME" section. Seamlessly weave in the student's key skills/competencies in a natural, cohesive, professional first-person personal statement. Strictly preserve all student facts, dates, and institutions. Leave all other sections completely unchanged.`;
+          if (result.targetSection) {
+            const matchedSection = editableDocContent.sections.find(
+              (s) => s.heading.toLowerCase() === result.targetSection!.toLowerCase() ||
+                     s.heading.toLowerCase().includes(result.targetSection!.toLowerCase()) ||
+                     result.targetSection!.toLowerCase().includes(s.heading.toLowerCase())
+            );
+            if (matchedSection) {
+              setLastActiveTargetSection(matchedSection.heading);
             }
+          }
+
+          if (result.needsAiRewrite) {
+            setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+            if (editableDocContent.docType === "CV") {
+              setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+              setCvRedoHistory([]);
+            }
+            setRedoHistory([]);
+            isHandledByAiEdit = true;
 
             void runAiEdit(
-              promptToSend,
+              result.aiPrompt || trimmedPrompt,
               undefined,
-              targetHeading ? { heading: targetHeading, snippet: anchor ? anchor.matchedText : "" } : undefined
+              result.targetAnchor || (result.targetSection ? { heading: result.targetSection, snippet: "" } : undefined)
             );
             return;
           }
 
-          if (intentResult.updatedSections && intentResult.updatedCv) {
-            // Snapshot current state for Undo before applying updates
+          if (result.updatedSections) {
             setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
-            setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+            if (editableDocContent.docType === "CV") {
+              setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(baseCv))]);
+              setCvRedoHistory([]);
+            }
             setRedoHistory([]);
-            setCvRedoHistory([]);
 
             const updatedDoc: HydratedDocumentData = {
               ...editableDocContent,
-              sections: intentResult.updatedSections,
-              wordCount: intentResult.updatedSections.reduce(
+              sections: result.updatedSections,
+              fieldValues: result.updatedFieldValues || editableDocContent.fieldValues,
+              wordCount: result.updatedSections.reduce(
                 (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
                 0
               ),
             };
 
-            setCvDocumentData(intentResult.updatedCv);
+            if (result.updatedCv) {
+              setCvDocumentData(result.updatedCv);
+            }
             setEditableDocContent(updatedDoc);
             setActiveDocument(updatedDoc);
             syncDocumentToRecent(updatedDoc, "Edited just now");
 
-            const newHtml = docSectionsToHtml(intentResult.updatedSections, updatedDoc.docType, updatedDoc.title);
+            const newHtml = docSectionsToHtml(result.updatedSections, updatedDoc.docType, updatedDoc.title);
             setTiptapHtml(newHtml);
             if (tiptapEditor) {
               tiptapEditor.commands.setContent(newHtml);
             }
 
             const asstMsg: ChatMessage = {
-              id: generateUniqueId("assistant-cv-intent"),
+              id: generateUniqueId("assistant-unified"),
               sender: "assistant",
-              text: intentResult.reply,
+              text: result.reply,
               timestamp: getFormattedTimestamp(),
-              actionType: intentResult.actionType,
-              sectionUpdated: intentResult.sectionUpdated,
+              actionType: result.actionType === "DELETE_SECTION" ? "deleted_section" : "typed_section",
+              sectionUpdated: result.targetSection,
+              diagnostic: result.diagnostic,
             };
             setChatMessages((prev) => [...prev, asstMsg]);
 
             setAiToast({
-              message: intentResult.sectionUpdated ? `✨ Updated ${intentResult.sectionUpdated}` : "✨ CV updated",
+              message: result.targetSection ? `✨ Updated ${result.targetSection}` : "✨ Document updated",
               type: "success",
             });
             setTimeout(() => setAiToast(null), 3000);
 
-            if (intentResult.sectionUpdated) {
-              setTimeout(() => {
-                handleScrollToSection(intentResult.sectionUpdated);
-              }, 350);
+            if (result.targetSection) {
+              const changedSentences: string[] = [];
+              if (result.updatedSections && editableDocContent.sections) {
+                for (const newSec of result.updatedSections) {
+                  const oldSec = editableDocContent.sections.find(
+                    (s) => s.heading.toLowerCase() === newSec.heading.toLowerCase()
+                  );
+                  if (oldSec && oldSec.content !== newSec.content) {
+                    const diffs = extractChangedSentences(oldSec.content, newSec.content);
+                    changedSentences.push(...diffs);
+                  }
+                }
+              }
+              if (changedSentences.length === 0 && result.updatedFieldValues) {
+                changedSentences.push(...Object.values(result.updatedFieldValues).filter(Boolean));
+              }
+              highlightChangedSentenceInCanvas(result.targetSection, changedSentences);
             }
           } else {
+            // Question or clarification answered, or issue acknowledged without document modification
             const asstMsg: ChatMessage = {
-              id: generateUniqueId("assistant-cv-clarify"),
+              id: generateUniqueId("assistant-msg"),
               sender: "assistant",
-              text: intentResult.reply,
+              text: result.reply,
               timestamp: getFormattedTimestamp(),
-              actionType: "general",
+              actionType: result.actionType === "CLARIFY" ? "outline" : "general",
+              diagnostic: result.diagnostic,
             };
             setChatMessages((prev) => [...prev, asstMsg]);
           }
         } catch (err) {
-          console.error("[processCvChatInstruction] error:", err);
+          console.error("[processUnifiedMessage] error:", err);
           const asstMsg: ChatMessage = {
             id: generateUniqueId("assistant-err"),
             sender: "assistant",
@@ -3335,11 +3667,11 @@ export function DocumentStudioDashboard() {
           };
           setChatMessages((prev) => [...prev, asstMsg]);
         } finally {
-          setIsAiCooking(false);
+          if (!isHandledByAiEdit) {
+            setIsAiCooking(false);
+          }
         }
-      })();
-
-      return;
+      })();      return;
     }
 
     // Direct CV section matcher or active CV section question flow (only if NOT an enhancement or in-place edit)
@@ -5940,39 +6272,37 @@ export function DocumentStudioDashboard() {
             >
               {/* ── 1. Top Assistant Header ── */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0 gap-2">
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm shadow-xs shrink-0">
-                    ✨
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-xs font-bold text-slate-900 tracking-tight truncate block" title="AI Admissions Assistant">
-                        AI Admissions Assistant
-                      </span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Online & ready" />
-                    </div>
-                    <div
-                      className="text-[10.5px] text-slate-400 truncate font-medium mt-0.5"
-                      title={`${editableDocContent.studentName} · ${editableDocContent.docType === "CV" ? "Europass CV" : editableDocContent.docTypeName || editableDocContent.docType}`}
-                    >
-                      {editableDocContent.studentName} · {editableDocContent.docType === "CV" ? "Europass CV" : editableDocContent.docTypeName || editableDocContent.docType}
-                    </div>
-                  </div>
+                <div className="flex items-center min-w-0">
+                  <img
+                    src="/images/eduwire-logo.png"
+                    alt="Edu-Wire Overseas Consultant"
+                    className="h-7 w-auto object-contain max-w-[155px]"
+                  />
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0 ml-1">
-                  {/* New Chat Button */}
+                <div className="flex items-center gap-1 shrink-0 ml-auto">
+                  {/* New Chat Button (Styled per reference design) */}
                   <button
                     type="button"
                     onClick={handleStartNewChat}
-                    className="h-7 px-2 rounded-lg text-[11px] font-medium text-slate-600 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200/80 transition cursor-pointer shadow-2xs flex items-center gap-1 shrink-0"
-                    title="Start fresh conversation (previous chats saved)"
+                    className="h-7.5 px-2 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                    title="Start fresh conversation"
                   >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-slate-600"
+                    >
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                     </svg>
-                    <span>New</span>
+                    <span>New chat</span>
                   </button>
 
                   {/* Chat History Dropdown */}
@@ -5980,22 +6310,30 @@ export function DocumentStudioDashboard() {
                     <button
                       type="button"
                       onClick={() => setIsChatHistoryOpen((prev) => !prev)}
-                      className={`h-7 px-2 rounded-lg text-[11px] font-medium transition cursor-pointer border flex items-center gap-1 shrink-0 ${
+                      className={`h-7.5 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 ${
                         isChatHistoryOpen
-                          ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                          : "text-slate-600 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border-slate-200/80 shadow-2xs"
+                          ? "bg-slate-100 text-slate-900 font-semibold"
+                          : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
                       }`}
-                      title="View chat history & previous conversations"
+                      title="View chat history"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-slate-600"
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12 6 12 12 16 14" />
                       </svg>
                       <span>History</span>
                       {chatSessions.length > 0 && (
-                        <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full ${
-                          isChatHistoryOpen ? "bg-indigo-500 text-white" : "bg-indigo-100 text-indigo-700"
-                        }`}>
+                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-1.5 py-0.2 rounded-full">
                           {chatSessions.length}
                         </span>
                       )}
@@ -6078,91 +6416,74 @@ export function DocumentStudioDashboard() {
                     className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
                   >
                     {msg.sender === "user" ? (
-                      <div className="max-w-[85%] bg-indigo-600 text-white rounded-2xl rounded-tr-xs px-3.5 py-2.5 shadow-2xs leading-relaxed text-[12px] font-normal break-words">
-                        <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                      <div className="flex items-start gap-2 justify-end w-full max-w-[98%] ml-auto">
+                        <div className="max-w-[85%] bg-indigo-600 text-white rounded-2xl rounded-tr-xs px-3.5 py-2.5 shadow-2xs leading-relaxed text-[12px] font-normal break-words">
+                          <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                        </div>
+                        {/* Student / User Avatar Badge */}
+                        <div className="w-7.5 h-7.5 rounded-full bg-white border border-slate-200/90 shadow-2xs overflow-hidden shrink-0 mt-0.5">
+                          <img
+                            src="/images/user-avatar.jpg"
+                            alt="User"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       </div>
                     ) : (
-                      <div className="w-full max-w-[96%] bg-white border border-slate-200/90 text-slate-800 rounded-2xl rounded-tl-xs p-4 shadow-2xs space-y-2.5 leading-relaxed text-xs break-words">
-                        {msg.sectionUpdated && (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[10.5px] font-semibold text-indigo-700">
-                            <span>{msg.actionType === "deleted_section" ? "🗑️" : "⚡"}</span>
-                            <span>{msg.sectionUpdated}</span>
-                          </div>
-                        )}
-                        {renderChatMessageContent(msg)}
+                      <div className="flex items-start gap-2 w-full max-w-[98%]">
+                        {/* Graduation Cap Avatar Badge */}
+                        <div className="w-7.5 h-7.5 rounded-full bg-white border border-slate-200/90 shadow-2xs p-1 flex items-center justify-center shrink-0 overflow-hidden mt-0.5">
+                          <img
+                            src="/images/ai-admissions-cap.jpg"
+                            alt="AI Assistant"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0 bg-white border border-slate-200/90 text-slate-800 rounded-2xl rounded-tl-xs p-4 shadow-2xs space-y-2.5 leading-relaxed text-xs break-words">
+                          {msg.sectionUpdated && (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-[10.5px] font-semibold text-indigo-700">
+                              <span>{msg.actionType === "deleted_section" ? "🗑️" : "⚡"}</span>
+                              <span>{msg.sectionUpdated}</span>
+                            </div>
+                          )}
+                          {renderChatMessageContent(msg)}
+                        </div>
                       </div>
                     )}
-                    <span className="text-[10px] text-slate-400 mt-1 px-1 font-normal select-none">
+                    <span className={`text-[10px] text-slate-400 mt-1 px-1 font-normal select-none ${msg.sender === "user" ? "mr-9.5" : "ml-9.5"}`}>
                       {msg.timestamp}
                     </span>
                   </div>
                 ))}
                 {isAiCooking && (
-                  <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-white border border-slate-200/90 text-slate-600 rounded-2xl text-xs w-fit shadow-2xs">
-                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="font-medium text-slate-700">Composing &amp; typing out section...</span>
+                  <div className="flex items-center gap-2 animate-in fade-in duration-150 select-none">
+                    {/* Graduation Cap Avatar Badge */}
+                    <div className="w-7.5 h-7.5 rounded-full bg-white border border-slate-200/90 shadow-2xs p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                      <img
+                        src="/images/ai-admissions-cap.jpg"
+                        alt="AI Assistant"
+                        className="w-full h-full object-contain animate-pulse"
+                      />
+                    </div>
+
+                    {/* AI Answering Bubble with animated dots */}
+                    <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200/90 rounded-2xl rounded-tl-xs shadow-2xs text-xs">
+                      <span
+                        className="w-2 h-2 rounded-full bg-indigo-600 animate-bounce"
+                        style={{ animationDelay: "-0.32s" }}
+                      />
+                      <span
+                        className="w-2 h-2 rounded-full bg-indigo-600 animate-bounce"
+                        style={{ animationDelay: "-0.16s" }}
+                      />
+                      <span
+                        className="w-2 h-2 rounded-full bg-indigo-600 animate-bounce"
+                        style={{ animationDelay: "0s" }}
+                      />
+                    </div>
                   </div>
                 )}
                 <div ref={chatEndRef} />
-              </div>
-
-              {/* ── 3. Persistent Quick-Action Chips Strip ── */}
-              <div className="flex flex-wrap items-center gap-2 pt-2.5 pb-1 border-t border-slate-100 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("academic_polish")}
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-indigo-50/70 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Polish academic tone and wording"
-                >
-                  <span className="text-xs">🎯</span>
-                  <span>Polish</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("improve")}
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-blue-50/70 hover:text-blue-700 hover:border-blue-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Improve content clarity and professional presentation"
-                >
-                  <span className="text-xs">✨</span>
-                  <span>Improve</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("create_outline")}
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-purple-50/70 hover:text-purple-700 hover:border-purple-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Create structured architectural outline pillars"
-                >
-                  <span className="text-xs">📝</span>
-                  <span>Outline</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("visa_compliance")}
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-emerald-50/70 hover:text-emerald-700 hover:border-emerald-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Verify visa compliance & genuine student declaration"
-                >
-                  <span className="text-xs">🛡️</span>
-                  <span>Visa Check</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRunSmartChange("write_for_me")}
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-indigo-50/70 hover:text-indigo-700 hover:border-indigo-200 text-slate-700 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Draft new paragraphs or sections"
-                >
-                  <span className="text-xs">✍️</span>
-                  <span>Write</span>
-                </button>
-                <a
-                  href={process.env.NEXT_PUBLIC_CRM_VIEWER_URL || "https://crm.digi-wire.com/student-data-viewer"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-7 px-2.5 rounded-full bg-white hover:bg-slate-50 hover:text-slate-900 text-slate-600 text-[11px] font-medium border border-slate-200/90 shadow-2xs transition-all duration-150 cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95"
-                  title="Open CRM Data Viewer"
-                >
-                  <span className="text-xs">↗</span>
-                  <span>CRM</span>
-                </a>
               </div>
 
               {/* Minimal AI Smart Modification Input Box */}
@@ -6274,19 +6595,25 @@ export function DocumentStudioDashboard() {
             {/* ── Main Canvas Area & Floating Toolbar ─────────────────────────── */}
             <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 flex flex-col items-center bg-[#F8FAFC] relative w-full">
               {/* Floating Toolbar with 100% Dynamic Controls (Excluded from Resume/CV interface) */}
-              {editableDocContent?.docType !== "CV" && (
+              {editableDocContent && (
                 <div className="sticky top-2.5 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)] border border-slate-200/90 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-3.5 shrink-0 no-print justify-center">
-                {/* Clean trigger to open AI Tools directly within the toolbar when sidebar is collapsed */}
+                {/* Chatbot Image Trigger Button (replaces AI Tools) */}
                 {isSidebarCollapsed && (
                   <>
                     <button
                       type="button"
                       onClick={() => setIsSidebarCollapsed(false)}
-                      className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-xs"
-                      title="Open AI Composition Tools & Chat"
+                      className="h-8 flex items-center gap-2 pl-1 pr-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shrink-0 shadow-sm hover:shadow group"
+                      title="Open AI Admissions Assistant"
                     >
-                      <span className="text-xs">✨</span>
-                      <span className="whitespace-nowrap">AI Tools</span>
+                      <div className="w-6 h-6 rounded-full overflow-hidden border border-white/60 bg-white shrink-0 flex items-center justify-center p-0.5">
+                        <img
+                          src="/images/ai-bot-character.jpg"
+                          alt="AI Assistant"
+                          className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-150"
+                        />
+                      </div>
+                      <span className="whitespace-nowrap font-medium text-[11.5px]">AI Assistant</span>
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M9 18l6-6-6-6" />
                       </svg>
@@ -6589,13 +6916,7 @@ export function DocumentStudioDashboard() {
                 {/* B I U S formatting toggles (Targets active selection) */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleBold().run();
-                    } else {
-                      setIsBold(!isBold);
-                    }
-                  }}
+                  onClick={() => applyInlineFormatToActiveSelection("bold")}
                   className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Bold (Ctrl+B)"
@@ -6604,13 +6925,7 @@ export function DocumentStudioDashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleItalic().run();
-                    } else {
-                      setIsItalic(!isItalic);
-                    }
-                  }}
+                  onClick={() => applyInlineFormatToActiveSelection("italic")}
                   className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Italic (Ctrl+I)"
@@ -6619,13 +6934,7 @@ export function DocumentStudioDashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleUnderline().run();
-                    } else {
-                      setIsUnderline(!isUnderline);
-                    }
-                  }}
+                  onClick={() => applyInlineFormatToActiveSelection("underline")}
                   className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Underline (Selected text only)"
@@ -6634,13 +6943,7 @@ export function DocumentStudioDashboard() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleStrike().run();
-                    } else {
-                      setIsStrikethrough(!isStrikethrough);
-                    }
-                  }}
+                  onClick={() => applyInlineFormatToActiveSelection("strike")}
                   className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                     }`}
                   title="Strikethrough"
@@ -6707,13 +7010,7 @@ export function DocumentStudioDashboard() {
                 {/* Bullet List Icon */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleBulletList().run();
-                    } else {
-                      handleRunSmartChange("create_outline");
-                    }
-                  }}
+                  onClick={() => handleListFormat("bullet")}
                   className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                   title="Bullet List"
                 >
@@ -6730,11 +7027,7 @@ export function DocumentStudioDashboard() {
                 {/* Ordered List Icon */}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (tiptapEditor) {
-                      tiptapEditor.chain().focus().toggleOrderedList().run();
-                    }
-                  }}
+                  onClick={() => handleListFormat("ordered")}
                   className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                   title="Numbered List"
                 >
@@ -6765,20 +7058,7 @@ export function DocumentStudioDashboard() {
               </div>
             )}
 
-            {/* Minimal trigger to re-open AI Sidebar for Resume/CV when sidebar is collapsed */}
-            {editableDocContent?.docType === "CV" && isSidebarCollapsed && (
-              <div className="sticky top-2.5 z-40 mx-auto mb-3.5 no-print">
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarCollapsed(false)}
-                  className="h-8 flex items-center gap-1.5 px-3.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold cursor-pointer transition shadow-xs"
-                  title="Open AI Admissions Assistant"
-                >
-                  <span>✨</span>
-                  <span>AI Assistant</span>
-                </button>
-              </div>
-            )}
+
 
               {/* ── Document Section Manager & Customization Strip ── */}
               {editableDocContent?.sections && editableDocContent.sections.length > 0 && (
@@ -7077,6 +7357,43 @@ export function DocumentStudioDashboard() {
                 </div>
               )}
 
+              {/* ── Minimal Sentence Highlighter Styles & Floating Badge ── */}
+              <style>{`
+                .ai-sentence-highlight {
+                  background-color: #fef08a !important;
+                  color: inherit !important;
+                  padding: 1px 3px !important;
+                  border-radius: 2px !important;
+                  box-decoration-break: clone !important;
+                  -webkit-box-decoration-break: clone !important;
+                }
+                @media print {
+                  .ai-sentence-highlight {
+                    background-color: transparent !important;
+                  }
+                }
+              `}</style>
+
+              {activeAiHighlight && (
+                <div className="fixed top-20 right-8 z-40 flex items-center gap-2 px-3 py-1.5 bg-white/95 border border-amber-300 rounded-full shadow-md text-xs text-slate-800 animate-in fade-in select-none no-print">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <span className="font-medium text-[11px]">
+                    AI changed: <strong className="font-semibold text-slate-900">{activeAiHighlight.sectionName}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearAiHighlight}
+                    className="ml-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-pointer transition-colors"
+                    title="Clear highlight"
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              )}
+
               {/* ── Document Canvas: Either Cairo Europass Theme or Tiptap Caret Engine ── */}
               {editableDocContent.docType === "CV" && cvViewMode === "europass" ? (
                 <div className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar">
@@ -7084,6 +7401,11 @@ export function DocumentStudioDashboard() {
                     style={{
                       transform: `scale(${zoomLevel / 100})`,
                       transformOrigin: "top center",
+                      fontFamily,
+                      color: textColor,
+                      ["--europass-font-family" as any]: fontFamily,
+                      ["--europass-font-size-base" as any]: `${fontSize}pt`,
+                      ["--europass-text-dark" as any]: textColor,
                     }}
                   >
                     {(() => {
@@ -7104,6 +7426,7 @@ export function DocumentStudioDashboard() {
                           <EuropassTemplate
                             data={activeCvForRender}
                             isInteractive={editorMode === "editing"}
+                            activeSectionId={activeAiCvSectionKey || undefined}
                           />
                         </DocumentContext.Provider>
                       );
@@ -7143,11 +7466,31 @@ export function DocumentStudioDashboard() {
                       textColor={textColor}
                       zoomLevel={zoomLevel}
                       onEditorReady={(ed) => setTiptapEditor(ed)}
-                      onUpdate={handleTiptapUpdate}
+                      onUpdate={(html, wordCount) => {
+                        handleTiptapUpdate(html, wordCount);
+                        if (activeAiHighlight) {
+                          handleClearAiHighlight();
+                        }
+                      }}
                       onFormatChange={handleFormatChange}
                     />
                   </div>
                 </div>
+              )}
+              {/* ── Floating AI Chatbot Action Button (Bottom-Right) ── */}
+              {isSidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(false)}
+                  className="fixed bottom-16 right-6 z-40 w-14 h-14 sm:w-15 sm:h-15 rounded-full bg-white border-2 border-indigo-600 shadow-[0_8px_25px_rgba(15,23,42,0.18)] hover:shadow-[0_12px_32px_rgba(79,70,229,0.35)] hover:border-indigo-700 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer group flex items-center justify-center p-1.5 overflow-hidden no-print"
+                  title="Open AI Admissions Assistant"
+                >
+                  <img
+                    src="/images/ai-bot-character.jpg"
+                    alt="AI Assistant"
+                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-200 pointer-events-none select-none"
+                  />
+                </button>
               )}
             </main>
           </div>

@@ -867,7 +867,7 @@ export async function processCvChatInstruction(
       cLower.includes("worked at") || cLower.includes("internship") || cLower.includes("worked for") ||
       cLower.includes("work experience") || cLower.includes("employed at") || cLower.includes("at tcs");
 
-    if (isWork) {
+    if (isWork && !cLower.includes("stopped working") && !cLower.includes("keyboard") && !cLower.includes("broke")) {
       const compMatch =
         clause.match(/(?:at|for|with)\s+([A-Za-z0-9&.\s]+?)(?:\s+(?:for|as|from|in|during)|$)/i) ||
         clause.match(/(?:company|employer)\s*[:=-]\s*([^\n,]+)/i);
@@ -876,29 +876,32 @@ export async function processCvChatInstruction(
         clause.match(/(?:role|position|job\s*title)\s*[:=-]\s*([^\n,]+)/i);
       const { endDate } = extractYearOrDates(clause);
 
-      const company = compMatch ? compMatch[1].trim() : "Company";
-      const role = roleMatch ? roleMatch[1].trim() : "Software Engineer / Intern";
+      // Guard: Do not fabricate company and role if neither was provided
+      if (compMatch || roleMatch) {
+        const company = compMatch ? compMatch[1].trim() : "Company";
+        const role = roleMatch ? roleMatch[1].trim() : "Software Engineer / Intern";
 
-      const existingInterns = updatedCv.internships || [];
-      const matchIdx = existingInterns.findIndex((i) => i.company?.toLowerCase() === company.toLowerCase());
+        const existingInterns = updatedCv.internships || [];
+        const matchIdx = existingInterns.findIndex((i) => i.company?.toLowerCase() === company.toLowerCase());
 
-      if (matchIdx >= 0) {
-        existingInterns[matchIdx].role = role;
-        if (endDate) existingInterns[matchIdx].endDate = endDate;
-        appliedSummaries.push(`• **Work Experience**: Updated entry at **${company}**`);
-      } else {
-        const newEntry: InternshipEntry = {
-          id: `intern-${Date.now()}`,
-          role,
-          company,
-          endDate: endDate || "6 Months",
-          description: `• Contributed to key organizational initiatives and business deliverables.\n• Demonstrated strong technical aptitude and collaborative execution.`,
-        };
-        updatedCv.internships = [newEntry, ...existingInterns];
-        appliedSummaries.push(`• **Work Experience**: Added **${role}** at **${company}**`);
+        if (matchIdx >= 0) {
+          existingInterns[matchIdx].role = role;
+          if (endDate) existingInterns[matchIdx].endDate = endDate;
+          appliedSummaries.push(`• **Work Experience**: Updated entry at **${company}**`);
+        } else {
+          const newEntry: InternshipEntry = {
+            id: `intern-${Date.now()}`,
+            role,
+            company,
+            endDate: endDate || "6 Months",
+            description: `• Contributed to key organizational initiatives and business deliverables.\n• Demonstrated strong technical aptitude and collaborative execution.`,
+          };
+          updatedCv.internships = [newEntry, ...existingInterns];
+          appliedSummaries.push(`• **Work Experience**: Added **${role}** at **${company}**`);
+        }
+        touchedSections.add("Work Experience");
+        continue;
       }
-      touchedSections.add("Work Experience");
-      continue;
     }
 
     // ── 5k. Academic Projects ──

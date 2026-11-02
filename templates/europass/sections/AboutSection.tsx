@@ -36,7 +36,7 @@ export const AboutSection = memo(function AboutSection({
   isInteractive = false,
   onUpdate,
 }: AboutSectionProps) {
-  if (!text && !isInteractive) return null;
+  if (!text || !text.trim()) return null;
 
   const paragraphs = (text ?? "").split("\n").filter((p) => p.trim().length > 0);
   const showTitle = title === undefined ? true : Boolean(title);

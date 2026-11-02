@@ -1,15 +1,17 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { InternshipEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { parseDescriptionToBullets, stripLeadingMarkers } from "../utils/descriptionParser";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
+import { InternshipInlineForm } from "../components/EuropassSectionEditors";
 
 interface InternshipSectionProps {
   entries?: InternshipEntry[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<InternshipEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<InternshipEntry>) => void;
   onRemove?: (id: string) => void;
 }
@@ -26,19 +28,24 @@ function formatDateDMY(iso?: string): string {
 }
 
 export const InternshipSection = memo(function InternshipSection({
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdate,
   onRemove,
 }: InternshipSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+
   if (!entries || entries.length === 0) return null;
 
   const visible = entries.filter(
-    (e) => (e.role && e.role.trim().length > 0 && e.role.length < 100) ||
-           (e.company && e.company.trim().length > 0) ||
-           (e.description && e.description.trim().length > 0)
+    (e) =>
+      (e.role && e.role.trim().length > 0 && e.role.length < 100) ||
+      (e.company && e.company.trim().length > 0) ||
+      (e.description && e.description.trim().length > 0)
   );
+
   if (visible.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
@@ -46,8 +53,25 @@ export const InternshipSection = memo(function InternshipSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "WORK EXPERIENCE / INTERNSHIPS"} />
+        <EuropassSectionTitle
+          title={title || "WORK EXPERIENCE / INTERNSHIPS"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Work Experience entry"
+        />
       )}
+
+      {/* Inline entry editor for adding new work experience item */}
+      {isInteractive && isAdding && onAdd && (
+        <InternshipInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
+      )}
+
       {visible.map((item) => {
         const start = formatDateDMY(item.startDate);
         const end = formatDateDMY(item.endDate);
@@ -68,19 +92,6 @@ export const InternshipSection = memo(function InternshipSection({
                     placeholder="Role / Job Title"
                     as="h3"
                   />
-                  {onRemove && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(item.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-600 p-0.5 rounded text-xs transition cursor-pointer leading-none shrink-0 ml-2"
-                      title="Remove this work experience entry"
-                    >
-                      ✕
-                    </button>
-                  )}
                 </div>
               ) : (
                 item.role && <h3 className={styles.qualificationTitle}>{item.role}</h3>
@@ -100,8 +111,12 @@ export const InternshipSection = memo(function InternshipSection({
                     />
                     <span
                       className={styles.pipeDivider}
-                      data-html2canvas-ignore={!item.location?.trim() || !item.company?.trim() ? "true" : undefined}
-                      data-pdf-ignore={!item.location?.trim() || !item.company?.trim() ? "true" : undefined}
+                      data-html2canvas-ignore={
+                        !item.location?.trim() || !item.company?.trim() ? "true" : undefined
+                      }
+                      data-pdf-ignore={
+                        !item.location?.trim() || !item.company?.trim() ? "true" : undefined
+                      }
                     >
                       {" | "}
                     </span>
@@ -166,9 +181,10 @@ export const InternshipSection = memo(function InternshipSection({
                             newBullets[i] = cleaned;
                             const filtered = newBullets.filter(Boolean);
                             onUpdate(item.id, {
-                              description: filtered.length > 0
-                                ? filtered.map((b) => `• ${b}`).join("\n")
-                                : "",
+                              description:
+                                filtered.length > 0
+                                  ? filtered.map((b) => `• ${b}`).join("\n")
+                                  : "",
                             });
                           }}
                           isInteractive={isInteractive}
@@ -182,22 +198,20 @@ export const InternshipSection = memo(function InternshipSection({
                 </div>
               )
             ) : (
-              item.description && (() => {
-                return (
-                  <div className={styles.bulletList}>
-                    {bullets.map((point, i) => {
-                      const cleanPoint = stripLeadingMarkers(point);
-                      if (!cleanPoint) return null;
-                      return (
-                        <div key={i} className={styles.bulletItem}>
-                          <span className={styles.bulletDot} aria-hidden="true">•</span>
-                          <span className={styles.bulletText}>{cleanPoint}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()
+              item.description && (
+                <div className={styles.bulletList}>
+                  {bullets.map((point, i) => {
+                    const cleanPoint = stripLeadingMarkers(point);
+                    if (!cleanPoint) return null;
+                    return (
+                      <div key={i} className={styles.bulletItem}>
+                        <span className={styles.bulletDot} aria-hidden="true">•</span>
+                        <span className={styles.bulletText}>{cleanPoint}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             )}
           </div>
         );

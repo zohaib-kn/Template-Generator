@@ -13,11 +13,21 @@ function formatPhone(phone?: string): string {
   if (!phone) return "";
   const trimmed = phone.trim();
   if (trimmed.startsWith("(+")) return trimmed;
-  const match = trimmed.match(/^(\+\d{1,3})\s*(.*)/);
+  if (trimmed.startsWith("+91")) {
+    const rest = trimmed.slice(3).trim();
+    return `(+91) ${rest}`;
+  }
+  const match = trimmed.match(/^(\+\d{1,4})\s*(.*)/);
   if (match) {
     return `(${match[1]}) ${match[2]}`.trim();
   }
   return trimmed;
+}
+
+function formatGender(gender?: string): string {
+  if (!gender) return "";
+  const trimmed = gender.trim();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
 function formatDateDMY(iso?: string): string {
@@ -207,116 +217,116 @@ export const EuropassHeader = memo(function EuropassHeader({
                       <span className={styles.identityLabel}>Gender:</span>{" "}
                       {isInteractive && onUpdatePersonal ? (
                         <EditableText
-                          value={personal.gender ?? ""}
+                          value={formatGender(personal.gender)}
                           onChange={(v) => onUpdatePersonal({ gender: v })}
                           isInteractive={isInteractive}
                           className={styles.identityValue}
                           placeholder="Gender"
                         />
                       ) : (
-                        <span className={styles.identityValue}>{personal.gender}</span>
+                        <span className={styles.identityValue}>{formatGender(personal.gender)}</span>
                       )}
                     </span>
                   )}
                 </div>
               )}
 
-              {/* Row 3: Phone number (with icon) */}
-              {hasPhone && (
-                <div className={styles.identityIconRow}>
-                  <span className={styles.iconBox} aria-hidden="true">
-                    <svg
-                      className={styles.identityIcon}
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
-                    </svg>
-                  </span>
-                  <span className={styles.identityTextGroup}>
-                    <span className={styles.identityLabel}>Phone number:</span>{" "}
-                    {isInteractive && onUpdatePersonal ? (
-                      <EditableText
-                        value={personal.phone ?? ""}
-                        onChange={(v) => onUpdatePersonal({ phone: v })}
-                        isInteractive={isInteractive}
-                        className={styles.identityValueNoWrap}
-                        placeholder="Phone number"
-                      />
-                    ) : (
-                      <span className={styles.identityValueNoWrap}>{formatPhone(personal.phone)}</span>
-                    )}
-                  </span>
+              {/* Row 3: Phone number & Email address (combined inline matching official Europass) */}
+              {(hasPhone || hasEmail) && (
+                <div className={styles.identityContactCombinedRow}>
+                  {hasPhone && (
+                    <div className={styles.identityContactItem}>
+                      <span className={styles.contactIconBox} aria-hidden="true">
+                        <svg
+                          className={styles.contactIconGlyph}
+                          viewBox="0 0 576 512"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          {/* Official Europass FontAwesome house-phone glyph */}
+                          <path d="M280.37 148.26L96 300.11V464a16 16 0 0 0 16 16l112.06-.29a16 16 0 0 0 15.92-16V368a16 16 0 0 1 16-16h64a16 16 0 0 1 16 16v95.64a16 16 0 0 0 16 16.05L464 480a16 16 0 0 0 16-16V300L295.67 148.26a12.19 12.19 0 0 0-15.3 0zM571.6 251.47L488 182.56V44.05a12 12 0 0 0-12-12h-56a12 12 0 0 0-12 12v72.61L318.47 43a48 48 0 0 0-61 0L4.34 251.47a12 12 0 0 0-1.6 16.9l25.5 31.4a12 12 0 0 0 16.9 1.6l238.8-198.8a12 12 0 0 1 15.3 0L539 301.37a12 12 0 0 0 16.9-1.6l25.5-31.4a12 12 0 0 0-1.6-16.9z" />
+                        </svg>
+                      </span>
+                      <span className={styles.identityLabel}>Phone number:</span>{" "}
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.phone ? formatPhone(personal.phone) : ""}
+                          onChange={(v) => onUpdatePersonal({ phone: v })}
+                          isInteractive={isInteractive}
+                          className={styles.identityValueNoWrap}
+                          placeholder="Phone number"
+                        />
+                      ) : (
+                        <span className={styles.identityValueNoWrap}>{formatPhone(personal.phone)}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {hasEmail && (
+                    <div className={styles.identityContactItem}>
+                      <span className={styles.contactIconBox} aria-hidden="true">
+                        <svg
+                          className={styles.contactIconGlyph}
+                          viewBox="0 0 512 512"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          {/* Official Europass FontAwesome solid envelope glyph */}
+                          <path d="M502.3 190.8c3.9-3.1 9.7-.2 9.7 4.7V400c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V195.6c0-5 5.7-7.8 9.7-4.7 22.4 17.4 52.1 39.5 154.1 113.6 21.1 15.4 56.7 47.8 92.2 47.6 35.7.3 72-32.8 92.3-47.6 102-74.1 131.6-96.3 154-113.7zM256 320c23.2.4 56.6-29.2 73.4-41.4 132.7-96.3 142.8-104.7 173.4-128.7 5.8-4.5 9.2-11.5 9.2-18.9v-19c0-26.5-21.5-48-48-48H48C21.5 64 0 85.5 0 112v19c0 7.4 3.4 14.3 9.2 18.9 30.6 23.9 40.7 32.4 173.4 128.7 16.8 12.2 50.2 41.8 73.4 41.4z" />
+                        </svg>
+                      </span>
+                      <span className={styles.identityLabel}>Email address:</span>{" "}
+                      {isInteractive && onUpdatePersonal ? (
+                        <EditableText
+                          value={personal.email ?? ""}
+                          href={personal.email ? `mailto:${personal.email}` : undefined}
+                          onChange={(v) => onUpdatePersonal({ email: v })}
+                          isInteractive={isInteractive}
+                          className={styles.blueLink}
+                          placeholder="Email address"
+                          as="a"
+                        />
+                      ) : (
+                        <a
+                          href={`mailto:${personal.email}`}
+                          data-pdf-link={`mailto:${personal.email}`}
+                          className={styles.blueLink}
+                          aria-label={`Send email to ${personal.email}`}
+                        >
+                          {personal.email}
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Row 4: Email address (with icon) */}
-              {hasEmail && (
-                <div className={styles.identityIconRow}>
-                  <span className={styles.iconBox} aria-hidden="true">
-                    <svg
-                      className={styles.identityIcon}
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
-                    </svg>
-                  </span>
-                  <span className={styles.identityTextGroup}>
-                    <span className={styles.identityLabel}>Email address:</span>{" "}
-                    {isInteractive && onUpdatePersonal ? (
-                      <EditableText
-                        value={personal.email ?? ""}
-                        href={personal.email ? `mailto:${personal.email}` : undefined}
-                        onChange={(v) => onUpdatePersonal({ email: v })}
-                        isInteractive={isInteractive}
-                        className={styles.blueLink}
-                        placeholder="Email address"
-                        as="a"
-                      />
-                    ) : (
-                      <a
-                        href={`mailto:${personal.email}`}
-                        data-pdf-link={`mailto:${personal.email}`}
-                        className={styles.blueLink}
-                        aria-label={`Send email to ${personal.email}`}
-                      >
-                        {personal.email}
-                      </a>
-                    )}
-                  </span>
-                </div>
-              )}
-
-              {/* Row 5: Home address (with icon) */}
+              {/* Row 4: Home address (with icon) */}
               {hasAddress && (
-                <div className={styles.identityIconRow}>
-                  <span className={styles.iconBox} aria-hidden="true">
+                <div className={styles.identityContactItem}>
+                  <span className={styles.contactIconBox} aria-hidden="true">
                     <svg
-                      className={styles.identityIcon}
-                      viewBox="0 0 24 24"
+                      className={styles.contactIconGlyph}
+                      viewBox="0 0 384 512"
                       fill="currentColor"
                       aria-hidden="true"
                     >
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                      {/* Official Europass FontAwesome solid map pin glyph */}
+                      <path d="M172.268 501.67C26.97 291.031 0 269.413 0 192 0 85.961 85.961 0 192 0s192 85.961 192 192c0 77.413-26.97 99.031-172.268 309.67-9.535 13.774-29.93 13.773-39.464 0zM192 272c44.183 0 80-35.817 80-80s-35.817-80-80-80-80 35.817-80 80 35.817 80 80 80z" />
                     </svg>
                   </span>
-                  <span className={styles.identityTextGroup}>
-                    <span className={styles.identityLabel}>Home:</span>{" "}
-                    {isInteractive && onUpdatePersonal ? (
-                      <EditableText
-                        value={personal.address ?? ""}
-                        onChange={(v) => onUpdatePersonal({ address: v })}
-                        isInteractive={isInteractive}
-                        className={styles.identityValue}
-                        placeholder="Home address"
-                      />
-                    ) : (
-                      <span className={styles.identityValue}>{personal.address}</span>
-                    )}
-                  </span>
+                  <span className={styles.identityLabel}>Home:</span>{" "}
+                  {isInteractive && onUpdatePersonal ? (
+                    <EditableText
+                      value={personal.address ?? ""}
+                      onChange={(v) => onUpdatePersonal({ address: v })}
+                      isInteractive={isInteractive}
+                      className={styles.identityValue}
+                      placeholder="Home address"
+                    />
+                  ) : (
+                    <span className={styles.identityValue}>{personal.address}</span>
+                  )}
                 </div>
               )}
 
