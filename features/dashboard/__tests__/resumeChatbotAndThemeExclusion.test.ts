@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { syncSectionsToCvData } from "../utils/documentStudioSync";
-import type { DocumentData } from "@/models/ResumeDraft";
+import type { DocumentData } from "@/types";
 
 interface ChatMessage {
   id: string;
@@ -125,8 +125,9 @@ describe("Resume Chatbot Features & Quick Actions", () => {
   });
 
   describe("2. Quick-Action Buttons Functionality", () => {
-    const createBaseCv = (): DocumentData => ({
+    const createBaseCv = (): any => ({
       personal: {
+        fullName: "Aafia Ameen",
         firstName: "Aafia",
         lastName: "Ameen",
         email: "aafia.ameen@example.com",

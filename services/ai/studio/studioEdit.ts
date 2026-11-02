@@ -48,7 +48,7 @@ Rules — follow all of them:
 2. MISSING DATA: Text like [MISSING: field.name] marks data the CRM does not have. Keep each marker exactly as is unless the counsellor's message supplies that value — then replace the marker with the supplied value.
 3. SCOPE: Change only what the instruction asks for. Leave every other section's content byte-for-byte identical. Keep section headings unless asked to rename, add or delete a section.
 4. FORMAT: Keep **bold** markdown and line breaks style. Write in the student's first-person voice for letters/SOPs; plain, professional, natural English.
-5. If the instruction is a question or cannot be done without inventing facts, do not edit — explain in "reply" what information you need.
+5. QUESTIONS & CLARIFICATIONS: If the instruction is an informational question, problem report, or cannot be done without inventing facts, do NOT modify document sections — provide a direct, helpful explanation in "reply" and set "changedHeadings": [].
 6. CV CONTACT & HEADER INFO: In CV documents, personal contact details (Home Address, Phone Number, Email Address, Mother Tongue, Nationality, Date of Birth) belong exclusively in the student contact header, NOT inside "ABOUT ME" or narrative body sections. NEVER append or insert home address, phone numbers, or emails into the "ABOUT ME" section.
 7. SECTION PRESERVATION: You must return the EXACT same list of sections provided in the input. Return each section as a separate object in the "sections" array with its original "heading". NEVER merge or collapse multiple sections into a single section. NEVER embed "### Heading" or section titles inside the "content" text.
 8. IN-PLACE TARGET REPLACEMENT & HUMANIZATION: When the counsellor asks to enhance, humanize, rephrase, rewrite, or improve a specific quoted text snippet, bullet point, or paragraph:
@@ -74,8 +74,10 @@ export function buildStudioPrompt(req: StudioEditRequest): string {
     .slice(-6)
     .map((t) => `${t.sender === "user" ? "Counsellor" : "Assistant"}: ${t.text}`)
     .join("\n");
-  const anchorNotice = req.targetAnchor
-    ? `TARGETED IN-PLACE EDIT: The counsellor is specifically targeting this text snippet inside section "${req.targetAnchor.heading}":\n<<<TARGET_SNIPPET>>>\n${req.targetAnchor.snippet}\n<<<END_TARGET_SNIPPET>>>\nReplace/enhance ONLY this snippet in-place inside section "${req.targetAnchor.heading}", keeping its exact position and leaving all other text untouched.`
+  const anchorNotice = req.targetAnchor?.heading
+    ? req.targetAnchor.snippet && req.targetAnchor.snippet.trim().length > 0
+      ? `TARGETED IN-PLACE EDIT: The counsellor is specifically targeting this text snippet inside section "${req.targetAnchor.heading}":\n<<<TARGET_SNIPPET>>>\n${req.targetAnchor.snippet}\n<<<END_TARGET_SNIPPET>>>\nReplace/enhance ONLY this snippet in-place inside section "${req.targetAnchor.heading}", keeping its exact position and leaving all other text untouched.`
+      : `TARGETED SECTION REWRITE: The counsellor is targeting section "${req.targetAnchor.heading}". Rewrite and enhance ONLY section "${req.targetAnchor.heading}". Keep all other sections 100% identical and unchanged. You MUST return "${req.targetAnchor.heading}" in the "changedHeadings" array.`
     : "";
   return [
     `Document type: ${req.docType}${req.title ? ` — "${req.title}"` : ""}`,
@@ -113,6 +115,14 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   const cleaned = raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
   const json = JSON.parse(cleaned) as Partial<StudioEditResult> & { sections?: unknown };
   if (!Array.isArray(json.sections) || json.sections.length === 0 || json.sections.length > 80) {
+    if (typeof json.reply === "string" && json.reply.trim()) {
+      return {
+        reply: json.reply.trim(),
+        sections: req.sections,
+        changedHeadings: [],
+        unverifiedValues: [],
+      };
+    }
     throw new Error("Model returned no usable sections.");
   }
   // Auto-unbundle: If input had multiple sections but model collapsed into 1 section with ### markers
@@ -165,12 +175,6 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   });
 
   const before = new Map(req.sections.map((s) => [s.heading, s.content]));
-  const changed = sections.filter((s) => before.get(s.heading) !== s.content).map((s) => s.content);
-  const unverifiedValues = findUnverifiedValues(changed.join("\n"), [
-    req.instruction,
-    ...req.sections.map((s) => s.content),
-    ...(req.history ?? []).filter((t) => t.sender === "user").map((t) => t.text),
-  ]);
 
   // Clean unwanted address pollution from ABOUT ME for CV documents
   const sanitizedSections = sections.map((sec) => {
@@ -183,9 +187,39 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
     return sec;
   });
 
+  // Strict Single-Section Enforcement:
+  // If targetAnchor heading is specified, revert any changes to OTHER sections back to original
+  if (req.targetAnchor?.heading) {
+    const targetNorm = cleanHeading(req.targetAnchor.heading).toLowerCase();
+    const hasTargetMatch = sanitizedSections.some((s) => {
+      const norm = cleanHeading(s.heading).toLowerCase();
+      return norm === targetNorm || norm.includes(targetNorm) || targetNorm.includes(norm);
+    });
+
+    if (hasTargetMatch) {
+      for (let i = 0; i < sanitizedSections.length; i++) {
+        const secNorm = cleanHeading(sanitizedSections[i].heading).toLowerCase();
+        const isTarget = secNorm === targetNorm || secNorm.includes(targetNorm) || targetNorm.includes(secNorm);
+        if (!isTarget) {
+          const orig = req.sections.find((s) => cleanHeading(s.heading).toLowerCase() === secNorm);
+          if (orig) {
+            sanitizedSections[i] = { ...orig };
+          }
+        }
+      }
+    }
+  }
+
   const changedSections = sanitizedSections.filter((s) => before.get(s.heading) !== s.content);
+  const changed = changedSections.map((s) => s.content);
+  const unverifiedValues = findUnverifiedValues(changed.join("\n"), [
+    req.instruction,
+    ...req.sections.map((s) => s.content),
+    ...(req.history ?? []).filter((t) => t.sender === "user").map((t) => t.text),
+  ]);
+
   const changedHeadings =
-    Array.isArray(json.changedHeadings) && json.changedHeadings.length > 0
+    Array.isArray(json.changedHeadings) && json.changedHeadings.length > 0 && !req.targetAnchor?.heading
       ? json.changedHeadings
           .filter((h): h is string => typeof h === "string")
           .map((h) => originalByKey.get(cleanHeading(h).toLowerCase()) ?? cleanHeading(h))

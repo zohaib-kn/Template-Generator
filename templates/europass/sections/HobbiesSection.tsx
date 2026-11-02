@@ -1,28 +1,36 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { HobbyEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { HobbyInlineForm } from "../components/EuropassSectionEditors";
 
 interface HobbiesSectionProps {
   entries?: HobbyEntry[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<HobbyEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<HobbyEntry>) => void;
+  onRemove?: (id: string) => void;
 }
 
 interface FlattenedHobbyItem {
   id: string;
   name: string;
   description?: string;
+  originalId: string;
 }
 
 export const HobbiesSection = memo(function HobbiesSection({
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdate,
+  onRemove,
 }: HobbiesSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+  
   if (!entries || entries.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
@@ -43,6 +51,7 @@ export const HobbiesSection = memo(function HobbiesSection({
           id: `${hobby.id || entryIdx}-${partIdx}`,
           name: p,
           description: hobby.description?.trim(),
+          originalId: hobby.id || `hobby-${entryIdx}`,
         });
       });
     } else {
@@ -50,6 +59,7 @@ export const HobbiesSection = memo(function HobbiesSection({
         id: hobby.id || `hobby-${entryIdx}`,
         name: parts[0] || hobby.name.trim(),
         description: hobby.description?.trim(),
+        originalId: hobby.id || `hobby-${entryIdx}`,
       });
     }
   });
@@ -61,6 +71,7 @@ export const HobbiesSection = memo(function HobbiesSection({
           id: h.id || `hobby-${i}`,
           name: h.name || "",
           description: h.description,
+          originalId: h.id || `hobby-${i}`,
         }));
 
   if (displayList.length === 0) return null;
@@ -68,8 +79,25 @@ export const HobbiesSection = memo(function HobbiesSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "HOBBIES AND INTERESTS"} />
+        <EuropassSectionTitle
+          title={title || "HOBBIES AND INTERESTS"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Hobby / Interest"
+        />
       )}
+
+      {/* Inline entry editor for adding new hobby */}
+      {isInteractive && isAdding && onAdd && (
+        <HobbyInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
+      )}
+
       <div className={styles.hobbiesBulletList}>
         {displayList.map((hobby) => (
           <div key={hobby.id} className={styles.hobbiesBulletItem}>
@@ -80,27 +108,12 @@ export const HobbiesSection = memo(function HobbiesSection({
               {isInteractive && onUpdate ? (
                 <EditableText
                   value={hobby.name ?? ""}
-                  onChange={(v) => onUpdate(hobby.id, { name: v })}
+                  onChange={(v) => onUpdate(hobby.originalId, { name: v })}
                   isInteractive={isInteractive}
                   placeholder="Hobby or interest"
                 />
               ) : (
                 hobby.name
-              )}
-              {Boolean(hobby.description && hobby.description.trim().length > 0) && (
-                <span className={styles.educationDetails}>
-                  {" — "}
-                  {isInteractive && onUpdate ? (
-                    <EditableText
-                      value={hobby.description ?? ""}
-                      onChange={(v) => onUpdate(hobby.id, { description: v })}
-                      isInteractive={isInteractive}
-                      placeholder="Details"
-                    />
-                  ) : (
-                    hobby.description
-                  )}
-                </span>
               )}
             </span>
           </div>

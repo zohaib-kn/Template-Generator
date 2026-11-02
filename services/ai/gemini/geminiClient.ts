@@ -24,7 +24,8 @@ export const FLASH_MODELS_CASCADE = [
   "gemini-3.5-flash",
 ] as const;
 
-const OPENAI_DEFAULT_MODELS = ["gpt-4.1-mini", "gpt-4o-mini"];
+
+const OPENAI_DEFAULT_MODELS = ["gpt-4o-mini", "gpt-4o"];
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
 export type AiProvider = "openai" | "gemini";

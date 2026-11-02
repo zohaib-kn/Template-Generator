@@ -134,19 +134,42 @@ export function EuropassTemplate({
     setDeclaration,
     setMotherTongue,
     setEnglishCertificate,
+    addEducation,
     updateEducation,
+    removeEducation,
+    addInternship,
     updateInternship,
     removeInternship,
+    addAcademicProject,
     updateAcademicProject,
+    removeAcademicProject,
+    addAchievement,
     updateAchievement,
+    removeAchievement,
+    addLeadershipActivity,
     updateLeadershipActivity,
+    removeLeadershipActivity,
+    addCertification,
     updateCertification,
+    removeCertification,
+    addVolunteering,
     updateVolunteering,
+    removeVolunteering,
+    addLanguage,
     updateLanguage,
+    removeLanguage,
+    addSkill,
     updateSkill,
+    removeSkill,
+    addHobby,
     updateHobby,
+    removeHobby,
+    addRecommendation,
     updateRecommendation,
+    removeRecommendation,
+    addAcademicInterest,
     updateAcademicInterest,
+    removeAcademicInterest,
   } = useDocumentState();
 
   // Normalize repeatable arrays
@@ -459,7 +482,7 @@ export function EuropassTemplate({
       switch (item.secKey) {
         case "about":
         case "aboutMe":
-          return aboutMe.trim().length > 0 || isInteractive ? (
+          return aboutMe.trim().length > 0 ? (
             <AboutSection
               text={aboutMe}
               title={item.title}
@@ -477,7 +500,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addEducation}
               onUpdate={updateEducation}
+              onRemove={removeEducation}
             />
           ) : null;
         }
@@ -534,17 +559,21 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addInternship}
               onUpdate={updateInternship}
               onRemove={removeInternship}
             />
           ) : null;
         }
         case "academicInterests":
-          return academicInterests.length > 0 || isInteractive ? (
+          return academicInterests.length > 0 ? (
             <AcademicInterestsSection
               entries={academicInterests}
+              title={item.title}
               isInteractive={isInteractive}
+              onAdd={addAcademicInterest}
               onUpdate={updateAcademicInterest}
+              onRemove={removeAcademicInterest}
             />
           ) : null;
         case "academicProjects": {
@@ -557,7 +586,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addAcademicProject}
               onUpdate={updateAcademicProject}
+              onRemove={removeAcademicProject}
             />
           ) : null;
         }
@@ -571,7 +602,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addAchievement}
               onUpdate={updateAchievement}
+              onRemove={removeAchievement}
             />
           ) : null;
         }
@@ -586,7 +619,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addLeadershipActivity}
               onUpdate={updateLeadershipActivity}
+              onRemove={removeLeadershipActivity}
             />
           ) : null;
         }
@@ -600,7 +635,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addVolunteering}
               onUpdate={updateVolunteering}
+              onRemove={removeVolunteering}
             />
           ) : null;
         }
@@ -614,23 +651,27 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addCertification}
               onUpdate={updateCertification}
+              onRemove={removeCertification}
             />
           ) : null;
         }
         case "languages":
-          return hasLanguages || isInteractive ? (
+          return hasLanguages ? (
             <LanguageSkillsSection
               motherTongue={motherTongue}
               entries={languages}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addLanguage}
               onUpdateMotherTongue={setMotherTongue}
               onUpdateEntry={updateLanguage}
+              onRemoveEntry={removeLanguage}
             />
           ) : null;
         case "englishCertificate":
-          return (hasEnglishCert && englishCertificate) || isInteractive ? (
+          return (hasEnglishCert && englishCertificate) ? (
             <EnglishCertificateSection
               cert={englishCertificate || undefined}
               title={item.title}
@@ -639,21 +680,25 @@ export function EuropassTemplate({
             />
           ) : null;
         case "skills":
-          return skills.length > 0 || isInteractive ? (
+          return skills.length > 0 ? (
             <SkillsSection
               entries={skills}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addSkill}
               onUpdate={updateSkill}
+              onRemove={removeSkill}
             />
           ) : null;
         case "hobbies":
-          return hobbies.length > 0 || isInteractive ? (
+          return hobbies.length > 0 ? (
             <HobbiesSection
               entries={hobbies}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addHobby}
               onUpdate={updateHobby}
+              onRemove={removeHobby}
             />
           ) : null;
         case "recommendations": {
@@ -666,7 +711,9 @@ export function EuropassTemplate({
               entries={slice}
               title={item.title}
               isInteractive={isInteractive}
+              onAdd={addRecommendation}
               onUpdate={updateRecommendation}
+              onRemove={removeRecommendation}
             />
           ) : null;
         }
@@ -1178,31 +1225,45 @@ export function EuropassTemplate({
           }
           break;
         case "education":
-          placeSplittable("education", "EDUCATION AND TRAINING", educationEntries);
+          if (educationEntries.length > 0) {
+            placeSplittable("education", "EDUCATION AND TRAINING", educationEntries);
+          }
           break;
         case "internships":
-          placeSplittable("internships", "WORK EXPERIENCE / INTERNSHIPS", internshipEntries);
+          if (internshipEntries.length > 0) {
+            placeSplittable("internships", "WORK EXPERIENCE / INTERNSHIPS", internshipEntries);
+          }
           break;
         case "academicInterests":
           if (academicInterests && academicInterests.length > 0) {
-            placeAtomic("academicInterests");
+            placeAtomic("academicInterests", "ACADEMIC INTERESTS");
           }
           break;
         case "academicProjects":
-          placeSplittable("academicProjects", "ACADEMIC PROJECTS", projectEntries);
+          if (projectEntries.length > 0) {
+            placeSplittable("academicProjects", "ACADEMIC PROJECTS", projectEntries);
+          }
           break;
         case "achievements":
-          placeSplittable("achievements", "ACHIEVEMENTS & AWARDS", achievementEntries);
+          if (achievementEntries.length > 0) {
+            placeSplittable("achievements", "ACHIEVEMENTS & AWARDS", achievementEntries);
+          }
           break;
         case "leadershipActivities":
         case "leadership":
-          placeSplittable("leadership", "LEADERSHIP & EXTRACURRICULAR", leadershipEntries);
+          if (leadershipEntries.length > 0) {
+            placeSplittable("leadership", "LEADERSHIP & EXTRACURRICULAR", leadershipEntries);
+          }
           break;
         case "volunteering":
-          placeSplittable("volunteering", "VOLUNTEERING / COMMUNITY ENGAGEMENT", volunteeringEntries);
+          if (volunteeringEntries.length > 0) {
+            placeSplittable("volunteering", "VOLUNTEERING / COMMUNITY ENGAGEMENT", volunteeringEntries);
+          }
           break;
         case "certifications":
-          placeSplittable("certifications", "CERTIFICATIONS", certificationEntries);
+          if (certificationEntries.length > 0) {
+            placeSplittable("certifications", "CERTIFICATIONS", certificationEntries);
+          }
           break;
         case "languages":
           if (hasLanguages) {
@@ -1226,7 +1287,9 @@ export function EuropassTemplate({
           }
           break;
         case "recommendations":
-          placeSplittable("recommendations", "RECOMMENDATIONS", recommendations);
+          if (recommendations && recommendations.length > 0) {
+            placeSplittable("recommendations", "RECOMMENDATIONS", recommendations);
+          }
           break;
         case "declaration":
           if (declaration && declaration.trim().length > 0) {
@@ -1269,6 +1332,7 @@ export function EuropassTemplate({
     volunteeringEntries,
     certificationEntries,
     fontReadyTrigger,
+    isInteractive,
   ]);
 
   const currentPages = pageAssignments ?? fallbackPages;

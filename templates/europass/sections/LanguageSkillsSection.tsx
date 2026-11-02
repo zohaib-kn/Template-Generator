@@ -1,26 +1,33 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { LanguageEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { LanguageInlineForm } from "../components/EuropassSectionEditors";
 
 interface LanguageSkillsSectionProps {
   motherTongue?: string;
   entries?: LanguageEntry[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<LanguageEntry, "id">) => void;
   onUpdateMotherTongue?: (value: string) => void;
   onUpdateEntry?: (id: string, patch: Partial<LanguageEntry>) => void;
+  onRemoveEntry?: (id: string) => void;
 }
 
 export const LanguageSkillsSection = memo(function LanguageSkillsSection({
   motherTongue,
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdateMotherTongue,
   onUpdateEntry,
+  onRemoveEntry,
 }: LanguageSkillsSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+
   const entryMother = entries?.find(
     (e) =>
       e.level?.toLowerCase().includes("mother") ||
@@ -33,7 +40,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
   const otherLanguages = (entries ?? []).filter(
     (e) =>
       e !== entryMother &&
-      (isInteractive || Boolean(e.language?.trim())) &&
+      Boolean(e.language?.trim()) &&
       !e.level?.toLowerCase().includes("mother") &&
       !e.level?.toLowerCase().includes("native")
   );
@@ -45,11 +52,16 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "LANGUAGE SKILLS"} />
+        <EuropassSectionTitle
+          title={title || "LANGUAGE SKILLS"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Language entry"
+        />
       )}
 
       {/* Mother tongue */}
-      {(isInteractive || effectiveMotherTongue) && (
+      {effectiveMotherTongue && (
         <div className={styles.motherTongueRow}>
           <span className={styles.identityLabel}>Mother tongue(s):</span>{" "}
           {isInteractive && onUpdateMotherTongue ? (
@@ -64,6 +76,17 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
             <span className={styles.identityValue}>{effectiveMotherTongue}</span>
           )}
         </div>
+      )}
+
+      {/* Inline entry editor for adding new language */}
+      {isInteractive && isAdding && onAdd && (
+        <LanguageInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
       )}
 
       {/* Other languages */}

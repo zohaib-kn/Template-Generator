@@ -1,25 +1,32 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { Achievement } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { AchievementInlineForm } from "../components/EuropassSectionEditors";
 
 interface AchievementsSectionProps {
   entries?: Achievement[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<Achievement, "id">) => void;
   onUpdate?: (id: string, patch: Partial<Achievement>) => void;
+  onRemove?: (id: string) => void;
 }
 
 export const AchievementsSection = memo(function AchievementsSection({
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdate,
+  onRemove,
 }: AchievementsSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+  
   if (!entries || entries.length === 0) return null;
 
-  const visible = entries.filter((e) => isInteractive || e.title || e.description);
+  const visible = entries.filter((e) => e.title || e.description);
   if (visible.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
@@ -27,8 +34,25 @@ export const AchievementsSection = memo(function AchievementsSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "ACHIEVEMENTS & AWARDS"} />
+        <EuropassSectionTitle
+          title={title || "ACHIEVEMENTS & AWARDS"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Achievement entry"
+        />
       )}
+
+      {/* Inline entry editor for adding new achievement */}
+      {isInteractive && isAdding && onAdd && (
+        <AchievementInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
+      )}
+
       <div className={styles.achievementList}>
         {visible.map((achievement) => {
           const hasYearInTitle = Boolean(
@@ -47,7 +71,10 @@ export const AchievementsSection = memo(function AchievementsSection({
             : "";
 
           return (
-            <div key={achievement.id} className={styles.achievementBulletItem}>
+            <div
+              key={achievement.id}
+              className={styles.achievementBulletItem}
+            >
               <span className={styles.achievementBulletDot} aria-hidden="true">
                 ●
               </span>
@@ -104,18 +131,14 @@ export const AchievementsSection = memo(function AchievementsSection({
                   </>
                 ) : (
                   <>
-                    <span className={styles.achievementTitle}>
-                      {achievement.title}
-                    </span>
-                    {orgText && (
-                      <span className={styles.achievementOrg}>{orgText}</span>
-                    )}
-                    {descText && (
-                      <span className={styles.achievementDesc}>{descText}</span>
-                    )}
+                    <span className={styles.achievementTitle}>{achievement.title}</span>
+                    {orgText && <span className={styles.achievementOrg}>{orgText}</span>}
+                    {descText && <span className={styles.achievementDesc}>{descText}</span>}
                   </>
                 )}
               </span>
+
+              
             </div>
           );
         })}

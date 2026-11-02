@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { EducationEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
@@ -6,12 +6,15 @@ import { getOrderedEducationParts } from "@/features/document-generator/utils/ed
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
 import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
+import { EducationInlineForm } from "../components/EuropassSectionEditors";
 
 interface EducationSectionProps {
   entries?: EducationEntry[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<EducationEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<EducationEntry>) => void;
+  onRemove?: (id: string) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -103,11 +106,15 @@ function renderEducationDetails(
 }
 
 export const EducationSection = memo(function EducationSection({
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdate,
+  onRemove,
 }: EducationSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+
   if (!entries || entries.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
@@ -115,8 +122,25 @@ export const EducationSection = memo(function EducationSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "EDUCATION AND TRAINING"} />
+        <EuropassSectionTitle
+          title={title || "EDUCATION AND TRAINING"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Education & Training entry"
+        />
       )}
+
+      {/* Inline entry editor for adding new item */}
+      {isInteractive && isAdding && onAdd && (
+        <EducationInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
+      )}
+
       {entries.map((entry) => {
         const start = formatDateDMY(entry.startDate);
         const end = formatDateDMY(entry.endDate);

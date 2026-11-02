@@ -1126,6 +1126,17 @@ export function parseMultiFieldInstruction(text: string): ParsedFieldEntry[] | n
   const t = text.trim();
   if (!t) return null;
 
+  // Pattern 0: Compound loan statement e.g. "Education loan is 25 Lakhs from HDFC Credila"
+  const compoundLoanMatch = t.match(/^(?:(?:add|set|update|change)?\s*(?:the\s*)?)?(?:education\s+)?loan(?:\s*amount)?\s*(?:is|to|=|:)\s*([0-9.,\s]+(?:lakhs?|cr|crores?|k)?)\s+(?:from|via|through|by)\s+([A-Za-z0-9&.\s]+)$/i);
+  if (compoundLoanMatch) {
+    const rawAmt = compoundLoanMatch[1].trim();
+    const rawBank = compoundLoanMatch[2].trim();
+    return [
+      { key: "finance.educationLoanAmount", value: formatFieldValue("finance.educationLoanAmount", rawAmt), label: "Education Loan Amount" },
+      { key: "finance.loanProvider", value: formatFieldValue("finance.loanProvider", rawBank), label: "Loan Provider / Bank" },
+    ];
+  }
+
   // Pattern 2: Key-Value pairs separated by commas, semicolons, newlines, or "and"
   // e.g. "city: Bhopal, country: India, mother tongue: Hindi"
   const clauseDelim = /(?:[\r\n]+|[,;]+\s*(?:and\s+)?|\s+and\s+)/i;
@@ -1224,6 +1235,17 @@ export function parseDirectFieldInstruction(
   const t = text.trim();
   if (!t) return null;
 
+  // Guard 0: Never treat directives, questions, section rewrites, or problem reports as direct field assignment
+  if (
+    /^(?:what|how|why|which|where|when|who|can\s+you|could\s+you|is\s+there|tell\s+me|explain)\b/i.test(t) ||
+    t.endsWith("?") ||
+    /\b(enhance|humanize|improve|polish|rewrite|rephrase|make|delete|remove|clear|drop)\b/i.test(t) ||
+    /\b(section|paragraph|sentence|bullet)\b/i.test(t) ||
+    /\b(crashed|broken|stopped|failed|not\s+working|error|issue|problem|bug|booking|appointment\s+website)\b/i.test(t)
+  ) {
+    return null;
+  }
+
   // 1. Guard against multi-field inputs
   const multi = parseMultiFieldInstruction(t);
   if (multi && multi.length >= 2) {
@@ -1241,7 +1263,8 @@ export function parseDirectFieldInstruction(
     "language", "languages", "nationality", "email", "phone", "mobile",
     "father", "mother", "sponsor", "loan", "university", "course",
     "degree", "ielts", "band", "accommodation", "insurance", "pnr",
-    "which is", "which are", "as follows",
+    "which is", "which are", "as follows", "section", "paragraph", "crashed",
+    "website", "appointment", "booking",
   ];
 
   const matchers: [RegExp, string, string][] = [
@@ -1283,7 +1306,7 @@ export function parseDirectFieldInstruction(
     [/(?:add|set|update|change)?\s*(?:the\s*)?sponsor\s*relationship\s*(?:is|to|=|:)?\s*(.+)/i, "sponsor.relationship", "Sponsor Relationship"],
 
     // Education Loan Amount
-    [/(?:add|set|update|change)?\s*(?:the\s*)?(?:education\s*)?loan\s*amount\s*(?:is|to|=|:)?\s*(.+)/i, "finance.educationLoanAmount", "Education Loan Amount"],
+    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:education\s*)?loan(?:\s*amount)?\s*(?:is|to|=|:)?|(?:the\s*)?(?:education\s*)?loan(?:\s*amount)?\s*(?:is|to|=|:))\s*(.+)/i, "finance.educationLoanAmount", "Education Loan Amount"],
 
     // Loan Provider / Bank
     [/(?:add|set|update|change)?\s*(?:the\s*)?loan\s*provider(?:\s*name)?\s*(?:is|to|=|:)?\s*(.+)/i, "finance.loanProvider", "Loan Provider / Bank"],
@@ -1313,13 +1336,13 @@ export function parseDirectFieldInstruction(
     [/(?:add|set|update|change)?\s*(?:the\s*)?(?:itr|income\s*tax\s*return)\s*(?:assessment\s*)?years?\s*(?:is|to|=|:)?\s*(.+)/i, "finance.itrYears", "ITR Assessment Years"],
 
     // Target University
-    [/(?:add|set|update|change)?\s*(?:the\s*)?(?:target\s*)?university\s*(?:is|to|=|:)?\s*(.+)/i, "destination.university", "Target University"],
+    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:target\s*)?university\s*(?:is|to|=|:)?|(?:the\s*)?(?:target\s*)?university\s*(?:is|to|=|:))\s*(.+)/i, "destination.university", "Target University"],
 
     // Course / Programme
-    [/(?:add|set|update|change)?\s*(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:)?\s*(.+)/i, "destination.course", "Degree Programme"],
+    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:)?|(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:))\s*(.+)/i, "destination.course", "Degree Programme"],
 
     // Consulate / Embassy
-    [/(?:add|set|update|change)?\s*(?:the\s*)?(?:italian\s*)?(?:consulate|embassy)\s*(?:is|to|=|:)?\s*(.+)/i, "destination.consulate", "Italian Consulate / Embassy"],
+    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:italian\s*)?(?:consulate|embassy)\s*(?:is|to|=|:)?|(?:the\s*)?(?:italian\s*)?(?:consulate|embassy)\s*(?:is|to|=|:))\s*(.+)/i, "destination.consulate", "Italian Consulate / Embassy"],
 
     // Consulate Address
     [/(?:add|set|update|change)?\s*(?:the\s*)?consulate\s*address\s*(?:is|to|=|:)?\s*(.+)/i, "destination.consulateAddress", "Consulate Address"],

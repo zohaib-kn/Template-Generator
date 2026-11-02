@@ -32,12 +32,17 @@ function listFieldActions<K extends string, E extends { id: string }>(
   key: K
 ) {
   return {
-    add: (entry: Omit<E, "id"> = {} as Omit<E, "id">) =>
-      dispatch({
+    add: (entry?: Omit<E, "id"> | unknown) => {
+      const data =
+        entry && typeof entry === "object" && !("nativeEvent" in entry)
+          ? (entry as Omit<E, "id">)
+          : ({} as Omit<E, "id">);
+      return dispatch({
         type: "ADD_LIST_ITEM",
         key: key as never,
-        payload: { ...entry, id: generateId() } as never,
-      }),
+        payload: { ...data, id: generateId() } as never,
+      });
+    },
     update: (id: string, patch: Partial<E>) =>
       dispatch({
         type: "UPDATE_LIST_ITEM",
@@ -122,51 +127,51 @@ export function useDocumentState() {
       dispatch({ type: "SET_ENGLISH_CERTIFICATE", payload: patch }),
 
     // --- Education ----------------------------------------------------------
-    addEducation: () => education.add(),
+    addEducation: (entry?: Omit<EducationEntry, "id"> | unknown) => education.add(entry),
     updateEducation: (id: string, patch: Partial<EducationEntry>) =>
       education.update(id, patch),
     removeEducation: (id: string) => education.remove(id),
 
     // --- Internships / Work Experience --------------------------------------
-    addInternship: () => internships.add(),
+    addInternship: (entry?: Omit<InternshipEntry, "id"> | unknown) => internships.add(entry),
     updateInternship: (id: string, patch: Partial<InternshipEntry>) =>
       internships.update(id, patch),
     removeInternship: (id: string) => internships.remove(id),
 
     // --- Recommendations ----------------------------------------------------
-    addRecommendation: () => recommendations.add(),
+    addRecommendation: (entry?: Omit<RecommendationEntry, "id"> | unknown) => recommendations.add(entry),
     updateRecommendation: (id: string, patch: Partial<RecommendationEntry>) =>
       recommendations.update(id, patch),
     removeRecommendation: (id: string) => recommendations.remove(id),
 
     // --- Languages ----------------------------------------------------------
-    addLanguage: () => languages.add(),
+    addLanguage: (entry?: Omit<LanguageEntry, "id"> | unknown) => languages.add(entry),
     updateLanguage: (id: string, patch: Partial<LanguageEntry>) =>
       languages.update(id, patch),
     removeLanguage: (id: string) => languages.remove(id),
 
     // --- Skills -------------------------------------------------------------
-    addSkill: () => skills.add(),
+    addSkill: (entry?: Omit<SkillEntry, "id"> | unknown) => skills.add(entry),
     /** Add a skill pre-populated with data (used by suggestion builder). */
     addSkillWithData: (data: Omit<SkillEntry, "id">) => skills.add(data),
     updateSkill: (id: string, patch: Partial<SkillEntry>) => skills.update(id, patch),
     removeSkill: (id: string) => skills.remove(id),
 
     // --- Hobbies ------------------------------------------------------------
-    addHobby: () => hobbies.add(),
+    addHobby: (entry?: Omit<HobbyEntry, "id"> | unknown) => hobbies.add(entry),
     /** Add a hobby pre-populated with data (used by suggestion builder). */
     addHobbyWithData: (data: Omit<HobbyEntry, "id">) => hobbies.add(data),
     updateHobby: (id: string, patch: Partial<HobbyEntry>) => hobbies.update(id, patch),
     removeHobby: (id: string) => hobbies.remove(id),
 
     // --- Volunteering -------------------------------------------------------
-    addVolunteering: () => volunteering.add(),
+    addVolunteering: (entry?: Omit<VolunteeringEntry, "id"> | unknown) => volunteering.add(entry),
     updateVolunteering: (id: string, patch: Partial<VolunteeringEntry>) =>
       volunteering.update(id, patch),
     removeVolunteering: (id: string) => volunteering.remove(id),
 
     // --- Academic Interests -------------------------------------------------
-    addAcademicInterest: () => academicInterests.add(),
+    addAcademicInterest: (entry?: Omit<AcademicInterest, "id"> | unknown) => academicInterests.add(entry),
     /** Add an academic interest pre-populated with data (used by suggestion builder). */
     addAcademicInterestWithData: (data: Omit<AcademicInterest, "id">) => academicInterests.add(data),
     updateAcademicInterest: (id: string, patch: Partial<AcademicInterest>) =>
@@ -174,19 +179,19 @@ export function useDocumentState() {
     removeAcademicInterest: (id: string) => academicInterests.remove(id),
 
     // --- Academic Projects --------------------------------------------------
-    addAcademicProject: () => academicProjects.add(),
+    addAcademicProject: (entry?: Omit<AcademicProject, "id"> | unknown) => academicProjects.add(entry),
     updateAcademicProject: (id: string, patch: Partial<AcademicProject>) =>
       academicProjects.update(id, patch),
     removeAcademicProject: (id: string) => academicProjects.remove(id),
 
     // --- Achievements -------------------------------------------------------
-    addAchievement: () => achievements.add(),
+    addAchievement: (entry?: Omit<Achievement, "id"> | unknown) => achievements.add(entry),
     updateAchievement: (id: string, patch: Partial<Achievement>) =>
       achievements.update(id, patch),
     removeAchievement: (id: string) => achievements.remove(id),
 
     // --- Leadership Activities ----------------------------------------------
-    addLeadershipActivity: () => leadershipActivities.add(),
+    addLeadershipActivity: (entry?: Omit<LeadershipActivity, "id"> | unknown) => leadershipActivities.add(entry),
     /** Add a leadership activity pre-populated with data (used by suggestion builder). */
     addLeadershipActivityWithData: (data: Omit<LeadershipActivity, "id">) => leadershipActivities.add(data),
     updateLeadershipActivity: (id: string, patch: Partial<LeadershipActivity>) =>
@@ -194,7 +199,7 @@ export function useDocumentState() {
     removeLeadershipActivity: (id: string) => leadershipActivities.remove(id),
 
     // --- Certifications -----------------------------------------------------
-    addCertification: () => certifications.add(),
+    addCertification: (entry?: Omit<Certification, "id"> | unknown) => certifications.add(entry),
     updateCertification: (id: string, patch: Partial<Certification>) =>
       certifications.update(id, patch),
     removeCertification: (id: string) => certifications.remove(id),

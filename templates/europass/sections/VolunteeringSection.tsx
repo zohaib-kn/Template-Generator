@@ -1,15 +1,18 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { VolunteeringEntry } from "@/types";
 import styles from "../europass.module.css";
 import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
+import { VolunteeringInlineForm } from "../components/EuropassSectionEditors";
 
 interface VolunteeringSectionProps {
   entries?: VolunteeringEntry[];
   title?: string;
   isInteractive?: boolean;
+  onAdd?: (entry: Omit<VolunteeringEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<VolunteeringEntry>) => void;
+  onRemove?: (id: string) => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -32,16 +35,18 @@ function formatDateRange(start?: string, end?: string): string {
 }
 
 export const VolunteeringSection = memo(function VolunteeringSection({
-  entries,
+  entries = [],
   title,
   isInteractive = false,
+  onAdd,
   onUpdate,
+  onRemove,
 }: VolunteeringSectionProps) {
+  const [isAdding, setIsAdding] = useState(false);
+  
   if (!entries || entries.length === 0) return null;
 
-  const visible = entries.filter(
-    (e) => isInteractive || e.organization || e.role || e.description
-  );
+  const visible = entries.filter((e) => e.organization || e.role || e.description);
   if (visible.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
@@ -49,12 +54,34 @@ export const VolunteeringSection = memo(function VolunteeringSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "VOLUNTEERING / COMMUNITY ENGAGEMENT"} />
+        <EuropassSectionTitle
+          title={title || "VOLUNTEERING / COMMUNITY ENGAGEMENT"}
+          isInteractive={isInteractive}
+          onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
+          addLabel="Add Volunteering entry"
+        />
       )}
+
+      {/* Inline entry editor for adding new volunteering item */}
+      {isInteractive && isAdding && onAdd && (
+        <VolunteeringInlineForm
+          onSave={(data) => {
+            onAdd(data);
+            setIsAdding(false);
+          }}
+          onCancel={() => setIsAdding(false)}
+        />
+      )}
+
       {visible.map((vol) => {
-        const dateRange = formatDateRange(vol.startDate, vol.endDate);
+          const dateRange = formatDateRange(vol.startDate, vol.endDate);
         return (
-          <div key={vol.id} className={styles.educationEntry}>
+          <div
+            key={vol.id}
+            className={styles.educationEntry}
+          >
+            
+
             {isInteractive && onUpdate ? (
               <EditableText
                 value={vol.organization ?? ""}
@@ -104,7 +131,7 @@ export const VolunteeringSection = memo(function VolunteeringSection({
                 isInteractive={isInteractive}
                 multiline
                 className={styles.educationDetails}
-                placeholder="Volunteering responsibilities and community impact..."
+                placeholder="Description of volunteer contributions..."
               />
             ) : (
               vol.description && (

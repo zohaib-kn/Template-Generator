@@ -2,7 +2,7 @@
    Europass Template Stylesheet (A4 Physical Document Layout)
    Faithful reconstruction based on the authoritative Cairo-rendered Europass PDF
    ========================================================================== */
-  
+
 :root {
   --europass-navy: #0c56a5;
   --europass-accent-blue: #82acd9;
@@ -31,9 +31,9 @@
   position: relative;
   background-color: #ffffff;
   overflow: hidden;
-  color: #333333;
-  font-family: var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 9.97pt;
+  color: var(--europass-text-dark, #333333);
+  font-family: var(--europass-font-family, var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: var(--europass-font-size-base, 9.97pt);
   line-height: 1.42;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0;
@@ -49,10 +49,12 @@
   .templateContainer {
     gap: 0 !important;
   }
+
   .page {
     box-shadow: none !important;
     page-break-after: always !important;
   }
+
   .page :global([data-no-print="true"]),
   .page :global([data-html2canvas-ignore="true"]),
   .page :global([data-pdf-ignore="true"]) {
@@ -129,6 +131,16 @@
   background-color: #82acd9;
   z-index: 0;
   pointer-events: none;
+}
+
+.decorationCornerSeams {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* --- Content Wrapper (Exact measured margins from reference Europass: L: 26.08pt/9.2mm, R: 25.24pt/8.9mm, T: 20.66pt/7.3mm, B: 31.75pt/11.2mm) -- */
@@ -216,8 +228,8 @@
   height: 100%;
   border-radius: 50%;
   overflow: hidden;
-  border: 2.5px solid #c0c0c0;
-  box-shadow: 0 0 0 1px #e4e4e4;
+  border: 2px solid #d4d4d8;
+  box-shadow: none;
   background-color: #f5f5f5;
   display: flex;
   align-items: center;
@@ -247,14 +259,11 @@
 }
 
 .subjectName {
-  /* Enlarged to match reference — name is prominent */
-  font-size: 17pt;
+  font-size: 18.5pt;
   font-weight: 700;
   color: #0c56a5;
-  line-height: 1.25;
-  /* Spacing between name and personal details rows */
-  margin: 0 0 1.8mm 0;
-  /* Reserve 54mm on the right so the name never runs under the logo */
+  line-height: 1.2;
+  margin: 0 0 1.4mm 0;
   padding-right: 54mm;
   letter-spacing: 0.1px;
 }
@@ -276,6 +285,52 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4.5mm;
+}
+
+/* Combined row for phone and email on one line matching official Europass */
+.identityContactCombinedRow {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 5.2mm;
+  /* ~19.5px gap between Phone and Email groups */
+  row-gap: 1.2mm;
+  width: 100%;
+  min-width: 0;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.identityContactItem {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.2mm;
+  /* ~4.5px gap between icon and label matching official Europass */
+  min-width: 0;
+  line-height: normal;
+}
+
+.contactIconBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5mm;
+  /* ~13.2px */
+  height: 3.5mm;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  /* Optical alignment: vertically centers the glyph with the Open Sans cap-height */
+  transform: translateY(0.5px);
+}
+
+.contactIconGlyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: #0c56a5;
 }
 
 /* Rows with icons — icon on left, text group on right with alignment to line 1 */
@@ -359,8 +414,8 @@
   color: #0c56a5;
   text-decoration: underline;
   text-decoration-color: #0c56a5;
-  text-decoration-thickness: 0.55pt;
-  text-underline-offset: 2.2px;
+  text-decoration-thickness: 0.75pt;
+  text-underline-offset: 2.0px;
   cursor: pointer;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -380,15 +435,22 @@
   margin-bottom: 0;
 }
 
-.pageContent > .sectionWrapper:first-child,
-.pageContent > div:first-child > .sectionWrapper,
-.pageContent > div:first-child .sectionWrapper {
+.pageContent>.sectionWrapper:first-child,
+.pageContent>div:first-child>.sectionWrapper,
+.pageContent>div:first-child .sectionWrapper {
   margin-top: 0;
 }
 
 .sectionHeadingRow {
   margin-bottom: 0;
   display: block;
+  width: 100%;
+}
+
+.sectionTitleBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
 }
 
@@ -402,11 +464,178 @@
   line-height: 1.25;
 }
 
+.addSectionEntryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid #bfdbfe;
+  background-color: #f0f7ff;
+  color: #0c56a5;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  padding: 0;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.addSectionEntryBtn:hover {
+  background-color: #0c56a5;
+  color: #ffffff;
+  border-color: #0c56a5;
+  transform: scale(1.06);
+}
+
+.inlineEditorContainer {
+  margin: 6px 0 10px 0;
+  padding: 10px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.inlineFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 12px;
+}
+
+.inlineFormFieldFull {
+  grid-column: span 2;
+}
+
+.inlineFormLabel {
+  display: block;
+  font-size: 8pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  color: #475569;
+  margin-bottom: 3px;
+}
+
+.inlineFormInput {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 9pt;
+  color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 5px 8px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inlineFormInput:focus {
+  border-color: #0c56a5;
+  box-shadow: 0 0 0 2px rgba(12, 86, 165, 0.15);
+}
+
+.inlineFormTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 9pt;
+  color: #0f172a;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 6px 8px;
+  outline: none;
+  min-height: 52px;
+  resize: vertical;
+  line-height: 1.4;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.inlineFormTextarea:focus {
+  border-color: #0c56a5;
+  box-shadow: 0 0 0 2px rgba(12, 86, 165, 0.15);
+}
+
+.inlineFormFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.inlineFormBtnGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inlineFormSaveBtn {
+  background-color: #0c56a5;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 14px;
+  font-size: 9pt;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.inlineFormSaveBtn:hover:not(:disabled) {
+  background-color: #094482;
+}
+
+.inlineFormSaveBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inlineFormCancelBtn {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 9pt;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.inlineFormCancelBtn:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.inlineFormDeleteBtn {
+  background: transparent;
+  color: #dc2626;
+  border: none;
+  font-size: 8.5pt;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  transition: background-color 0.15s ease;
+}
+
+.inlineFormDeleteBtn:hover {
+  background-color: #fef2f2;
+  text-decoration: underline;
+}
+
 .sectionDivider {
-  height: 0.75pt;
+  height: 1px;
   background-color: #979797;
   width: 100%;
-  margin: 1.0mm 0 1.6mm 0;
+  margin: 3.5px 0 8px 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
@@ -737,7 +966,7 @@
   margin-bottom: 1.5mm;
 }
 
-.cefrGrid > * {
+.cefrGrid>* {
   margin-right: 6mm;
   margin-bottom: 1.5mm;
 }
@@ -748,7 +977,7 @@
   gap: 1.5mm;
 }
 
-.cefrItem > * + * {
+.cefrItem>*+* {
   margin-left: 1.5mm;
 }
 
