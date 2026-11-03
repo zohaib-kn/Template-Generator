@@ -824,7 +824,7 @@ export function getDocTypeMeta(docType?: string) {
 }
 
 export function DocumentStudioDashboard() {
-  const { students, selectStudent, selectedStudentData } = useGlobalStudent();
+  const { students, selectStudent, selectedStudentData, selectedStudentId } = useGlobalStudent();
 
   // Search & View State
   const [searchQuery, setSearchQuery] = useState("");
@@ -858,7 +858,42 @@ export function DocumentStudioDashboard() {
 
   // Modal State (2 clean dropdowns: student first, then doc type)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalStudentId, setModalStudentId] = useState<string>("sample-aafia-ameen");
+  const [lockedStudentId, setLockedStudentId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const sId = params.get("studentId") || params.get("student");
+      if (sId) return sId;
+      if (params.get("locked") === "1" || params.get("locked") === "true") {
+        return params.get("studentId") || params.get("student") || null;
+      }
+    }
+    return null;
+  });
+  const [modalStudentId, setModalStudentId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const sId = params.get("studentId") || params.get("student");
+      if (sId) return sId;
+    }
+    return "sample-aafia-ameen";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const sId = params.get("studentId") || params.get("student");
+      if (sId) {
+        setLockedStudentId(sId);
+        setModalStudentId(sId);
+      } else if (params.get("locked") === "1" || params.get("locked") === "true") {
+        const id = selectedStudentId || params.get("studentId") || params.get("student");
+        if (id) {
+          setLockedStudentId(id);
+          setModalStudentId(id);
+        }
+      }
+    }
+  }, [selectedStudentId]);
   const [modalDocType, setModalDocType] = useState<"COVER_LETTER" | "SOP" | "CV" | "LOR" | "BLANK">("COVER_LETTER");
 
   // Roster State
@@ -1317,7 +1352,10 @@ export function DocumentStudioDashboard() {
       return () => clearTimeout(timer);
     }
 
-    fetch("/api/students/list")
+    const listUrl = lockedStudentId
+      ? `/api/students/list?studentId=${encodeURIComponent(lockedStudentId)}`
+      : "/api/students/list";
+    fetch(listUrl)
       .then((res) => res.json())
       .then((json) => {
         if (json.success && Array.isArray(json.students)) {
@@ -1330,7 +1368,7 @@ export function DocumentStudioDashboard() {
       .catch(() => {
         setRosterError("Could not load the CRM student roster. Only sample students are listed.");
       });
-  }, [students]);
+  }, [students, lockedStudentId]);
 
   // Auto-focus search input when student dropdown opens
   useEffect(() => {
@@ -4960,8 +4998,24 @@ export function DocumentStudioDashboard() {
   };
 
   const selectedStudent = useMemo(() => {
-    return studentRoster.find((s) => s.id === modalStudentId) || studentRoster[0];
-  }, [studentRoster, modalStudentId]);
+    const found = studentRoster.find((s) => s.id === modalStudentId);
+    if (found) return found;
+    if (selectedStudentData && (selectedStudentData._id === modalStudentId || selectedStudentData._id === lockedStudentId)) {
+      return {
+        id: selectedStudentData._id,
+        name: selectedStudentData.personal?.fullName || "Selected Student",
+        email: selectedStudentData.personal?.email || null,
+      };
+    }
+    if (lockedStudentId) {
+      return {
+        id: lockedStudentId,
+        name: selectedStudentData?.personal?.fullName || "Selected Student",
+        email: selectedStudentData?.personal?.email || null,
+      };
+    }
+    return studentRoster[0];
+  }, [studentRoster, modalStudentId, selectedStudentData, lockedStudentId]);
 
   const filteredStudentRoster = useMemo(() => {
     if (!studentSearchQuery.trim()) return studentRoster;
@@ -4985,7 +5039,11 @@ export function DocumentStudioDashboard() {
   // Open the creation modal
   const handleOpenModal = (presetDocType?: "COVER_LETTER" | "SOP" | "CV" | "LOR" | "BLANK") => {
     if (presetDocType) setModalDocType(presetDocType);
-    if (!modalStudentId && studentRoster[0]) setModalStudentId(studentRoster[0].id);
+    if (lockedStudentId) {
+      setModalStudentId(lockedStudentId);
+    } else if (!modalStudentId && studentRoster[0]) {
+      setModalStudentId(studentRoster[0].id);
+    }
     setIsStudentDropdownOpen(false);
     setIsDocTypeDropdownOpen(false);
     setIsModalOpen(true);
@@ -5648,7 +5706,36 @@ export function DocumentStudioDashboard() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Student Record
                 </label>
-                <button
+                {lockedStudentId ? (
+                  <div className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-left select-none">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="truncate font-semibold text-slate-800">
+                        {selectedStudent?.name || "Loading student..."}
+                        {selectedStudent?.email && (
+                          <span className="font-normal text-slate-500 ml-1.5">
+                            ({selectedStudent.email})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="inline-flex items-center text-[11px] font-semibold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded-md shrink-0 ml-2">
+                      <svg
+                        className="w-3 h-3 mr-1 text-slate-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Locked
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <button
                   type="button"
                   onClick={() => {
                     setIsStudentDropdownOpen(!isStudentDropdownOpen);
@@ -5744,6 +5831,8 @@ export function DocumentStudioDashboard() {
                       )}
                     </div>
                   </div>
+                )}
+                  </>
                 )}
               </div>
 

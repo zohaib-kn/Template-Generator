@@ -104,6 +104,10 @@ export async function GET(req: NextRequest) {
         email: s.email ?? null,
       }));
 
+    const requestedStudentId = req.nextUrl.searchParams.get("studentId")?.trim() || req.nextUrl.searchParams.get("student")?.trim();
+    if (requestedStudentId) {
+      students = students.filter((s) => s.id === requestedStudentId);
+    }
     // Sort alphabetically
     students.sort((a, b) => a.name.localeCompare(b.name));
 
