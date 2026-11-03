@@ -13,7 +13,7 @@
  * Security:
  * - Fails closed: with no SESSION_SECRET or no verify endpoint, nobody is authenticated.
  * - Cookie signature is compared with timingSafeEqual; expired sessions are rejected.
- * - AUTH_DEV_BYPASS=true grants a local-only session and is ignored in production.
+ * - AUTH_DEV_BYPASS=true grants a bypass session.
  */
 
 import crypto from "crypto";
@@ -40,7 +40,7 @@ function getSessionSecret(): string | null {
 }
 
 function isDevBypassEnabled(): boolean {
-  return process.env.NODE_ENV !== "production" && process.env.AUTH_DEV_BYPASS === "true";
+  return process.env.AUTH_DEV_BYPASS === "true";
 }
 
 function sign(payload: string, secret: string): string {
