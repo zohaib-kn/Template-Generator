@@ -824,7 +824,7 @@ export function getDocTypeMeta(docType?: string) {
 }
 
 export function DocumentStudioDashboard() {
-  const { students, selectStudent, selectedStudentData, selectedStudentId } = useGlobalStudent();
+  const { students, selectStudent, selectedStudentData, selectedStudentId, selectedStudentName } = useGlobalStudent();
 
   // Search & View State
   const [searchQuery, setSearchQuery] = useState("");
@@ -5000,22 +5000,24 @@ export function DocumentStudioDashboard() {
   const selectedStudent = useMemo(() => {
     const found = studentRoster.find((s) => s.id === modalStudentId);
     if (found) return found;
-    if (selectedStudentData && (selectedStudentData._id === modalStudentId || selectedStudentData._id === lockedStudentId)) {
+    if (selectedStudentData?.student && (selectedStudentData.student._id === modalStudentId || selectedStudentData.student._id === lockedStudentId)) {
+      const p = selectedStudentData.student.personalDetails;
+      const fullName = [p?.firstName, p?.middleName, p?.lastName].filter(Boolean).join(" ");
       return {
-        id: selectedStudentData._id,
-        name: selectedStudentData.personal?.fullName || "Selected Student",
-        email: selectedStudentData.personal?.email || null,
+        id: selectedStudentData.student._id || modalStudentId,
+        name: fullName || selectedStudentName || "Selected Student",
+        email: p?.email || null,
       };
     }
     if (lockedStudentId) {
       return {
         id: lockedStudentId,
-        name: selectedStudentData?.personal?.fullName || "Selected Student",
-        email: selectedStudentData?.personal?.email || null,
+        name: selectedStudentName || "Selected Student",
+        email: null,
       };
     }
     return studentRoster[0];
-  }, [studentRoster, modalStudentId, selectedStudentData, lockedStudentId]);
+  }, [studentRoster, modalStudentId, selectedStudentData, selectedStudentName, lockedStudentId]);
 
   const filteredStudentRoster = useMemo(() => {
     if (!studentSearchQuery.trim()) return studentRoster;
