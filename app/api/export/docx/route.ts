@@ -18,12 +18,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { attachmentDisposition, InvalidJsonError, readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
 import { buildCoverLetterLayout } from "@/lib/export/coverLetterLayout";
-import { buildEuropassParagraphs } from "@/lib/export/europassDocx";
+import { buildEuropassDocxElements, buildEuropassParagraphs } from "@/lib/export/europassDocx";
+import type { DocumentData } from "@/types/document";
 import { isAllowedExportFont, resolveExportFont } from "@/lib/export/fonts";
 import { parseHtmlToDocxParagraphs } from "@/lib/export/htmlToDocx";
 import {
   Document,
   Paragraph,
+  Table,
   TextRun,
   HeadingLevel,
   AlignmentType,
@@ -46,6 +48,7 @@ interface ExportDocxPayload {
   sections?: ExportDocxSection[];
   /** When present, the operator must have access to this student. */
   studentId?: string;
+  cvData?: DocumentData;
 }
 
 /**
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest) {
     if (body.sections !== undefined && (!Array.isArray(body.sections) || body.sections.length > MAX_SECTIONS)) {
       return NextResponse.json({ success: false, error: `sections must be an array of at most ${MAX_SECTIONS} items.` }, { status: 400 });
     }
-    const { title, studentName, documentType, fontFamily: requestedFont, html, sections } = body;
+    const { title, studentName, documentType, fontFamily: requestedFont, html, sections, cvData } = body;
     const isCoverLetter =
       documentType === "COVER_LETTER" ||
       documentType === "VISA_COVER_LETTER" ||
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
     const isCv = documentType === "CV";
     const defaultFont = resolveExportFont(requestedFont, isCv ? "Arial" : isCoverLetter ? "Calibri" : "Times New Roman");
 
-    const docChildren: Paragraph[] = [];
+    const docChildren: (Paragraph | Table)[] = [];
 
     const isSop =
       documentType === "SOP" ||
@@ -117,8 +120,14 @@ export async function POST(req: NextRequest) {
       (title ? title.toLowerCase().includes("statement of purpose") : false);
 
     // CV: rebuild the Europass structure from sections (the editor HTML is a flat view)
-    if (isCv && sections && Array.isArray(sections)) {
-      docChildren.push(...buildEuropassParagraphs(studentName || "", sections, defaultFont));
+    if (isCv && (sections || cvData)) {
+      const europassElements = await buildEuropassDocxElements(
+        studentName || "",
+        Array.isArray(sections) ? sections : [],
+        cvData,
+        defaultFont
+      );
+      docChildren.push(...europassElements);
     }
 
     // Option A: Use live HTML if passed and valid

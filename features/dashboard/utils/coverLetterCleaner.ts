@@ -1246,6 +1246,11 @@ export function parseDirectFieldInstruction(
     return null;
   }
 
+  // Guard 0.1: Narrative explanations (>15 words without key-value or set command) are not direct field assignments
+  if (t.split(/\s+/).length > 15 && !t.includes(":") && !t.includes("=") && !/^(?:add|set|update|change)\b/i.test(t)) {
+    return null;
+  }
+
   // 1. Guard against multi-field inputs
   const multi = parseMultiFieldInstruction(t);
   if (multi && multi.length >= 2) {
@@ -1339,7 +1344,7 @@ export function parseDirectFieldInstruction(
     [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:target\s*)?university\s*(?:is|to|=|:)?|(?:the\s*)?(?:target\s*)?university\s*(?:is|to|=|:))\s*(.+)/i, "destination.university", "Target University"],
 
     // Course / Programme
-    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:)?|(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:))\s*(.+)/i, "destination.course", "Degree Programme"],
+    [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:)?|^(?:the\s*)?(?:degree\s*programme|degree|course)\s*(?:is|to|=|:))\s*(.+)/i, "destination.course", "Degree Programme"],
 
     // Consulate / Embassy
     [/(?:(?:add|set|update|change)\s+(?:the\s*)?(?:italian\s*)?(?:consulate|embassy)\s*(?:is|to|=|:)?|(?:the\s*)?(?:italian\s*)?(?:consulate|embassy)\s*(?:is|to|=|:))\s*(.+)/i, "destination.consulate", "Italian Consulate / Embassy"],
@@ -1472,66 +1477,67 @@ export function updateCoverLetterSectionWithField(
   const updatedOverrides = { ...fieldOverrides, [fieldKey]: value };
 
   // Map fieldKey to the relevant section heading keyword
-  const fieldToSectionHeading: Record<string, string> = {
-    "destination.consulate": "recipient",
-    "destination.consulateAddress": "recipient",
-    "destination.course": "subject",
-    "destination.university": "subject",
-    "student.city": "student introduction",
-    "student.country": "student introduction",
-    "student.fullName": "student introduction",
-    "student.nationality": "student introduction",
-    "academics.subjects": "academic background",
-    "academics.latestQualification": "academic background",
-    "academics.institution": "academic background",
-    "academics.board": "academic background",
-    "academics.completionYear": "academic background",
-    "tests.ielts.overall": "academic background",
-    "family.count": "academic background",
-    "family.fatherOccupation": "academic background",
-    "family.motherOccupation": "academic background",
-    "family.siblingText": "academic background",
-    "student.languages": "academic background",
-    "academics.favoriteSubjects": "why this course",
-    "destination.courseDisciplines": "why this course",
-    "destination.universityHistory": "why this university",
-    "destination.distinguishedScholars": "why this university",
-    "destination.masterSpecialization": "future academic plan",
-    "student.returnFamilyReason": "return / home country intent",
-    "finance.educationLoanAmount": "financial sponsorship",
-    "finance.loanProvider": "financial sponsorship",
-    "finance.disbursedAmount": "financial sponsorship",
-    "finance.bankAccount": "financial sponsorship",
-    "finance.statementDate": "financial sponsorship",
-    "finance.availableBalance": "financial sponsorship",
-    "finance.availableBalanceEur": "financial sponsorship",
-    "finance.exchangeRate": "financial sponsorship",
-    "finance.netWorth": "financial sponsorship",
-    "finance.itrYears": "financial sponsorship",
-    "sponsor.name": "financial sponsorship",
-    "sponsor.relationship": "financial sponsorship",
-    "accommodation.nameAndAddress": "accommodation",
-    "accommodation.fromDate": "accommodation",
-    "accommodation.toDate": "accommodation",
-    "insurance.policyType": "insurance",
-    "insurance.policyNumber": "insurance",
-    "insurance.fromDate": "insurance",
-    "insurance.toDate": "insurance",
-    "travel.airline": "travel arrangements",
-    "travel.origin": "travel arrangements",
-    "travel.destination": "travel arrangements",
-    "travel.transit": "travel arrangements",
-    "travel.travelDate": "travel arrangements",
-    "travel.pnr": "travel arrangements",
-    "student.email": "signature",
-    "student.phone": "signature",
+  const fieldToSectionKeywords: Record<string, string[]> = {
+    "destination.consulate": ["recipient"],
+    "destination.consulateAddress": ["recipient"],
+    "destination.course": ["subject", "why this course", "why this university"],
+    "destination.university": ["subject", "why this university", "why italy"],
+    "student.city": ["student introduction"],
+    "student.country": ["student introduction"],
+    "student.fullName": ["student introduction"],
+    "student.nationality": ["student introduction"],
+    "academics.subjects": ["academic background"],
+    "academics.latestQualification": ["academic background"],
+    "academics.institution": ["academic background"],
+    "academics.board": ["academic background"],
+    "academics.completionYear": ["academic background"],
+    "tests.ielts.overall": ["academic background"],
+    "family.count": ["academic background"],
+    "family.fatherOccupation": ["academic background"],
+    "family.motherOccupation": ["academic background"],
+    "family.siblingText": ["academic background"],
+    "student.languages": ["academic background"],
+    "academics.favoriteSubjects": ["why this course"],
+    "destination.courseDisciplines": ["why this course"],
+    "destination.universityHistory": ["why this university"],
+    "destination.distinguishedScholars": ["why this university"],
+    "destination.masterSpecialization": ["future academic plan"],
+    "student.returnFamilyReason": ["return / home country intent"],
+    "finance.educationLoanAmount": ["financial sponsorship"],
+    "finance.loanProvider": ["financial sponsorship"],
+    "finance.disbursedAmount": ["financial sponsorship"],
+    "finance.bankAccount": ["financial sponsorship"],
+    "finance.statementDate": ["financial sponsorship"],
+    "finance.availableBalance": ["financial sponsorship"],
+    "finance.availableBalanceEur": ["financial sponsorship"],
+    "finance.exchangeRate": ["financial sponsorship"],
+    "finance.netWorth": ["financial sponsorship"],
+    "finance.itrYears": ["financial sponsorship"],
+    "sponsor.name": ["financial sponsorship"],
+    "sponsor.relationship": ["financial sponsorship"],
+    "accommodation.nameAndAddress": ["accommodation"],
+    "accommodation.fromDate": ["accommodation"],
+    "accommodation.toDate": ["accommodation"],
+    "insurance.policyType": ["insurance"],
+    "insurance.policyNumber": ["insurance"],
+    "insurance.fromDate": ["insurance"],
+    "insurance.toDate": ["insurance"],
+    "travel.airline": ["travel arrangements"],
+    "travel.origin": ["travel arrangements"],
+    "travel.destination": ["travel arrangements"],
+    "travel.transit": ["travel arrangements"],
+    "travel.travelDate": ["travel arrangements"],
+    "travel.pnr": ["travel arrangements"],
+    "student.email": ["signature"],
+    "student.phone": ["signature"],
   };
 
-  const targetSectionKeyword = fieldToSectionHeading[fieldKey]?.toLowerCase() || "";
+  const targetKeywords = (fieldToSectionKeywords[fieldKey] || []).map((k) => k.toLowerCase());
 
   return sections.map((sec) => {
     const headingLower = sec.heading.toLowerCase();
-    if (!targetSectionKeyword || !headingLower.includes(targetSectionKeyword)) {
+    const isTargetSection = targetKeywords.some((k) => headingLower.includes(k));
+    if (!isTargetSection) {
       return sec;
     }
 
@@ -1549,6 +1555,8 @@ export function updateCoverLetterSectionWithField(
       newContent = renderCleanWhyCourse(ctx, updatedOverrides);
     } else if (headingLower.includes("why this university")) {
       newContent = renderCleanWhyUniversity(ctx, updatedOverrides);
+    } else if (headingLower.includes("why italy") || headingLower.includes("country")) {
+      newContent = renderCleanWhyItaly(ctx, updatedOverrides);
     } else if (headingLower.includes("future academic")) {
       newContent = renderCleanFuturePlan(ctx, updatedOverrides);
     } else if (headingLower.includes("return")) {

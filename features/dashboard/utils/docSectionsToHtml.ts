@@ -33,10 +33,10 @@ export function docSectionsToHtml(
     const headerHtml = `<div style="text-align: center; margin-bottom: 12px;"><span style="font-size: 8.5pt; font-weight: bold; text-decoration: underline; letter-spacing: 0.05em;">COVER LETTER</span></div>`;
 
     const recipientHtml = recipient
-      ? `<div style="text-align: left; margin-bottom: 11px; line-height: 1.25; white-space: pre-line;">${fmt(recipient)}</div>`
+      ? `<div style="margin-bottom: 11px; line-height: 1.25; white-space: pre-line;">${fmt(recipient)}</div>`
       : "";
     const subjectHtml = subject
-      ? `<div style="text-align: left; margin-bottom: 11px; font-weight: bold; line-height: 1.25;">${fmt(subject)}</div>`
+      ? `<div style="margin-bottom: 11px; font-weight: bold; line-height: 1.25;">${fmt(subject)}</div>`
       : "";
 
     // Master 8 paragraphs (intro+academics, course, university, country, plans+return,

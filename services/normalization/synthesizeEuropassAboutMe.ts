@@ -68,7 +68,6 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
   if (/^[A-Z\s]+$/.test(fullName) && fullName.length > 3) {
     fullName = fullName.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
   }
-  const salutation = getSalutation(p?.gender);
 
   // 1. Identify primary degree qualification
   const degreeQuals = (profile.academics?.qualifications ?? []).filter(
@@ -86,7 +85,6 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
   }
 
   const degreeName = primaryQual.qualification?.trim() || "Bachelor's Degree";
-
   const institution = cleanInstitution(primaryQual?.institution);
   const city = primaryQual?.city ? `, ${primaryQual.city.trim()}` : "";
   const field = primaryQual?.fieldOfStudy?.trim();
@@ -94,7 +92,7 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
     ? `, with a specialization in ${field}`
     : "";
 
-  // 2. Academic score metric (stated as recorded, without superlatives)
+  // 2. Academic score metric
   let gradePhrase = "";
   const score = primaryQual?.score?.trim();
   const system = primaryQual?.gradingSystem?.trim();
@@ -109,13 +107,54 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
     }
   }
 
-  // 3. Target programme / domain
+  // 3. School qualification (12th grade / Senior Secondary)
+  const schoolQual = (profile.academics?.qualifications ?? []).find((q) =>
+    isSchoolLevel(q.levelOfStudy, q.qualification)
+  );
+  let schoolPhrase = "";
+  if (schoolQual && (schoolQual.institution || schoolQual.score)) {
+    const schoolScore = schoolQual.score?.trim() ? ` with ${schoolQual.score.trim()}` : "";
+    const schoolInst = schoolQual.institution?.trim() ? ` from ${schoolQual.institution.trim()}` : "";
+    const schoolLevel = schoolQual.levelOfStudy?.includes("12") || schoolQual.qualification?.includes("12")
+      ? "Senior Secondary education (Class 12th)"
+      : "secondary education";
+    schoolPhrase = `I completed my ${schoolLevel}${schoolInst}${schoolScore}.`;
+  }
+
+  // 4. Professional work experience overview
+  let expPhrase = "";
+  if (profile.workExperience && profile.workExperience.length > 0) {
+    const roles = profile.workExperience.map((w) => w.position).filter(Boolean);
+    if (roles.length > 0) {
+      expPhrase = `I have professional experience in ${roles.slice(0, 3).join(", ")}.`;
+    }
+  }
+
+  // 5. Skills
+  let skillsPhrase = "";
+  if (profile.skills && profile.skills.length > 0) {
+    skillsPhrase = `My skills include ${profile.skills.slice(0, 6).join(", ")}.`;
+  }
+
+  // 6. Languages
+  let langPhrase = "";
+  if (profile.languages && profile.languages.length > 0) {
+    const langs = profile.languages.map((l) => l.language).filter(Boolean);
+    if (langs.length > 0) {
+      langPhrase = `I also have language proficiency in ${langs.join(", ")}.`;
+    }
+  }
+
+  // 7. Target programme / career goal
   const activeProg = profile.applications?.activeProgram;
   const targetCourse = activeProg?.course?.trim();
   const targetUniversity = activeProg?.university?.trim();
   const targetDomain = deriveDomain(activeProg?.course, degreeName, field);
 
-  const intro = `I am ${salutation}${fullName}.`;
+  const birthplace = (p as any)?.cityOfBirth || (p as any)?.placeOfBirth;
+  const intro = birthplace
+    ? `My name is ${fullName}, and I am from ${birthplace}.`
+    : `My name is ${fullName}.`;
   const academic = `I completed my ${degreeName}${specialization} at ${institution}${city}.`;
   const goal = targetCourse
     ? `I am applying to pursue ${targetCourse}${targetUniversity ? ` at ${targetUniversity}` : ""} to build my expertise in ${targetDomain || "this field"}.`
@@ -123,5 +162,5 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
     ? `I aim to build my career in ${targetDomain}.`
     : "";
 
-  return [intro, academic, gradePhrase, goal].filter(Boolean).join(" ");
+  return [intro, academic, gradePhrase, schoolPhrase, expPhrase, skillsPhrase, langPhrase, goal].filter(Boolean).join(" ");
 }
