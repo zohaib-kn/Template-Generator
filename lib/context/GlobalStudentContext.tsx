@@ -202,7 +202,12 @@ export function GlobalStudentProvider({ children }: { children: ReactNode }) {
   const fetchStudentList = useCallback(async () => {
     setListStatus({ kind: "loading" });
     try {
-      const res = await fetch("/api/students/list", {
+      const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const urlStudentId = urlParams?.get("studentId") || urlParams?.get("student");
+      const endpoint = urlStudentId
+        ? `/api/students/list?studentId=${encodeURIComponent(urlStudentId)}`
+        : "/api/students/list";
+      const res = await fetch(endpoint, {
         headers: { Accept: "application/json" },
       });
       const json = await res.json();
