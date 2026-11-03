@@ -1513,7 +1513,7 @@ export function EuropassTemplate({
       {currentPages.map((pageItems, pIdx) => {
         const pageNumber = pIdx + 1;
         return (
-          <EuropassPage key={pageNumber} pageNumber={pageNumber}>
+          <EuropassPage key={pageNumber} pageNumber={pageNumber} isInteractive={isInteractive}>
             {pageNumber === 1 && (
               isInteractive ? (
                 <ResumeInteractiveSection

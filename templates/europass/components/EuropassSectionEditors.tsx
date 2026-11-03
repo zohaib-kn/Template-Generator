@@ -346,6 +346,15 @@ export function LanguageInlineForm({
   const [spokenProduction, setSpokenProduction] = useState(initialData?.spokenProduction || "");
   const [spokenInteraction, setSpokenInteraction] = useState(initialData?.spokenInteraction || "");
 
+  const hasInitialCefr = Boolean(
+    initialData?.listening ||
+    initialData?.reading ||
+    initialData?.writing ||
+    initialData?.spokenProduction ||
+    initialData?.spokenInteraction
+  );
+  const [showCefrDetails, setShowCefrDetails] = useState(hasInitialCefr);
+
   const canSave = Boolean(language.trim());
 
   const handleSave = () => {
@@ -359,6 +368,15 @@ export function LanguageInlineForm({
       spokenProduction: spokenProduction.trim(),
       spokenInteraction: spokenInteraction.trim(),
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (canSave) {
+        handleSave();
+      }
+    }
   };
 
   return (
@@ -377,6 +395,7 @@ export function LanguageInlineForm({
             className={styles.inlineFormInput}
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="e.g. German, French, Spanish"
             autoFocus
           />
@@ -388,60 +407,84 @@ export function LanguageInlineForm({
             className={styles.inlineFormInput}
             value={level}
             onChange={(e) => setLevel(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="e.g. B2, C1, Fluent, Intermediate"
           />
         </div>
-        <div>
-          <label className={styles.inlineFormLabel}>Listening (CEFR)</label>
-          <input
-            type="text"
-            className={styles.inlineFormInput}
-            value={listening}
-            onChange={(e) => setListening(e.target.value)}
-            placeholder="e.g. B2 or C1"
-          />
-        </div>
-        <div>
-          <label className={styles.inlineFormLabel}>Reading (CEFR)</label>
-          <input
-            type="text"
-            className={styles.inlineFormInput}
-            value={reading}
-            onChange={(e) => setReading(e.target.value)}
-            placeholder="e.g. B2 or C1"
-          />
-        </div>
-        <div>
-          <label className={styles.inlineFormLabel}>Writing (CEFR)</label>
-          <input
-            type="text"
-            className={styles.inlineFormInput}
-            value={writing}
-            onChange={(e) => setWriting(e.target.value)}
-            placeholder="e.g. B2 or C1"
-          />
-        </div>
-        <div>
-          <label className={styles.inlineFormLabel}>Spoken Interaction</label>
-          <input
-            type="text"
-            className={styles.inlineFormInput}
-            value={spokenInteraction}
-            onChange={(e) => setSpokenInteraction(e.target.value)}
-            placeholder="e.g. B2 or C1"
-          />
-        </div>
-        <div className={styles.inlineFormFieldFull}>
-          <label className={styles.inlineFormLabel}>Spoken Production</label>
-          <input
-            type="text"
-            className={styles.inlineFormInput}
-            value={spokenProduction}
-            onChange={(e) => setSpokenProduction(e.target.value)}
-            placeholder="e.g. B2 or C1"
-          />
-        </div>
       </div>
+
+      <div style={{ marginTop: "6px" }}>
+        <button
+          type="button"
+          onClick={() => setShowCefrDetails(!showCefrDetails)}
+          className={styles.cefrToggleBtn}
+        >
+          {showCefrDetails
+            ? "− Hide detailed CEFR sub-skills"
+            : "+ Add detailed CEFR sub-skills (Listening, Reading, Writing, Speaking)"}
+        </button>
+      </div>
+
+      {showCefrDetails && (
+        <div className={styles.inlineFormGrid} style={{ marginTop: "8px" }}>
+          <div>
+            <label className={styles.inlineFormLabel}>Listening (CEFR)</label>
+            <input
+              type="text"
+              className={styles.inlineFormInput}
+              value={listening}
+              onChange={(e) => setListening(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. B2 or C1"
+            />
+          </div>
+          <div>
+            <label className={styles.inlineFormLabel}>Reading (CEFR)</label>
+            <input
+              type="text"
+              className={styles.inlineFormInput}
+              value={reading}
+              onChange={(e) => setReading(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. B2 or C1"
+            />
+          </div>
+          <div>
+            <label className={styles.inlineFormLabel}>Writing (CEFR)</label>
+            <input
+              type="text"
+              className={styles.inlineFormInput}
+              value={writing}
+              onChange={(e) => setWriting(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. B2 or C1"
+            />
+          </div>
+          <div>
+            <label className={styles.inlineFormLabel}>Spoken Interaction</label>
+            <input
+              type="text"
+              className={styles.inlineFormInput}
+              value={spokenInteraction}
+              onChange={(e) => setSpokenInteraction(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. B2 or C1"
+            />
+          </div>
+          <div className={styles.inlineFormFieldFull}>
+            <label className={styles.inlineFormLabel}>Spoken Production</label>
+            <input
+              type="text"
+              className={styles.inlineFormInput}
+              value={spokenProduction}
+              onChange={(e) => setSpokenProduction(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="e.g. B2 or C1"
+            />
+          </div>
+        </div>
+      )}
+
       <FormFooter
         onSave={handleSave}
         onCancel={onCancel}

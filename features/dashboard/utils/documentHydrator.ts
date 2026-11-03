@@ -404,6 +404,14 @@ export function hydrateDocumentFromSnapshot(
             .join("\n")
         : "";
 
+    const achievementsContent =
+      resumeStudent?.achievements && resumeStudent.achievements.length > 0
+        ? resumeStudent.achievements
+            .map((a) => (a.description ? `• ${a.title ? `${a.title}: ` : ""}${a.description}` : a.title ? `• ${a.title}` : ""))
+            .filter(Boolean)
+            .join("\n")
+        : "";
+
     const skillsContent =
       resumeStudent?.skills && resumeStudent.skills.length > 0
         ? resumeStudent.skills.map((s) => s.name).filter(Boolean).join(" / ")
@@ -421,6 +429,8 @@ export function hydrateDocumentFromSnapshot(
       {
         heading: "WORK EXPERIENCE",
         content: workExperienceContent,
+      ...(achievementsContent ? [{ heading: "ACHIEVEMENTS & AWARDS", content: achievementsContent }] : []),
+
       },
       {
         heading: "LANGUAGE SKILLS",

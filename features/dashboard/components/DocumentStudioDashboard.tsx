@@ -1,5 +1,11 @@
 "use client";
 
+import { parseDirectCvSectionInstruction } from "../utils/cvDirectSectionParser";
+import {
+  syncCoverLetterHtmlToSections,
+  updateLiveCoverLetterHtml,
+} from "../utils/coverLetterHtmlSync";
+
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useGlobalStudent } from "@/lib/context/GlobalStudentContext";
@@ -44,6 +50,7 @@ import { processCvChatInstruction, isValidSkillNoun } from "../utils/cvChatInten
 import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
 import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
 import { docSectionsToHtml } from "../utils/docSectionsToHtml";
+import { parseLanguageSkillsInput } from "../utils/languageSkillsParser";
 import {
   processUnifiedMessage,
   type AssistantDiagnostic,
@@ -572,9 +579,9 @@ export const CV_SECTION_PROMPTS: Record<string, CvSectionPromptDef> = {
     sectionKey: "languageSkills",
     label: "Language Skills",
     heading: "LANGUAGE SKILLS",
-    createQuestion: "Which languages and proficiency levels should we add for {studentName}? (e.g. Italian B1, English Fluent, Mother tongue Hindi)",
+    createQuestion: "Which languages should we add for {studentName}? (e.g. Mother tongue: Hindi, Other: German, French, Tamil)",
     updateQuestion: "What additional languages and proficiency levels should we add for {studentName}?",
-    placeholder: "e.g. Italian (B1), English (Fluent), Mother tongue Hindi...",
+    placeholder: "e.g. Mother tongue Hindi\nOther languages: German, French, Tamil...",
   },
   "ABOUT ME": {
     sectionKey: "aboutMe",
@@ -677,137 +684,8 @@ export const CV_SECTION_MENU_OPTIONS = [
   { key: "customSection", heading: "CUSTOM SECTION", label: "Blank Custom Section", icon: "➕" },
 ];
 
-export function parseDirectCvSectionInstruction(prompt: string): {
-  heading: string;
-  sectionKey: string;
-  label: string;
-  content: string;
-} | null {
-  const p = prompt.trim();
+export { parseDirectCvSectionInstruction };
 
-  // Guard: Never treat enhancement, rephrasing, humanizing, About Me directives, or deletion commands as adding a section
-  if (
-    /^(?:enhance|improve|polish|humanize|rephrase|rewrite|make|delete|remove|clear|drop)\b/i.test(p) ||
-    /^(?:in|for|to|on)\s+(?:my\s+)?(?:about\s+me|summary|profile|bio)\b/i.test(p) ||
-    /\b(?:about\s+me|summary|profile)\b/i.test(p)
-  ) {
-    return null;
-  }
-
-  // Structured key-value Work Experience (even without "Add work experience")
-  if (
-    /(?:position|job\s*title|role)\s*[:=-]/i.test(p) &&
-    /(?:company|employer|organization)\s*[:=-]/i.test(p)
-  ) {
-    return {
-      heading: "WORK EXPERIENCE",
-      sectionKey: "workExperience",
-      label: "Work Experience",
-      content: p,
-    };
-  }
-
-  // Hobbies: e.g. "Add hobbies Gym, Reading, Writing", "Hobbies: Gym, Reading", "My hobbies are Gym, Reading"
-  const hobbyMatch = p.match(/^(?:add|set|my)?\s*hobbies(?:\s*and\s*interests)?\s*(?:are|is|to|:|-)?\s*(.+)$/i);
-  if (hobbyMatch && hobbyMatch[1].trim()) {
-    return {
-      heading: "HOBBIES AND INTERESTS",
-      sectionKey: "hobbies",
-      label: "Hobbies",
-      content: hobbyMatch[1].trim(),
-    };
-  }
-
-  // Skills: e.g. "Add skills Python, React, Next.js", "Skills: Python, SQL"
-  const skillsMatch = p.match(/^(?:add|set)?\s*(?:technical\s*|digital\s*)?skills\s*(?:are|is|to|:|-)?\s*(.+)$/i);
-  if (skillsMatch && skillsMatch[1].trim() && !/\b(?:about\s+me|summary|as\s+well|in\s+my)\b/i.test(skillsMatch[1])) {
-    return {
-      heading: "DIGITAL SKILLS",
-      sectionKey: "skills",
-      label: "Technical Skills",
-      content: skillsMatch[1].trim(),
-    };
-  }
-
-  // Certifications: e.g. "Add certification AWS Solutions Architect - Amazon, 2024"
-  const certMatch = p.match(/^(?:add|set)?\s*certifications?\s*(?:are|is|to|:|-)?\s*(.+)$/i);
-  if (certMatch && certMatch[1].trim()) {
-    return {
-      heading: "CERTIFICATIONS",
-      sectionKey: "certifications",
-      label: "Certifications",
-      content: certMatch[1].trim(),
-    };
-  }
-
-  // English Certificate / IELTS: e.g. "Add IELTS score 7.5, TRF 26IA004123"
-  const ieltsMatch = p.match(/^(?:add|set)?\s*(?:ielts|english\s*certificate|english\s*score)\s*(?:are|is|to|:|-)?\s*(.+)$/i);
-  if (ieltsMatch && ieltsMatch[1].trim()) {
-    return {
-      heading: "ENGLISH LANGUAGE CERTIFICATE",
-      sectionKey: "englishCertificate",
-      label: "English Certificate (IELTS)",
-      content: ieltsMatch[1].trim(),
-    };
-  }
-
-  // Work Experience / Internships: e.g. "Add work experience Software Engineer Intern at ABC Tech"
-  const workMatch = p.match(/^(?:add|set)?\s*(?:work\s*experience|internship|job)\s*(?:is|to|:|-)?\s*(.+)$/i);
-  if (workMatch && workMatch[1].trim()) {
-    return {
-      heading: "WORK EXPERIENCE",
-      sectionKey: "workExperience",
-      label: "Work Experience",
-      content: workMatch[1].trim(),
-    };
-  }
-
-  // Education: e.g. "Add education B.Tech in CS, University of Cassino"
-  const eduMatch = p.match(/^(?:add|set)?\s*(?:education|degree|qualification)\s*(?:is|to|:|-)?\s*(.+)$/i);
-  if (eduMatch && eduMatch[1].trim()) {
-    return {
-      heading: "EDUCATION AND TRAINING",
-      sectionKey: "education",
-      label: "Education",
-      content: eduMatch[1].trim(),
-    };
-  }
-
-  // Training: e.g. "Add training Full-Stack Web Development Bootcamp"
-  const trainMatch = p.match(/^(?:add|set)?\s*(?:training|workshop)\s*(?:is|to|:|-)?\s*(.+)$/i);
-  if (trainMatch && trainMatch[1].trim()) {
-    return {
-      heading: "TRAINING AND WORKSHOPS",
-      sectionKey: "training",
-      label: "Training",
-      content: trainMatch[1].trim(),
-    };
-  }
-
-  // Academic Projects: e.g. "Add project AI Resume Builder"
-  const projMatch = p.match(/^(?:add|set)?\s*(?:academic\s*project|project)\s*(?:is|to|:|-)?\s*(.+)$/i);
-  if (projMatch && projMatch[1].trim()) {
-    return {
-      heading: "ACADEMIC PROJECTS",
-      sectionKey: "academicProjects",
-      label: "Academic Projects",
-      content: projMatch[1].trim(),
-    };
-  }
-
-  // Responsibilities / Leadership: e.g. "Add responsibility Student Council President"
-  const respMatch = p.match(/^(?:add|set)?\s*(?:leadership|responsibility|responsibilities|extracurricular)\s*(?:is|to|:|-)?\s*(.+)$/i);
-  if (respMatch && respMatch[1].trim()) {
-    return {
-      heading: "LEADERSHIP & RESPONSIBILITIES",
-      sectionKey: "responsibilities",
-      label: "Responsibilities",
-      content: respMatch[1].trim(),
-    };
-  }
-
-  return null;
-}
 
 
 
@@ -1988,7 +1866,11 @@ export function DocumentStudioDashboard() {
     setEditableDocContent(updated);
     syncDocumentToRecent(updated, "Edited just now");
 
-    const html = docSectionsToHtml(updated.sections, updated.docType, updated.title);
+    const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
+    const html =
+      editableDocContent?.docType === "COVER_LETTER" && currentLiveHtml
+        ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, updated.sections)
+        : docSectionsToHtml(updated.sections, updated.docType, updated.title);
     setTiptapHtml(html);
     if (tiptapEditor) {
       tiptapEditor.commands.setContent(html);
@@ -2251,7 +2133,7 @@ export function DocumentStudioDashboard() {
 
       for (const rawSentence of changedSentences) {
         const cleanSentence = (rawSentence || "").replace(/\*\*/g, "").replace(/\r?\n+/g, " ").trim();
-        if (cleanSentence.length < 5) continue;
+        if (cleanSentence.length < 2) continue;
 
         // Try exact sentence match first, then a 35-character signature snippet
         const snippet = cleanSentence.length > 35 ? cleanSentence.slice(0, 35) : cleanSentence;
@@ -2265,12 +2147,12 @@ export function DocumentStudioDashboard() {
 
               const target = text.includes(cleanSentence) ? cleanSentence : snippet;
               const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const rx = new RegExp(`(${escaped}[^.?!]*[.?!]?)`, "i");
+              const rx = new RegExp(`(${escaped}[^.?!<>]*[.?!]?)`, "i");
 
               if (rx.test(html)) {
                 el.innerHTML = html.replace(
                   rx,
-                  `<mark class="ai-sentence-highlight" style="background-color: #fef08a; color: inherit; padding: 1px 3px; border-radius: 2px;">$1</mark>`
+                  `<mark class="ai-sentence-highlight" style="background-color: transparent; text-decoration: underline; text-decoration-color: #16a34a; text-decoration-thickness: 1.5px; text-underline-offset: 3px; color: inherit;">$1</mark>`
                 );
                 if (!firstHighlightedEl) firstHighlightedEl = el;
                 break;
@@ -2279,7 +2161,7 @@ export function DocumentStudioDashboard() {
                 if (simpleRx.test(html)) {
                   el.innerHTML = html.replace(
                     simpleRx,
-                    `<mark class="ai-sentence-highlight" style="background-color: #fef08a; color: inherit; padding: 1px 3px; border-radius: 2px;">$1</mark>`
+                    `<mark class="ai-sentence-highlight" style="background-color: transparent; text-decoration: underline; text-decoration-color: #16a34a; text-decoration-thickness: 1.5px; text-underline-offset: 3px; color: inherit;">$1</mark>`
                   );
                   if (!firstHighlightedEl) firstHighlightedEl = el;
                   break;
@@ -3484,8 +3366,21 @@ export function DocumentStudioDashboard() {
       Boolean(anchor) ||
       /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?better|make\s+(?:it|this\s+)?(?:more\s+)?(?:professional|humanized|impactful)|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine)\b/i.test(trimmedPrompt);
 
+    // Direct CV section matcher or active CV section question flow (only if NOT an enhancement or in-place edit)
+    const directCvSectionMatch =
+      !isEnhanceOrRewrite && editableDocContent.docType === "CV"
+        ? parseDirectCvSectionInstruction(trimmedPrompt)
+        : null;
+    const activeSectionPrompt = activeCvSectionPrompt || (directCvSectionMatch ? {
+      heading: directCvSectionMatch.heading,
+      sectionKey: directCvSectionMatch.sectionKey,
+      label: directCvSectionMatch.label,
+      question: "",
+      placeholder: "",
+    } : null);
+
     // ── Unified Intelligent Admissions Assistant Engine (CV, Cover Letter, SOP) ──
-    if (!activeCvSectionPrompt && !activeFieldPrompt) {
+    if (!activeSectionPrompt && !activeFieldPrompt) {
       const userMsg: ChatMessage = {
         id: generateUniqueId("user"),
         sender: "user",
@@ -3603,7 +3498,11 @@ export function DocumentStudioDashboard() {
             setActiveDocument(updatedDoc);
             syncDocumentToRecent(updatedDoc, "Edited just now");
 
-            const newHtml = docSectionsToHtml(result.updatedSections, updatedDoc.docType, updatedDoc.title);
+            const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
+            const newHtml =
+              editableDocContent.docType === "COVER_LETTER" && currentLiveHtml
+                ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, result.updatedSections)
+                : docSectionsToHtml(result.updatedSections, updatedDoc.docType, updatedDoc.title);
             setTiptapHtml(newHtml);
             if (tiptapEditor) {
               tiptapEditor.commands.setContent(newHtml);
@@ -3673,19 +3572,6 @@ export function DocumentStudioDashboard() {
         }
       })(); return;
     }
-
-    // Direct CV section matcher or active CV section question flow (only if NOT an enhancement or in-place edit)
-    const directCvSectionMatch =
-      !isEnhanceOrRewrite && editableDocContent.docType === "CV"
-        ? parseDirectCvSectionInstruction(trimmedPrompt)
-        : null;
-    const activeSectionPrompt = activeCvSectionPrompt || (directCvSectionMatch ? {
-      heading: directCvSectionMatch.heading,
-      sectionKey: directCvSectionMatch.sectionKey,
-      label: directCvSectionMatch.label,
-      question: "",
-      placeholder: "",
-    } : null);
 
     // ── Dedicated CV Section Interactive & Direct Adder ───────────────────────
     if (editableDocContent.docType === "CV" && activeSectionPrompt) {
@@ -3904,8 +3790,17 @@ export function DocumentStudioDashboard() {
                 const lines = remaining.split(/\n+/).map((l) => l.trim()).filter(Boolean);
                 if (!role && lines[0]) role = lines[0];
                 if (!comp && lines[1]) comp = lines[1];
-                if (!loc && lines[2]) loc = lines[2];
-                if (!desc && lines.slice(3).length > 0) desc = lines.slice(3).join("\n");
+
+                // Check if line 2 is a bullet or description vs location
+                if (lines[2]) {
+                  const isBulletOrLong = /^[•\-*]/.test(lines[2]) || lines[2].length > 40;
+                  if (isBulletOrLong) {
+                    if (!desc) desc = lines.slice(2).join("\n");
+                  } else {
+                    if (!loc) loc = lines[2];
+                    if (!desc && lines.slice(3).length > 0) desc = lines.slice(3).join("\n");
+                  }
+                }
               }
             }
           }
@@ -4225,33 +4120,31 @@ export function DocumentStudioDashboard() {
         case "languageSkills":
         case "languages": {
           formattedSectionHeading = "LANGUAGE SKILLS";
-          const mtMatch = cleanAnswer.match(/(?:mother\s*tou?ngue|native(?:\s*language)?|mother\s*language)[:\s]+([^\n,;]+)/i);
-          const mt = mtMatch ? mtMatch[1].trim() : (updatedCv.motherTongue || "Hindi");
+          const parsed = parseLanguageSkillsInput(cleanAnswer, updatedCv.motherTongue);
+          const mt = parsed.motherTongue;
+          const otherLangs = parsed.otherLanguages;
 
-          const otherAnswer = cleanAnswer
-            .replace(/(?:mother\s*tou?ngue|native(?:\s*language)?|mother\s*language)[:\s]+[^\n,;]+/i, "")
-            .replace(/^(?:language\s*skills?|languages?)[:\s-]*/i, "")
-            .trim();
-
-          const otherLangs = otherAnswer
-            .split(/[,/•\n]+/)
-            .map((l) => l.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
-            .filter(Boolean);
+          const otherLangsSummary = otherLangs.map((l) => (l.level ? `${l.language} (${l.level})` : l.language));
 
           formattedContent = otherLangs.length > 0
-            ? `Mother tongue(s): ${mt}\nOther language(s): ${otherLangs.join(", ")}`
+            ? `Mother tongue(s): ${mt}\nOther language(s): ${otherLangsSummary.join(", ")}`
             : `Mother tongue(s): ${mt}`;
-          summaryText = `Mother tongue: ${mt}${otherLangs.length > 0 ? `, Other: ${otherLangs.join(", ")}` : ""}`;
+          summaryText = `Mother tongue: ${mt}${otherLangs.length > 0 ? `, Other: ${otherLangsSummary.join(", ")}` : ""}`;
 
           updatedCv.motherTongue = mt;
           if (otherLangs.length > 0) {
-            const existingLangs = updatedCv.languages || [];
-            const newLangEntries = otherLangs.map((lang, idx) => ({
+            const newLangEntries = otherLangs.map((l, idx) => ({
               id: `lang-${Date.now()}-${idx}`,
-              language: lang,
-              level: "Proficient",
+              language: l.language,
+              level: l.level || undefined,
             }));
-            updatedCv.languages = [...existingLangs, ...newLangEntries];
+
+            if (/^\s*(?:add|also|include)\b/i.test(cleanAnswer)) {
+              const existingLangs = updatedCv.languages || [];
+              updatedCv.languages = [...existingLangs, ...newLangEntries];
+            } else {
+              updatedCv.languages = newLangEntries;
+            }
           }
           break;
         }
@@ -4414,7 +4307,7 @@ export function DocumentStudioDashboard() {
       setActiveCvSectionPrompt(null);
 
       // Post Assistant confirmation
-      const isExisting = Boolean(activeSectionPrompt.isExisting || existingSectionIdx >= 0);
+      const isExisting = Boolean(('isExisting' in activeSectionPrompt && (activeSectionPrompt as any).isExisting) || existingSectionIdx >= 0);
       const assistantMsg: ChatMessage = {
         id: generateUniqueId("assistant-cv-section-success"),
         sender: "assistant",
@@ -4477,7 +4370,11 @@ export function DocumentStudioDashboard() {
 
         setEditableDocContent(updatedDoc);
         setActiveDocument(updatedDoc);
-        const newHtml = docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
+        const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
+        const newHtml =
+          editableDocContent.docType === "COVER_LETTER" && currentLiveHtml
+            ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, updatedSections)
+            : docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
         setTiptapHtml(newHtml);
         if (tiptapEditor) {
           tiptapEditor.commands.setContent(newHtml);
@@ -4485,6 +4382,14 @@ export function DocumentStudioDashboard() {
 
         syncDocumentToRecent(updatedDoc, "Edited just now");
         setActiveFieldPrompt(null);
+
+        // 8.5 Trigger green underline highlight & floating badge on the changed section
+        const changedSec = updatedSections.find((sec: any, idx: number) => {
+          const oldSec = editableDocContent?.sections[idx];
+          return !oldSec || oldSec.content !== sec.content;
+        });
+        const sectionNameToHighlight = changedSec ? changedSec.heading : (multiMatch[0]?.label || "Cover Letter");
+        highlightChangedSentenceInCanvas(sectionNameToHighlight, multiMatch[0]?.value || "");
 
         const bullets = multiMatch.map((m) => `• **${m.label}**: ${m.value}`).join("\n");
         const assistantMsg: ChatMessage = {
@@ -4578,6 +4483,14 @@ export function DocumentStudioDashboard() {
         syncDocumentToRecent(updatedDoc, "Edited just now");
         setActiveFieldPrompt(null);
 
+        // 8.5 Trigger green underline highlight & floating badge on the changed section
+        const changedSec = updatedSections.find((sec: any, idx: number) => {
+          const oldSec = editableDocContent?.sections[idx];
+          return !oldSec || oldSec.content !== sec.content;
+        });
+        const sectionNameToHighlight = changedSec ? changedSec.heading : (multiMatch[0]?.label || "Europass CV");
+        highlightChangedSentenceInCanvas(sectionNameToHighlight, multiMatch[0]?.value || "");
+
         const bullets = multiMatch.map((m) => `• **${m.label}**: ${m.value}`).join("\n");
         const assistantMsg: ChatMessage = {
           id: generateUniqueId("assistant-cv-multi-field"),
@@ -4654,7 +4567,11 @@ export function DocumentStudioDashboard() {
       // 6. Update document state & Tiptap editor
       setEditableDocContent(updatedDoc);
       setActiveDocument(updatedDoc);
-      const newHtml = docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
+      const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
+      const newHtml =
+        editableDocContent.docType === "COVER_LETTER" && currentLiveHtml
+          ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, updatedSections)
+          : docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
       setTiptapHtml(newHtml);
       if (tiptapEditor) {
         tiptapEditor.commands.setContent(newHtml);
@@ -4665,6 +4582,14 @@ export function DocumentStudioDashboard() {
 
       // 8. Clear active field prompt
       setActiveFieldPrompt(null);
+
+      // 8.5 Trigger green underline highlight & floating badge on the changed section
+      const changedSec = updatedSections.find((sec: any, idx: number) => {
+        const oldSec = editableDocContent.sections[idx];
+        return !oldSec || oldSec.content !== sec.content;
+      });
+      const sectionNameToHighlight = changedSec ? changedSec.heading : (targetFieldLabel || "Cover Letter");
+      highlightChangedSentenceInCanvas(sectionNameToHighlight, targetValue);
 
       // 9. Post AI assistant confirmation message
       const assistantMsg: ChatMessage = {
@@ -4743,6 +4668,9 @@ export function DocumentStudioDashboard() {
       syncDocumentToRecent(updatedDoc, "Edited just now");
       setActiveFieldPrompt(null);
 
+      // 8.5 Trigger green underline highlight & floating badge on the changed section
+      highlightChangedSentenceInCanvas(fieldConfirmedName, targetValue);
+
       const assistantMsg: ChatMessage = {
         id: generateUniqueId("assistant-cv-field"),
         sender: "assistant",
@@ -4772,7 +4700,20 @@ export function DocumentStudioDashboard() {
   const handleTiptapUpdate = (html: string, wordCount: number) => {
     setTiptapHtml(html);
     if (editableDocContent) {
-      setEditableDocContent((prev) => (prev ? { ...prev, wordCount, rawHtml: html } : prev));
+      const updatedSections =
+        editableDocContent.docType === "COVER_LETTER"
+          ? syncCoverLetterHtmlToSections(html, editableDocContent.sections)
+          : editableDocContent.sections;
+      setEditableDocContent((prev) =>
+        prev
+          ? {
+            ...prev,
+            wordCount,
+            rawHtml: html,
+            sections: updatedSections,
+          }
+          : prev
+      );
     }
   };
 
@@ -4839,6 +4780,18 @@ export function DocumentStudioDashboard() {
     setShowExportMenu(false);
     try {
       const liveHtml = tiptapEditor ? tiptapEditor.getHTML() : editableDocContent.rawHtml || tiptapHtml;
+      const isCv = editableDocContent.docType === "CV";
+      let activeCvPayload: DocumentData | undefined = undefined;
+      if (isCv) {
+        const baseCv =
+          cvDocumentData ||
+          getEuropassData(
+            editableDocContent.studentId,
+            editableDocContent.studentName,
+            selectedStudentData
+          );
+        activeCvPayload = syncSectionsToCvData(editableDocContent.sections, baseCv);
+      }
       const response = await fetch("/api/export/docx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -4849,6 +4802,7 @@ export function DocumentStudioDashboard() {
           documentType: editableDocContent.docType,
           fontFamily: fontFamilyLabel,
           html: liveHtml,
+          cvData: activeCvPayload,
           sections: editableDocContent.sections.map((s) => ({
             title: s.heading || "",
             content: s.content || "",
@@ -5647,8 +5601,8 @@ export function DocumentStudioDashboard() {
                           type="button"
                           onClick={() => setRecentDocsPage(Number(pNum))}
                           className={`w-7 h-7 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center ${isCurrent
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs"
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs"
                             }`}
                         >
                           {pNum}
@@ -6310,8 +6264,8 @@ export function DocumentStudioDashboard() {
                       type="button"
                       onClick={() => setIsChatHistoryOpen((prev) => !prev)}
                       className={`h-7.5 px-2 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shrink-0 ${isChatHistoryOpen
-                          ? "bg-slate-100 text-slate-900 font-semibold"
-                          : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                        ? "bg-slate-100 text-slate-900 font-semibold"
+                        : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
                         }`}
                       title="View chat history"
                     >
@@ -6359,8 +6313,8 @@ export function DocumentStudioDashboard() {
                                 key={sess.id}
                                 onClick={() => handleSwitchSession(sess.id)}
                                 className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition ${isCurrent
-                                    ? "bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold"
-                                    : "hover:bg-slate-50 text-slate-700"
+                                  ? "bg-indigo-50 border border-indigo-200 text-indigo-900 font-semibold"
+                                  : "hover:bg-slate-50 text-slate-700"
                                   }`}
                               >
                                 <div className="min-w-0 pr-2">
@@ -7058,7 +7012,7 @@ export function DocumentStudioDashboard() {
 
 
               {/* ── Document Section Manager & Customization Strip ── */}
-              {editableDocContent?.sections && editableDocContent.sections.length > 0 && (
+              {editableDocContent?.docType !== "COVER_LETTER" && editableDocContent?.sections && editableDocContent.sections.length > 0 && (
                 <div className="w-full max-w-[210mm] mx-auto mb-3 px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
                   <div className="flex items-center justify-between gap-2 min-h-[30px]">
                     {/* Collapsed/Expand Toggle and Summary */}
@@ -7357,7 +7311,11 @@ export function DocumentStudioDashboard() {
               {/* ── Minimal Sentence Highlighter Styles & Floating Badge ── */}
               <style>{`
                 .ai-sentence-highlight {
-                  background-color: #fef08a !important;
+                  background-color: transparent !important;
+                  text-decoration: underline !important;
+                  text-decoration-color: #16a34a !important;
+                  text-decoration-thickness: 1.5px !important;
+                  text-underline-offset: 3px !important;
                   color: inherit !important;
                   padding: 1px 3px !important;
                   border-radius: 2px !important;
@@ -7367,15 +7325,16 @@ export function DocumentStudioDashboard() {
                 @media print {
                   .ai-sentence-highlight {
                     background-color: transparent !important;
+                    text-decoration: none !important;
                   }
                 }
               `}</style>
 
               {activeAiHighlight && (
-                <div className="fixed top-20 right-8 z-40 flex items-center gap-2 px-3 py-1.5 bg-white/95 border border-amber-300 rounded-full shadow-md text-xs text-slate-800 animate-in fade-in select-none no-print">
+                <div className="fixed top-20 right-8 z-40 flex items-center gap-2 px-3 py-1.5 bg-white/95 border border-emerald-300 rounded-full shadow-md text-xs text-slate-800 animate-in fade-in select-none no-print">
                   <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
                   <span className="font-medium text-[11px]">
                     AI changed: <strong className="font-semibold text-slate-900">{activeAiHighlight.sectionName}</strong>
@@ -7772,3 +7731,81 @@ export function DocumentStudioDashboard() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

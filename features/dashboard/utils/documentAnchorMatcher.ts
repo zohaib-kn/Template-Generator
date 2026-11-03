@@ -46,6 +46,16 @@ export function normalizeSearchText(text: string): string {
 export function extractUserDirectiveAndSnippet(prompt: string): ExtractedDirective {
   const trimmed = prompt.trim();
 
+  // Guard: Adding new entries into a section is an add directive, not an in-place snippet replacement
+  const isAddDirective = /^(?:add|insert|append|put)\s*(?:this\s+)?(?:text\s+|entry\s+|content\s+)?([\s\S]+?)\s+\b(?:into|in|to)\b\s+(?:my\s+)?(?:work\s*experience|internship|education|training|academic\s*project|project|digital\s*skill|skill|hobby|hobbies|certif|language|volunteering|leadership|responsibilit)/i.test(trimmed);
+  if (isAddDirective) {
+    return {
+      directive: trimmed,
+      snippet: undefined,
+      isSnippetProvided: false,
+    };
+  }
+
   // Pattern 1: Directive prefix followed by colon/dash/arrow
   // e.g., "Enhance this text: I designed and developed..."
   // e.g., "Make this better and humanize it: 'I built three projects...'"
@@ -73,7 +83,8 @@ export function extractUserDirectiveAndSnippet(prompt: string): ExtractedDirecti
 
   // Pattern 2: Quoted block in prompt
   // e.g., 'Enhance "I built three projects in HTML, CSS" and humanize it'
-  const quoteMatch = trimmed.match(/["“]([^"”]{15,})["”]/);
+  // Supports double quotes, smart quotes, and single quotes
+  const quoteMatch = trimmed.match(/["“]([^"”]{8,})["”]/) || trimmed.match(/['‘]([^'’]{10,})['’]/);
   if (quoteMatch) {
     const snippet = quoteMatch[1].trim();
     const directive = trimmed.replace(quoteMatch[0], "").replace(/\s+/g, " ").trim();
@@ -132,6 +143,15 @@ export function findSnippetInSections(
     }
 
     const normContent = normalizeSearchText(rawContent);
+    if (normSnippet.includes(normContent) && normContent.length > 20) {
+      return {
+        sectionHeading: sec.heading,
+        sectionIndex: sIdx,
+        matchedText: rawContent,
+        fullContent: rawContent,
+        confidence: 0.95,
+      };
+    }
     if (normContent.includes(normSnippet)) {
       return {
         sectionHeading: sec.heading,
@@ -159,7 +179,12 @@ export function findSnippetInSections(
       const normLine = normalizeSearchText(line);
       if (!normLine) continue;
 
-      if (normLine.includes(normSnippet) || normSnippet.includes(normLine)) {
+      const isLineInSnippet =
+        normLine.length >= 25 &&
+        normSnippet.includes(normLine) &&
+        normLine.length >= normSnippet.length * 0.4;
+
+      if (normLine.includes(normSnippet) || isLineInSnippet) {
         return {
           sectionHeading: sec.heading,
           sectionIndex: sIdx,
@@ -189,6 +214,32 @@ export function findSnippetInSections(
           fullContent: sec.content,
           confidence: Math.min(score, 0.89),
           bulletIndex: lIdx,
+        };
+      }
+    }
+  }
+
+  // 3. Fallback: Section-level token overlap
+  if (!bestMatch || highestScore < 0.6) {
+    for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+      const sec = sections[sIdx];
+      const normContent = normalizeSearchText(sec.content || "");
+      const contentTokens = new Set(normContent.split(" ").filter((t) => t.length > 2));
+      if (contentTokens.size === 0) continue;
+
+      let overlap = 0;
+      for (const token of snippetTokens) {
+        if (contentTokens.has(token)) overlap++;
+      }
+      const score = overlap / Math.max(snippetTokens.length, 1);
+      if (score > highestScore && score >= 0.5) {
+        highestScore = score;
+        bestMatch = {
+          sectionHeading: sec.heading,
+          sectionIndex: sIdx,
+          matchedText: cleanSnippet,
+          fullContent: sec.content || "",
+          confidence: Math.min(score, 0.88),
         };
       }
     }

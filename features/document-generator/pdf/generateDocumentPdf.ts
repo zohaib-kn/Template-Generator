@@ -48,18 +48,17 @@ export interface PdfNamingOptions {
 export function safeFilenamePart(part: string): string {
   return part
     .trim()
-    .replace(/^(?:mr|ms|mrs|dr|prof)\.?\s+/i, "")
-    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-zA-Z0-9\u0080-\uFFFF]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 /**
  * Derive a human-readable PDF filename following the format:
- *   [Name]-[DocumentType]-[Country]-[Year].pdf
+ *   [Name]_[DocumentType]_[Country]_[Year].pdf
  *
  * Example:
- *   zohaib-Khan-Resume-Italy-2026.pdf
+ *   Zohaib_Resume_Italy_2026.pdf
  */
 export function buildFilename(
   data: DocumentData,
@@ -72,22 +71,20 @@ export function buildFilename(
   const rawName = data.personal?.fullName?.trim() || "";
   const namePart = safeFilenamePart(rawName) || "Candidate";
 
-  const rawDocType = options?.documentType || "Resume";
-  const docTypePart =
-    rawDocType.toUpperCase() === "CV" ? "Resume" : safeFilenamePart(rawDocType);
+  const docTypePart = safeFilenamePart(options?.documentType || "Resume");
 
   const rawCountry =
     options?.country?.trim() ||
     (data.personal as unknown as { targetCountry?: string })?.targetCountry?.trim() ||
     data.personal?.nationality?.trim() ||
-    "Italy";
-  const countryPart = safeFilenamePart(rawCountry) || "Italy";
+    "";
+  const countryPart = safeFilenamePart(rawCountry);
 
   const yearPart =
     options?.year?.toString().trim() || new Date().getFullYear().toString();
 
   const parts = [namePart, docTypePart, countryPart, yearPart].filter(Boolean);
-  return `${parts.join("-")}.pdf`;
+  return `${parts.join("_")}.pdf`;
 }
 
 /**

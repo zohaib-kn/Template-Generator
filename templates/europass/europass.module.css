@@ -44,13 +44,30 @@
   -webkit-print-color-adjust: exact;
 }
 
+/* In interactive edit mode, allow content to expand if an inline form is active so controls are never clipped */
+.page.pageInteractive {
+  overflow: visible;
+  height: auto;
+  max-height: none;
+}
+
+.page.pageInteractive .pageContent {
+  height: auto;
+  min-height: 100%;
+}
+
 /* When printing, remove shadows and force exact page sizes */
 @media print {
   .templateContainer {
     gap: 0 !important;
   }
 
-  .page {
+  .page,
+  .page.pageInteractive {
+    overflow: hidden !important;
+    max-height: 297mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
     box-shadow: none !important;
     page-break-after: always !important;
   }
@@ -629,6 +646,27 @@
 .inlineFormDeleteBtn:hover {
   background-color: #fef2f2;
   text-decoration: underline;
+}
+
+.cefrToggleBtn {
+  background: none;
+  border: none;
+  color: #0c56a5;
+  font-size: 8pt;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-family: inherit;
+  transition: color 0.15s ease;
+}
+
+.cefrToggleBtn:hover {
+  color: #094482;
 }
 
 .sectionDivider {

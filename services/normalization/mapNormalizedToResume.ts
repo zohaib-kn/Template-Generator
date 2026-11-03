@@ -334,10 +334,10 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
   }
 
 
-  const aboutMe = synthesizeEuropassAboutMe(profile);
-  const declaration =
-    profile.declaration ||
-    "I hereby declare that the above furnished details are true to the best of my knowledge and belief.";
+  const aboutMe = (profile as any).aboutMe || undefined;
+  const declaration = (profile as any).declaration || undefined;
+
+
 
   const student: DocumentData = {
     personal: {
@@ -358,7 +358,7 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
     internships: internships.length > 0 ? internships : undefined,
     achievements: achievements.length > 0 ? achievements : undefined,
     englishCertificate,
-    motherTongue,
+    motherTongue: motherTongue || "",
     languages: languages.length > 0 ? languages : undefined,
     skills: skills.length > 0 ? skills : undefined,
     hobbies: hobbies.length > 0 ? hobbies : undefined,

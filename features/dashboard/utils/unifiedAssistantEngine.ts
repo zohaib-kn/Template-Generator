@@ -41,6 +41,11 @@ import {
   EUROPASS_DEFAULT_SECTION_ORDER,
 } from "./cvChatIntentEngine";
 import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
+import { parseLanguageSkillsInput, type ParsedLanguageEntry } from "./languageSkillsParser";
+import {
+  extractUserDirectiveAndSnippet,
+  findSnippetInSections,
+} from "./documentAnchorMatcher";
 
 export type AssistantActionType =
   | "ANSWER_QUESTION"
@@ -172,29 +177,65 @@ export function findMatchingSection(
 
   // 2. Semantic keywords mapping to specific headings
   const KEYWORD_MAP: [RegExp, RegExp][] = [
-    [/\b(?:university|college|institution|target\s+uni)\b/i, /why\s+(?:this\s+)?(?:university|institution)|university/i],
-    [/\b(?:country|italy|destination)\b/i, /why\s+(?:italy|this\s+country)|country/i],
-    [/\b(?:finance|financial|loan|education\s+loan|sponsor|funds|bank)\b/i, /financ|sponsor/i],
-    [/\b(?:academic|academics|education|school|prior\s+study|12th|bachelor)\b/i, /academic\s+background|education/i],
-    [/\b(?:intro|introduction|about\s+the\s+student|bio)\b/i, /student\s+introduction|about\s+me/i],
-    [/\b(?:career|goals|future|aspiration|aspirations)\b/i, /career\s+goals|career/i],
-    [/\b(?:accommodation|stay|housing|residence)\b/i, /accommodation/i],
-    [/\b(?:insurance|policy)\b/i, /insurance/i],
-    [/\b(?:travel|flight|ticket|itinerary|arrival)\b/i, /travel/i],
-    [/\b(?:consulate|embassy|recipient|visa\s+officer)\b/i, /recipient|consulate/i],
-    [/\b(?:subject|subject\s+line)\b/i, /subject/i],
-    [/\b(?:work|internship|job|experience)\b/i, /work\s+experience|internship/i],
-    [/\b(?:skills|digital\s+skills|technical\s+skills)\b/i, /digital\s+skills|skills/i],
-    [/\b(?:language|languages)\b/i, /language\s+skills|languages/i],
-    [/\b(?:projects?)\b/i, /projects?/i],
-    [/\b(?:achievements?|awards?)\b/i, /achievements?/i],
-    [/\b(?:certifications?|courses?)\b/i, /certifications?/i],
+    [/(?:whys+(?:thiss+|chooses+)?(?:course|programme)|course|programme|degrees+program|curriculum)/i, /whys+(?:thiss+)?course|course/i],
+    [/(?:whys+(?:thiss+|chooses+)?(?:uni|university)|university|college|institution|targets+uni)/i, /whys+(?:thiss+)?(?:university|institution)|university/i],
+    [/(?:whys+(?:thiss+|chooses+)?(?:italy|country)|country|italy|destination)/i, /whys+(?:italy|thiss+country)|country|italy/i],
+    [/(?:futures+academics+plan|futures+study|futures+studies|masters?|phd)/i, /futures+academics+plan/i],
+    [/(?:careers+plan|careers+goals?|career|aspirations?|longs*terms*goals?)/i, /careers+plan|careers+goals|career/i],
+    [/(?:returns+(?:tos+)?home|returns+intent|tiess+tos+home|homes+country|comes+back)/i, /return|homes+country/i],
+    [/(?:finance|financial|loan|educations+loan|sponsor|funds|bank)/i, /financ|sponsor/i],
+    [/(?:academic|academics|education|school|priors+study|12th|bachelor)/i, /academics+background|education/i],
+    [/(?:intro|introduction|abouts+thes+student|bio|abouts+me)/i, /students+introduction|abouts+me/i],
+    [/(?:accommodation|stay|housing|residence)/i, /accommodation/i],
+    [/(?:insurance|policy)/i, /insurance/i],
+    [/(?:travel|flight|ticket|itinerary|arrival)/i, /travel/i],
+    [/(?:closings+statement|closing|conclusion|conclude)/i, /closing/i],
+    [/(?:signature|students+contact|contacts+details|signs*off)/i, /signature|contact/i],
+    [/(?:consulate|embassy|recipient|visas+officer)/i, /recipient|consulate/i],
+    [/(?:subject|subjects+line)/i, /subject/i],
+    [/(?:work|internship|job|experience)/i, /works+experience|internship/i],
+    [/(?:skills|digitals+skills|technicals+skills)/i, /digitals+skills|skills/i],
+    [/(?:language|languages)/i, /languages+skills|languages/i],
+    [/(?:projects?)/i, /projects?/i],
+    [/(?:achievements?|awards?)/i, /achievements?/i],
+    [/(?:certifications?|certificates?)/i, /certifications?/i],
   ];
 
   for (const [promptRx, headingRx] of KEYWORD_MAP) {
     if (promptRx.test(pLower)) {
       const match = sections.find((s) => headingRx.test(s.heading.toLowerCase()));
       if (match) return match.heading;
+    }
+  }
+
+  // 3. Heading token overlap matching (e.g. 'Why choose this university' vs 'Why This University')
+  const stopWords = new Set([
+    'the', 'this', 'that', 'a', 'an', 'and', 'or', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'my', 'your',
+    'section', 'paragraph', 'bullet', 'please', 'can', 'you', 'improve', 'enhance', 'humanize', 'rewrite',
+    'rephrase', 'polish', 'make', 'better', 'more', 'choose', 'it', 'me'
+  ]);
+  const promptWords = pLower.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stopWords.has(w));
+  if (promptWords.length > 0) {
+    let bestSection: string | undefined;
+    let highestScore = 0;
+
+    for (const s of sections) {
+      const headingWords = s.heading.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stopWords.has(w));
+      if (headingWords.length === 0) continue;
+
+      let matchCount = 0;
+      for (const hw of headingWords) {
+        if (promptWords.includes(hw)) matchCount++;
+      }
+      const score = matchCount / headingWords.length;
+      if (score > highestScore && matchCount >= 1) {
+        highestScore = score;
+        bestSection = s.heading;
+      }
+    }
+
+    if (bestSection && highestScore >= 0.4) {
+      return bestSection;
     }
   }
 
@@ -801,36 +842,67 @@ export async function processUnifiedMessage(
     };
   }
 
-  // ── 7.5 Section Directive Matcher: e.g. "Improve Why This University section" ──
-  const isSectionDirective =
-    /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?better|improve|polish|rewrite|rephrase|refine|elevate)\b/i.test(pLower) &&
-    !pLower.startsWith("make it ") && !pLower.startsWith("polish it ") && !pLower.startsWith("improve it ");
-
-  if (isSectionDirective) {
-    const matchedSec = findMatchingSection(p, currentDoc.sections);
-    if (matchedSec) {
+  // ── 7.4 Targeted Snippet Directive (Workflow 1): e.g. "I chose Italy..." humanize this ──
+  const snippetExtraction = extractUserDirectiveAndSnippet(p);
+  if (snippetExtraction.isSnippetProvided && snippetExtraction.snippet) {
+    const snippetAnchor = findSnippetInSections(snippetExtraction.snippet, currentDoc.sections);
+    if (snippetAnchor) {
+      const directiveText = snippetExtraction.directive || "Rewrite, polish, and humanize this targeted text";
       return {
         success: true,
-        reply: `Refining your **${matchedSec}** section for clarity, academic depth, and professional impact. All other sections remain unchanged...`,
+        reply: `Refining your targeted text in **${snippetAnchor.sectionHeading}** based on your instruction. All other sections remain unchanged...`,
         actionType: "REWRITE_SECTION",
         route: "openai",
         needsAiRewrite: true,
-        targetSection: matchedSec,
-        targetAnchor: { heading: matchedSec, snippet: "" },
-        aiPrompt: `The user wants to improve section "${matchedSec}": "${p}". Rewrite, polish, and elevate ONLY the "${matchedSec}" section for clarity, academic tone, and persuasive impact while strictly preserving all facts, institutions, and credentials. Leave all other sections 100% identical and unchanged.`,
+        targetSection: snippetAnchor.sectionHeading,
+        targetAnchor: {
+          heading: snippetAnchor.sectionHeading,
+          snippet: snippetAnchor.matchedText,
+        },
+        aiPrompt: `The user wants to refine a specific text snippet inside section "${snippetAnchor.sectionHeading}". Targeted snippet:\n"${snippetAnchor.matchedText}"\nUser instruction: "${directiveText}". Rewrite, polish, and modify ONLY this targeted snippet in-place inside section "${snippetAnchor.sectionHeading}" according to the instruction, while strictly preserving all facts, institutions, and dates. Keep all other text and sections 100% identical and unchanged.`,
         diagnostic: {
           instruction: p,
           detectedIntent: "REWRITE_SECTION",
           selectedDocument: docType,
-          targetSectionOrField: matchedSec,
+          targetSectionOrField: snippetAnchor.sectionHeading,
           clarificationNeeded: false,
           processingRoute: "openai",
-          proposedOperation: `Targeted rewrite of ${matchedSec}`,
+          proposedOperation: `In-place edit of snippet inside ${snippetAnchor.sectionHeading}`,
           saveResult: "persisted",
-          actualChangedFields: [matchedSec],
+          actualChangedFields: [snippetAnchor.sectionHeading],
         },
       };
     }
+  }
+
+  // ── 7.5 Section Directive Matcher (Workflow 2): e.g. "Improve Why choose this university section and humanize it" ──
+  const cleanPromptForSec = p.replace(/^["'“\s]+|["'”\s]+$/g, "");
+  const matchedSec = findMatchingSection(cleanPromptForSec, currentDoc.sections);
+  const isSectionDirective =
+    /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?(?:better|professional|impactful|compelling|formal|engaging)|improve|polish|rewrite|rephrase|refine|elevate|expand|shorten|elaborate|simplify|strengthen|fix)\b/i.test(pLower);
+
+  if (matchedSec && (isSectionDirective || /\bsection\b/i.test(pLower))) {
+    return {
+      success: true,
+      reply: `Refining your **${matchedSec}** section for clarity, academic depth, and professional impact. All other sections remain unchanged...`,
+      actionType: "REWRITE_SECTION",
+      route: "openai",
+      needsAiRewrite: true,
+      targetSection: matchedSec,
+      targetAnchor: { heading: matchedSec, snippet: "" },
+      aiPrompt: `The user wants to improve section "${matchedSec}": "${p}". Rewrite, polish, and elevate ONLY the "${matchedSec}" section for clarity, academic tone, and persuasive impact while strictly preserving all facts, institutions, and credentials. Leave all other sections 100% identical and unchanged.`,
+      diagnostic: {
+        instruction: p,
+        detectedIntent: "REWRITE_SECTION",
+        selectedDocument: docType,
+        targetSectionOrField: matchedSec,
+        clarificationNeeded: false,
+        processingRoute: "openai",
+        proposedOperation: `Targeted rewrite of ${matchedSec}`,
+        saveResult: "persisted",
+        actualChangedFields: [matchedSec],
+      },
+    };
   }
 
   // ── 8. Ambiguous Pronoun Resolution: "Make it more professional" ────────────
@@ -1030,13 +1102,35 @@ export async function processUnifiedMessage(
     const mt = rawMt.charAt(0).toUpperCase() + rawMt.slice(1).toLowerCase();
 
     if (docType === "CV") {
+      const parsed = parseLanguageSkillsInput(p, currentCv?.motherTongue);
       const updatedCv: DocumentData = JSON.parse(JSON.stringify(currentCv));
-      updatedCv.motherTongue = mt;
+      updatedCv.motherTongue = parsed.motherTongue;
+
+      if (parsed.otherLanguages.length > 0) {
+        const newLangEntries = parsed.otherLanguages.map((l: ParsedLanguageEntry, idx: number) => ({
+          id: `lang-${Date.now()}-${idx}`,
+          language: l.language,
+          level: l.level || undefined,
+        }));
+        if (/^\s*(?:add|also|include)\b/i.test(p)) {
+          const existingLangs = updatedCv.languages || [];
+          updatedCv.languages = [...existingLangs, ...newLangEntries];
+        } else {
+          updatedCv.languages = newLangEntries;
+        }
+      }
+
       const updatedSections = syncCvDataToSections(updatedCv, currentDoc.sections);
+
+      const otherSummary = parsed.otherLanguages.map((l: ParsedLanguageEntry) => (l.level ? `${l.language} (${l.level})` : l.language));
+      const replySummary =
+        otherSummary.length > 0
+          ? `✅ Updated **Mother Tongue** to **${parsed.motherTongue}** and other languages: **${otherSummary.join(", ")}**.`
+          : `✅ Updated **Mother Tongue** to **${parsed.motherTongue}**. All other sections remain unchanged.`;
 
       return {
         success: true,
-        reply: `✅ Updated **Mother Tongue** to **${mt}**. All other sections remain unchanged.`,
+        reply: replySummary,
         actionType: "UPDATE_FIELD",
         route: "local",
         targetSection: "LANGUAGE SKILLS",
@@ -1046,12 +1140,12 @@ export async function processUnifiedMessage(
           instruction: p,
           detectedIntent: "UPDATE_FIELD",
           selectedDocument: docType,
-          targetSectionOrField: "Mother Tongue",
+          targetSectionOrField: "Language Skills",
           clarificationNeeded: false,
           processingRoute: "local",
-          proposedOperation: `Set Mother Tongue to ${mt}`,
+          proposedOperation: `Set Mother Tongue to ${parsed.motherTongue}${otherSummary.length > 0 ? ` and other languages: ${otherSummary.join(", ")}` : ""}`,
           saveResult: "persisted",
-          actualChangedFields: ["Mother Tongue"],
+          actualChangedFields: ["Mother Tongue", ...(otherSummary.length > 0 ? ["Other Languages"] : [])],
         },
       };
     }
