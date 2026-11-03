@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Project to minimal safe shape — no phone numbers sent to browser
-    const students: StudentListItem[] = body.students
+    let students: StudentListItem[] = body.students
       .filter((s) => s._id && s.name && s.name.trim())
       .filter((s) => !/(^test |^dummy |^testing )/i.test(s.name.trim()))
       .filter((s) => canAccessStudent(session, s._id))
