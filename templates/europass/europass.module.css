@@ -3,13 +3,19 @@
    Faithful reconstruction based on the authoritative Cairo-rendered Europass PDF
    ========================================================================== */
 
-:root {
+:root,
+.templateContainer {
   --europass-navy: #0c56a5;
+  --europass-accent: #82acd9;
+  --europass-text: #333333;
+  --europass-muted: #666666;
+  --europass-border: #d4d4d8;
+  --europass-background: #ffffff;
   --europass-accent-blue: #82acd9;
   --europass-text-dark: #333333;
-  --europass-text-muted: #565656;
-  --europass-divider: #979797;
-  --europass-link-blue: #214493;
+  --europass-text-muted: #666666;
+  --europass-divider: #a3a3a3;
+  --europass-link-blue: #0c56a5;
 }
 
 .templateContainer {
@@ -31,10 +37,11 @@
   position: relative;
   background-color: #ffffff;
   overflow: hidden;
-  color: var(--europass-text-dark, #333333);
+  isolation: isolate;
+  color: var(--europass-text, #333333);
   font-family: var(--europass-font-family, var(--font-open-sans), "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
-  font-size: var(--europass-font-size-base, 9.97pt);
-  line-height: 1.42;
+  font-size: var(--europass-font-size-base, 9.5pt);
+  line-height: 1.35;
   font-variant-ligatures: none;
   font-feature-settings: "liga" 0;
   letter-spacing: 0.02px;
@@ -160,24 +167,47 @@
   z-index: 1;
 }
 
-/* --- Content Wrapper (Exact measured margins from reference Europass: L: 26.08pt/9.2mm, R: 25.24pt/8.9mm, T: 20.66pt/7.3mm, B: 31.75pt/11.2mm) -- */
+/* --- Content Wrapper (Safe margins avoiding top 6mm / bottom 6mm decorations & ears) -- */
 .pageContent {
   position: relative;
-  z-index: 1;
-  padding: 7.0mm 8.9mm 9.5mm 9.2mm;
+  z-index: 2;
+  padding: 10mm 10mm 12mm 10mm;
   box-sizing: border-box;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
 }
 
-/* --- Header Section (Page 1 Top) ---------------------------------------- */
+/* Page number subtle footer text */
+.pageNumberFooter {
+  position: absolute;
+  bottom: 2mm;
+  right: 12mm;
+  font-size: 8pt;
+  color: #666666;
+  z-index: 3;
+  pointer-events: none;
+  font-family: inherit;
+}
+
+/* ==========================================================================
+   HEADER (Page 1 top) — matched to the reference Europass PDF
+   Reference measurements (A4 = 210mm wide):
+     photo 33mm, top at ~22.7mm from page top, left at content margin
+     photo → text gap 10.7mm
+     name 16.8pt bold blue, info rows 10.3pt on a 6.8mm line pitch
+     icons 4.1mm, 1.2mm before the label
+     logo 56mm wide, top ~10.2mm, right-aligned to content margin
+   --europass-header-top is the space between the content top and the photo.
+   It assumes .pageContent padding-top of 10mm (10mm + 12.7mm = 22.7mm).
+   ========================================================================== */
 .headerContainer {
+  --europass-header-top: 12.7mm;
   position: relative;
   width: 100%;
   margin-top: 0;
-  /* Balanced bottom margin for header */
-  margin-bottom: 2.2mm;
+  margin-bottom: 2.3mm;
 }
 
 .headerTopRow {
@@ -188,64 +218,60 @@
   position: relative;
 }
 
-/* Europass logo — top-right with breathing room from all edges */
+/* Europass logo — top-right, aligned to the content margin */
 .logoWrapper {
   position: absolute;
   top: 0;
   right: 0;
-  width: 52mm;
+  width: 56mm;
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
   z-index: 2;
-  /* Generous top & right breathing space so logo floats away from the page edge and blue ear */
-  padding-top: 5.5mm;
-  padding-right: 4.5mm;
+  padding: 0;
 }
 
 .europassLogo {
-  width: 48mm;
+  width: 56mm;
   height: auto;
   display: block;
   object-fit: contain;
   flex-shrink: 0;
 }
 
-/* Main header body: Photo on left, Name & Details directly adjacent */
+/* Main header body: photo on the left, name & details top-aligned beside it */
 .headerBody {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  /* Wider gap between photo and identity block */
-  gap: 3.5mm;
+  align-items: flex-start;
+  gap: 10.7mm;
   width: 100%;
   min-width: 0;
-  /* Shift personal details block down for breathing room below the top edge and logo */
-  padding-top: 5.5mm;
-  padding-bottom: 2.0mm;
+  padding-top: var(--europass-header-top);
+  padding-bottom: 0;
 }
 
-/* Photo wrapper — visible silver ring matching reference Europass frame */
+/* Photo wrapper — circular avatar (33mm) */
 .photoWrapper {
-  /* Enlarged to match reference photo size */
-  width: 38mm;
-  height: 38mm;
+  width: 36mm;
+  height: 36mm;
+  flex: 0 0 36mm;
   border-radius: 50%;
-  overflow: visible;
-  flex-shrink: 0;
+  overflow: hidden;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Inner circle clip & frame ring */
+/* Inner circle clip & light-gray frame ring */
 .photoInner {
   width: 100%;
   height: 100%;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid #d4d4d8;
+  border: 3px solid #d0d0d0;
+  box-sizing: border-box;
   box-shadow: none;
   background-color: #f5f5f5;
   display: flex;
@@ -272,36 +298,37 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .subjectName {
-  font-size: 18.5pt;
+  font-size: 18pt;
   font-weight: 700;
   color: #0c56a5;
   line-height: 1.2;
-  margin: 0 0 1.4mm 0;
-  padding-right: 54mm;
+  margin: 0 0 1.5mm 0;
+  padding-right: 0;
   letter-spacing: 0.1px;
 }
 
 .identityLines {
   display: flex;
   flex-direction: column;
-  /* More row-to-row gap matching reference vertical rhythm */
-  gap: 1.4mm;
-  /* Slightly larger font to match reference detail text size */
-  font-size: 10.5pt;
-  line-height: 1.40;
-  color: #333333;
+  gap: 2.1mm;
+  font-size: 11pt;
+  line-height: 1.3;
+  color: #444444;
 }
 
-/* Rows without icons (passport, nationality etc.) */
+/* Rows without icons (passport, nationality etc.) — plain spacing, no pipes */
 .identityRow {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4.5mm;
+  column-gap: 3mm;
+  row-gap: 0;
+  min-height: 0;
+  line-height: 1.3;
 }
 
 /* Combined row for phone and email on one line matching official Europass */
@@ -310,12 +337,12 @@
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 5.2mm;
-  /* ~19.5px gap between Phone and Email groups */
-  row-gap: 1.2mm;
+  column-gap: 5mm;
+  row-gap: 0;
   width: 100%;
   min-width: 0;
-  line-height: 1.4;
+  min-height: 0;
+  line-height: 1.3;
   box-sizing: border-box;
 }
 
@@ -323,24 +350,26 @@
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 1.2mm;
-  /* ~4.5px gap between icon and label matching official Europass */
+  gap: 1.3mm;
   min-width: 0;
-  line-height: normal;
+  min-height: 0;
+  line-height: 1.3;
 }
 
+/* Icon box for Phone / Email / Home — fixed square, optically centered with text cap-height */
 .contactIconBox {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3.5mm;
-  /* ~13.2px */
-  height: 3.5mm;
-  flex-shrink: 0;
+  flex: 0 0 3.6mm;
+  width: 3.6mm;
+  height: 3.6mm;
   margin: 0;
   padding: 0;
-  /* Optical alignment: vertically centers the glyph with the Open Sans cap-height */
-  transform: translateY(0.5px);
+  box-sizing: border-box;
+  line-height: 1;
+  /* Optical alignment: aligns glyph with uppercase letter height and baseline */
+  transform: translateY(-0.25mm);
 }
 
 .contactIconGlyph {
@@ -350,7 +379,8 @@
   color: #0c56a5;
 }
 
-/* Rows with icons — icon on left, text group on right with alignment to line 1 */
+/* Rows with icons (Portfolio / LinkedIn / GitHub / Driving licence) —
+   icon column width = 4.1mm icon + 1.2mm gap so the text lines up with Phone/Home */
 .identityIconRow,
 .contactRow {
   display: flex;
@@ -360,23 +390,23 @@
   justify-content: flex-start;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   height: auto;
   margin: 0;
   padding: 0;
-  line-height: 1.45;
+  line-height: 1.3;
   box-sizing: border-box;
 }
 
-.iconBox,
-.contactIconBox {
+.iconBox {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 5.6mm;
   width: 5.6mm;
-  height: 5.6mm;
+  height: 4.4mm;
   margin: 0;
-  padding: 0 1.8mm 0 0;
+  padding: 0 1.2mm 0 0;
   line-height: normal;
   box-sizing: border-box;
 }
@@ -384,8 +414,8 @@
 .identityIcon,
 .contactIcon {
   display: block;
-  width: 3.8mm;
-  height: 3.8mm;
+  width: 4.4mm;
+  height: 4.4mm;
   flex-shrink: 0;
   margin: 0;
   padding: 0;
@@ -400,30 +430,30 @@
   margin: 0;
   padding: 0;
   text-align: left;
-  line-height: 1.45;
-  color: #333333;
+  line-height: 1.3;
+  color: #444444;
   overflow-wrap: anywhere;
 }
 
 .identityItem {
   display: inline-flex;
   align-items: baseline;
-  gap: 1.5mm;
+  gap: 1.2mm;
   min-width: 0;
 }
 
 .identityLabel {
   font-weight: 700;
-  color: #333333;
+  color: #444444;
   white-space: nowrap;
 }
 
 .identityValue {
-  color: #333333;
+  color: #444444;
 }
 
 .identityValueNoWrap {
-  color: #333333;
+  color: #444444;
   white-space: nowrap;
 }
 
@@ -673,16 +703,16 @@
   height: 1px;
   background-color: #979797;
   width: 100%;
-  margin: 3.5px 0 8px 0;
+  margin: 7px 0 4.5px 0;
 }
 
 /* --- About Me ----------------------------------------------------------- */
 .aboutMeText {
-  font-size: 9.97pt;
-  line-height: 1.36;
-  color: #333333;
-  text-align: justify;
-  margin: 0 0 1.5mm 0;
+  font-size: 9.5pt;
+  line-height: 1.35;
+  color: #444444;
+  text-align: left;
+  margin: 0 0 2mm 0;
 }
 
 .aboutMeText:last-child {
@@ -1331,3 +1361,74 @@
   color: #475569;
   margin-bottom: 1.5mm;
 }
+
+/* --- Education Website Controls (Interactive Live Edit) --- */
+.websiteItemWrapper {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.removeWebsiteBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all 0.15s ease-in-out;
+}
+
+.removeWebsiteBtn:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: scale(1.1);
+}
+
+.addWebsiteWrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.addWebsiteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: 1px dashed #93c5fd;
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin-left: 2px;
+  font-size: 8.5pt;
+  color: #0c56a5;
+  cursor: pointer;
+  line-height: 1.3;
+  transition: all 0.15s ease-in-out;
+  vertical-align: middle;
+}
+
+.addWebsiteBtn:hover {
+  background-color: #eff6ff;
+  border-color: #0c56a5;
+  color: #003e7e;
+}
+
+@media print {
+
+  .removeWebsiteBtn,
+  .addWebsiteWrapper,
+  .addWebsiteBtn {
+    display: none !important;
+  }
+}
+

@@ -13,7 +13,7 @@ import { getInstitutionWebsite } from "./institutionWebsites";
 
 export function getOrderedEducationParts(entry: EducationEntry): string[] {
   let address = entry.address?.trim();
-  let website = entry.website?.trim();
+  let website = entry.website !== undefined ? entry.website.trim() : undefined;
   let finalGrade = entry.finalGrade?.trim();
   const otherParts: string[] = [];
 
@@ -29,9 +29,9 @@ export function getOrderedEducationParts(entry: EducationEntry): string[] {
       } else if (/^city\s*:\s*/i.test(part)) {
         if (!address) address = part.replace(/^city\s*:\s*/i, "").trim();
       } else if (/^website\s*:\s*/i.test(part)) {
-        if (!website) website = part.replace(/^website\s*:\s*/i, "").trim();
+        if (website === undefined) website = part.replace(/^website\s*:\s*/i, "").trim();
       } else if (/^https?:\/\//i.test(part) || /^www\./i.test(part)) {
-        if (!website) website = part;
+        if (website === undefined) website = part;
       } else if (/^final\s*grade\s*:\s*/i.test(part)) {
         if (!finalGrade)
           finalGrade = part.replace(/^final\s*grade\s*:\s*/i, "").trim();
@@ -45,7 +45,7 @@ export function getOrderedEducationParts(entry: EducationEntry): string[] {
   }
 
   // Fallback for website if still missing and institution has a known homepage
-  if (!website && entry.institution) {
+  if (entry.website === undefined && !website && entry.institution) {
     website = getInstitutionWebsite(entry.institution);
   }
 

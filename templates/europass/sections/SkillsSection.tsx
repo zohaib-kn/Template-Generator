@@ -79,10 +79,10 @@ export const SkillsSection = memo(function SkillsSection({
     <section className={styles.sectionWrapper}>
       {showTitle && (
         <EuropassSectionTitle
-          title={title || "SKILLS"}
+          title={title || "KEY SKILLS"}
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
-          addLabel="Add Skill entry"
+          addLabel="Add Key Skill entry"
         />
       )}
 

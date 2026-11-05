@@ -54,10 +54,10 @@ export const InternshipSection = memo(function InternshipSection({
     <section className={styles.sectionWrapper}>
       {showTitle && (
         <EuropassSectionTitle
-          title={title || "WORK EXPERIENCE / INTERNSHIPS"}
+          title={title || "PROFESSIONAL EXPERIENCE"}
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
-          addLabel="Add Work Experience entry"
+          addLabel="Add Professional Experience entry"
         />
       )}
 

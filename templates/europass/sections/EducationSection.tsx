@@ -28,44 +28,103 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
+function removeWebsiteFromDescription(desc?: string): string {
+  if (!desc) return "";
+  return desc
+    .split("|")
+    .map((p) => p.trim())
+    .filter((p) => p && !/^website\s*:\s*/i.test(p))
+    .join(" | ");
+}
+
+function updateWebsiteInDescription(desc: string | undefined, newUrl: string): string {
+  const clean = removeWebsiteFromDescription(desc);
+  const trimmed = newUrl.trim();
+  if (!trimmed) return clean;
+  return clean ? `${clean} | Website: ${trimmed}` : `Website: ${trimmed}`;
+}
+
 function renderEducationDetails(
   entry: EducationEntry,
   isInteractive = false,
   onUpdate?: (id: string, patch: Partial<EducationEntry>) => void
 ) {
   const parts = getOrderedEducationParts(entry);
-  if (parts.length === 0) return null;
+  const hasWebsite = parts.some((p) => /^website\s*:\s*/i.test(p.trim()));
+
+  if (parts.length === 0 && (!isInteractive || !onUpdate)) return null;
+
+  const handleRemoveWebsite = () => {
+    if (!onUpdate) return;
+    onUpdate(entry.id, {
+      website: "",
+      description: removeWebsiteFromDescription(entry.description),
+    });
+  };
+
+  const handleAddWebsite = () => {
+    if (!onUpdate) return;
+    const initialUrl = "https://";
+    onUpdate(entry.id, {
+      website: initialUrl,
+      description: updateWebsiteInDescription(entry.description, initialUrl),
+    });
+  };
 
   return (
     <div className={styles.educationDetails}>
       {parts.map((part, pIdx) => {
         const trimmed = part.trim();
-        const websiteMatch = trimmed.match(/^Website:\s*(.+)$/i);
+        const websiteMatch = trimmed.match(/^Website:\s*(.*)$/i);
 
         if (websiteMatch) {
           const rawUrl = websiteMatch[1].trim();
           const href = normalizePdfUrl(rawUrl);
 
+          if (!rawUrl && !isInteractive) {
+            return null;
+          }
+
           return (
-            <span key={pIdx}>
+            <span key={pIdx} className={styles.websiteItemWrapper}>
               {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
               <span>Website: </span>
               {isInteractive && onUpdate ? (
-                <EditableText
-                  value={rawUrl}
-                  href={href}
-                  onChange={(newUrl) => {
-                    const newParts = [...parts];
-                    newParts[pIdx] = `Website: ${newUrl.trim()}`;
-                    onUpdate(entry.id, {
-                      description: newParts.join(" | "),
-                      website: newUrl.trim(),
-                    });
-                  }}
-                  isInteractive={isInteractive}
-                  className={styles.blueLink}
-                  placeholder="https://..."
-                />
+                <>
+                  <EditableText
+                    value={rawUrl}
+                    href={href}
+                    onChange={(newUrl) => {
+                      const trimmedUrl = newUrl.trim();
+                      if (!trimmedUrl) {
+                        handleRemoveWebsite();
+                        return;
+                      }
+                      onUpdate(entry.id, {
+                        website: trimmedUrl,
+                        description: updateWebsiteInDescription(entry.description, trimmedUrl),
+                      });
+                    }}
+                    isInteractive={isInteractive}
+                    className={styles.blueLink}
+                    placeholder="https://..."
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleRemoveWebsite();
+                    }}
+                    className={styles.removeWebsiteBtn}
+                    title="Remove website link"
+                    aria-label="Remove website link"
+                    data-pdf-ignore="true"
+                    data-no-print="true"
+                  >
+                    ×
+                  </button>
+                </>
               ) : (
                 <a
                   href={href}
@@ -101,6 +160,28 @@ function renderEducationDetails(
           </span>
         );
       })}
+
+      {isInteractive && onUpdate && !hasWebsite && (
+        <span
+          className={styles.addWebsiteWrapper}
+          data-pdf-ignore="true"
+          data-no-print="true"
+        >
+          {parts.length > 0 && <span className={styles.pipeDivider}> | </span>}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleAddWebsite();
+            }}
+            className={styles.addWebsiteBtn}
+            title="Add school website link"
+          >
+            + Add website
+          </button>
+        </span>
+      )}
     </div>
   );
 }
@@ -116,6 +197,17 @@ export const EducationSection = memo(function EducationSection({
   const [isAdding, setIsAdding] = useState(false);
 
   if (!entries || entries.length === 0) return null;
+
+  // Suppress invalid empty display blocks (phantom entries with no institution and no score)
+  const validEntries = entries.filter((e) => {
+    const hasInst = Boolean(e.institution && e.institution.trim());
+    const hasQual = Boolean(e.qualification && e.qualification.trim());
+    const hasGrade = Boolean(e.finalGrade && e.finalGrade.trim());
+    const hasDesc = Boolean(e.description && e.description.trim());
+    return hasInst || (hasQual && (hasGrade || hasDesc));
+  });
+
+  if (validEntries.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
 
@@ -141,7 +233,7 @@ export const EducationSection = memo(function EducationSection({
         />
       )}
 
-      {entries.map((entry) => {
+      {validEntries.map((entry) => {
         const start = formatDateDMY(entry.startDate);
         const end = formatDateDMY(entry.endDate);
         const hasDate = start || end;

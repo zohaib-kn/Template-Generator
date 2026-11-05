@@ -263,12 +263,12 @@ export const EuropassHeader = memo(function EuropassHeader({
                       <span className={styles.contactIconBox} aria-hidden="true">
                         <svg
                           className={styles.contactIconGlyph}
-                          viewBox="0 0 512 512"
+                          viewBox="0 0 576 512"
                           fill="currentColor"
                           aria-hidden="true"
                         >
-                          {/* Authentic FontAwesome solid telephone handset glyph */}
-                          <path d="M497.39 361.8l-112-48a24 24 0 0 0-28 6.9l-49.6 60.6A370.66 370.66 0 0 1 130.6 204.4l60.6-49.6a24 24 0 0 0 6.9-28l-48-112A24.16 24.16 0 0 0 122.6.61l-104 24A24 24 0 0 0 0 48c0 256.5 207.9 464 464 464a24 24 0 0 0 23.4-18.6l24-104a24.29 24.29 0 0 0-14.01-27.6z" />
+                          {/* FontAwesome solid house glyph — the official Europass layout uses a house icon on the phone row */}
+                          <path d="M280.37 148.26L96 300.11V464a16 16 0 0 0 16 16l112.06-.29a16 16 0 0 0 15.92-16V368a16 16 0 0 1 16-16h64a16 16 0 0 1 16 16v95.64a16 16 0 0 0 16 16.05L464 480a16 16 0 0 0 16-16V300L295.67 148.26a12.19 12.19 0 0 0-15.3 0zM571.6 251.47L488 182.56V44.05a12 12 0 0 0-12-12h-56a12 12 0 0 0-12 12v72.61L318.47 43a48 48 0 0 0-61 0L4.34 251.47a12 12 0 0 0-1.6 16.9l25.5 31A12 12 0 0 0 45.15 301l235.22-193.74a12.19 12.19 0 0 1 15.3 0L530.9 301a12 12 0 0 0 16.9-1.6l25.5-31a12 12 0 0 0-1.7-16.93z" />
                         </svg>
                       </span>
                       <span className={styles.identityLabel}>Phone number:</span>{" "}
