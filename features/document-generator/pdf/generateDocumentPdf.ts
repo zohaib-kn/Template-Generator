@@ -329,202 +329,206 @@ export async function generateDocumentPdf(
       compress: true,
     });
 
-  // --- 4. Capture each page (in parallel — captures are independent DOM
-  // reads/canvas draws per element, only the jsPDF page insertion below
-  // needs to stay in order) ------------------------------------------------
-  const A4_WIDTH_PX = 794;
-  const A4_HEIGHT_PX = 1123;
+    // --- 4. Capture each page (in parallel — captures are independent DOM
+    // reads/canvas draws per element, only the jsPDF page insertion below
+    // needs to stay in order) ------------------------------------------------
+    const A4_WIDTH_PX = 794;
+    const A4_HEIGHT_PX = 1123;
 
-  const imageDatas = await Promise.all(
-    pageElements.map(async (pageEl) => {
-      // Temporarily remove box-shadow (screen-only decoration)
-      const originalBoxShadow = pageEl.style.boxShadow;
-      pageEl.style.boxShadow = "none";
+    const imageDatas = await Promise.all(
+      pageElements.map(async (pageEl) => {
+        // Temporarily remove box-shadow (screen-only decoration)
+        const originalBoxShadow = pageEl.style.boxShadow;
+        pageEl.style.boxShadow = "none";
 
-      let canvas: HTMLCanvasElement;
-      try {
-        canvas = await html2canvas(pageEl, {
-          scale: CAPTURE_SCALE,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: "#ffffff",
-          logging: false,
-          width: A4_WIDTH_PX,
-          height: A4_HEIGHT_PX,
-          windowWidth: A4_WIDTH_PX,
-          windowHeight: A4_HEIGHT_PX,
-          scrollX: 0,
-          scrollY: 0,
-          onclone: (clonedDoc, clonedElement) => {
-            // 1. Explicitly remove any screen-only elements marked for exclusion
-            clonedDoc
-              .querySelectorAll(
-                '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"]'
-              )
-              .forEach((el) => el.remove());
+        let canvas: HTMLCanvasElement;
+        try {
+          canvas = await html2canvas(pageEl, {
+            scale: CAPTURE_SCALE,
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor: "#ffffff",
+            logging: false,
+            width: A4_WIDTH_PX,
+            height: A4_HEIGHT_PX,
+            windowWidth: A4_WIDTH_PX,
+            windowHeight: A4_HEIGHT_PX,
+            scrollX: 0,
+            scrollY: 0,
+            onclone: (clonedDoc, clonedElement) => {
+              clonedDoc
+                .querySelectorAll('[data-pdf-page="true"]')
+                .forEach((el) => el.setAttribute("data-pdf-export", "true"));
 
-            // 1b. Clean up any empty datesBadge brackets e.g. "[ ]", "[]", "[ - ]", "[ – ]"
-            clonedElement
-              .querySelectorAll<HTMLElement>('[class*="datesBadge"]')
-              .forEach((badge) => {
-                const text = badge.textContent?.trim() || "";
-                if (
-                  !text ||
-                  text === "[]" ||
-                  text === "[ ]" ||
-                  text === "[-]" ||
-                  text === "[ - ]" ||
-                  text === "[ – ]" ||
-                  text.includes("Add dates") ||
-                  /^\[\s*[-–—\s]*\]$/.test(text)
-                ) {
-                  badge.remove();
+              // 1. Explicitly remove any screen-only elements marked for exclusion
+              clonedDoc
+                .querySelectorAll(
+                  '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"]'
+                )
+                .forEach((el) => el.remove());
+
+              // 1b. Clean up any empty datesBadge brackets e.g. "[ ]", "[]", "[ - ]", "[ – ]"
+              clonedElement
+                .querySelectorAll<HTMLElement>('[class*="datesBadge"]')
+                .forEach((badge) => {
+                  const text = badge.textContent?.trim() || "";
+                  if (
+                    !text ||
+                    text === "[]" ||
+                    text === "[ ]" ||
+                    text === "[-]" ||
+                    text === "[ - ]" ||
+                    text === "[ – ]" ||
+                    text.includes("Add dates") ||
+                    /^\[\s*[-–—\s]*\]$/.test(text)
+                  ) {
+                    badge.remove();
+                  }
+                });
+
+              // Clean up any inputs or interactive edit elements in the cloned DOM for pure vector presentation
+              clonedElement
+                .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[data-editable="true"], textarea[data-editable="true"]')
+                .forEach((input) => {
+                  const span = clonedDoc.createElement("span");
+                  span.textContent = input.value || "";
+                  span.className = input.className;
+                  input.parentNode?.replaceChild(span, input);
+                });
+
+              // Strip interactive dashed borders & focus styles from cloned export DOM
+              clonedElement
+                .querySelectorAll<HTMLElement>("*")
+                .forEach((el) => {
+                  if (el.style.borderBottomStyle === "dashed" || el.style.borderBottom?.includes("dashed")) {
+                    el.style.borderBottom = "none";
+                  }
+                });
+
+              // Strip empty bullet rows with trailing hyphens e.g. "• Listening - "
+              clonedElement
+                .querySelectorAll<HTMLElement>('[class*="bulletItem"]')
+                .forEach((item) => {
+                  const text = item.textContent?.replace(/^[•\s*-]+/, "").trim() || "";
+                  if (text.endsWith("-") || text.endsWith(":") || !text) {
+                    item.remove();
+                  }
+                });
+
+              // Precise optical vertical alignment for Europass contact icons in html2canvas
+              // html2canvas FontMetrics places text baseline ~21px below range top, drawing
+              // text ~1.7mm lower than inline SVGs. position:relative shifts the SVG bounds
+              // precisely into optical cap-height center without expanding the row.
+              const contactRows = clonedElement.querySelectorAll<HTMLElement>('[class*="identityIconRow"]');
+              contactRows.forEach((row) => {
+                const svg = row.querySelector<SVGElement | HTMLElement>('svg');
+                if (svg) {
+                  svg.style.position = "relative";
+                  svg.style.top = "1.7mm";
                 }
               });
 
-            // Clean up any inputs or interactive edit elements in the cloned DOM for pure vector presentation
-            clonedElement
-              .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[data-editable="true"], textarea[data-editable="true"]')
-              .forEach((input) => {
-                const span = clonedDoc.createElement("span");
-                span.textContent = input.value || "";
-                span.className = input.className;
-                input.parentNode?.replaceChild(span, input);
-              });
+              // 2. Strip interactive section wrapper styles (drop rings, hover tints, borders)
+              clonedElement
+                .querySelectorAll<HTMLElement>('[data-section-id]')
+                .forEach((node) => {
+                  node.style.boxShadow = "none";
+                  node.style.outline = "none";
+                  node.style.backgroundColor = "transparent";
+                  node.className = "relative";
+                });
 
-            // Strip interactive dashed borders & focus styles from cloned export DOM
-            clonedElement
-              .querySelectorAll<HTMLElement>("*")
-              .forEach((el) => {
-                if (el.style.borderBottomStyle === "dashed" || el.style.borderBottom?.includes("dashed")) {
-                  el.style.borderBottom = "none";
+              // 3. Strip preview scaling transforms from ancestor elements so the
+              // page renders at true 1:1 unscaled dimensions (not shrunken by PreviewScaler)
+              let parent: HTMLElement | null = clonedElement.parentElement;
+              while (parent && parent !== clonedDoc.body) {
+                parent.style.transform = "none";
+                parent.style.webkitTransform = "none";
+                parent.style.margin = "0";
+                parent.style.padding = "0";
+                parent.style.position = "static";
+                parent.style.width = "auto";
+                parent.style.maxWidth = "none";
+                parent.style.height = "auto";
+                parent = parent.parentElement;
+              }
+
+              // Also reset any other scaled containers in cloned document
+              clonedDoc
+                .querySelectorAll<HTMLElement>('[style*="transform"]')
+                .forEach((el) => {
+                  el.style.transform = "none";
+                  el.style.webkitTransform = "none";
+                });
+
+              // 4. Lock body and root margins
+              clonedDoc.documentElement.style.margin = "0";
+              clonedDoc.documentElement.style.padding = "0";
+              clonedDoc.body.style.margin = "0";
+              clonedDoc.body.style.padding = "0";
+
+              // 5. Force clonedElement to natural 1:1 A4 pixel dimensions (794px × 1123px)
+              // and eliminate any box-shadow or margins
+              clonedElement.style.boxShadow = "none";
+              clonedElement.style.textShadow = "none";
+              clonedElement.style.transform = "none";
+              clonedElement.style.margin = "0";
+              clonedElement.style.position = "relative";
+              clonedElement.style.width = `${A4_WIDTH_PX}px`;
+              clonedElement.style.minWidth = `${A4_WIDTH_PX}px`;
+              clonedElement.style.maxWidth = `${A4_WIDTH_PX}px`;
+              clonedElement.style.height = `${A4_HEIGHT_PX}px`;
+              clonedElement.style.minHeight = `${A4_HEIGHT_PX}px`;
+              clonedElement.style.maxHeight = `${A4_HEIGHT_PX}px`;
+              clonedElement.style.boxSizing = "border-box";
+              clonedElement.style.overflow = "hidden";
+
+              // 6. Strip box-shadows & text-shadows on all cloned nodes
+              const allNodes = Array.from(clonedElement.querySelectorAll<HTMLElement>("*"));
+              for (const node of allNodes) {
+                if (node.style) {
+                  if (node.style.boxShadow) node.style.boxShadow = "none";
+                  if (node.style.textShadow) node.style.textShadow = "none";
+                }
+              }
+
+              // 7. Sanitize all modern CSS color functions in cloned style tags (Tailwind v4 compatibility)
+              const styleElements = Array.from(clonedDoc.querySelectorAll("style"));
+              styleElements.forEach((styleTag) => {
+                if (styleTag.textContent) {
+                  styleTag.textContent = sanitizeModernColorFunctions(styleTag.textContent);
                 }
               });
 
-            // Strip empty bullet rows with trailing hyphens e.g. "• Listening - "
-            clonedElement
-              .querySelectorAll<HTMLElement>('[class*="bulletItem"]')
-              .forEach((item) => {
-                const text = item.textContent?.replace(/^[•\s*-]+/, "").trim() || "";
-                if (text.endsWith("-") || text.endsWith(":") || !text) {
-                  item.remove();
+              // 8. Transfer CSS variables from document root
+              const rootStyle = window.getComputedStyle(document.documentElement);
+              const fontVar = rootStyle.getPropertyValue("--font-open-sans");
+              if (fontVar) {
+                clonedDoc.documentElement.style.setProperty(
+                  "--font-open-sans",
+                  fontVar
+                );
+              }
+
+              // 9. Transfer loaded font faces to cloned document
+              document.fonts.forEach((font) => {
+                try {
+                  clonedDoc.fonts.add(font);
+                } catch {
+                  // Ignore if font already added
                 }
               });
 
-            // Precise optical vertical alignment for Europass contact icons in html2canvas
-            // html2canvas FontMetrics places text baseline ~21px below range top, drawing
-            // text ~1.7mm lower than inline SVGs. position:relative shifts the SVG bounds
-            // precisely into optical cap-height center without expanding the row.
-            const contactRows = clonedElement.querySelectorAll<HTMLElement>('[class*="identityIconRow"]');
-            contactRows.forEach((row) => {
-              const svg = row.querySelector<SVGElement | HTMLElement>('svg');
-              if (svg) {
-                svg.style.position = "relative";
-                svg.style.top = "1.7mm";
-              }
-            });
+              // 10. Strip any interactive toolbars or editor buttons from cloned element
+              clonedElement
+                .querySelectorAll(
+                  '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"], button'
+                )
+                .forEach((btn) => btn.remove());
 
-            // 2. Strip interactive section wrapper styles (drop rings, hover tints, borders)
-            clonedElement
-              .querySelectorAll<HTMLElement>('[data-section-id]')
-              .forEach((node) => {
-                node.style.boxShadow = "none";
-                node.style.outline = "none";
-                node.style.backgroundColor = "transparent";
-                node.className = "relative";
-              });
-
-            // 3. Strip preview scaling transforms from ancestor elements so the
-            // page renders at true 1:1 unscaled dimensions (not shrunken by PreviewScaler)
-            let parent: HTMLElement | null = clonedElement.parentElement;
-            while (parent && parent !== clonedDoc.body) {
-              parent.style.transform = "none";
-              parent.style.webkitTransform = "none";
-              parent.style.margin = "0";
-              parent.style.padding = "0";
-              parent.style.position = "static";
-              parent.style.width = "auto";
-              parent.style.maxWidth = "none";
-              parent.style.height = "auto";
-              parent = parent.parentElement;
-            }
-
-            // Also reset any other scaled containers in cloned document
-            clonedDoc
-              .querySelectorAll<HTMLElement>('[style*="transform"]')
-              .forEach((el) => {
-                el.style.transform = "none";
-                el.style.webkitTransform = "none";
-              });
-
-            // 4. Lock body and root margins
-            clonedDoc.documentElement.style.margin = "0";
-            clonedDoc.documentElement.style.padding = "0";
-            clonedDoc.body.style.margin = "0";
-            clonedDoc.body.style.padding = "0";
-
-            // 5. Force clonedElement to natural 1:1 A4 pixel dimensions (794px × 1123px)
-            // and eliminate any box-shadow or margins
-            clonedElement.style.boxShadow = "none";
-            clonedElement.style.textShadow = "none";
-            clonedElement.style.transform = "none";
-            clonedElement.style.margin = "0";
-            clonedElement.style.position = "relative";
-            clonedElement.style.width = `${A4_WIDTH_PX}px`;
-            clonedElement.style.minWidth = `${A4_WIDTH_PX}px`;
-            clonedElement.style.maxWidth = `${A4_WIDTH_PX}px`;
-            clonedElement.style.height = `${A4_HEIGHT_PX}px`;
-            clonedElement.style.minHeight = `${A4_HEIGHT_PX}px`;
-            clonedElement.style.maxHeight = `${A4_HEIGHT_PX}px`;
-            clonedElement.style.boxSizing = "border-box";
-            clonedElement.style.overflow = "hidden";
-
-            // 6. Strip box-shadows & text-shadows on all cloned nodes
-            const allNodes = Array.from(clonedElement.querySelectorAll<HTMLElement>("*"));
-            for (const node of allNodes) {
-              if (node.style) {
-                if (node.style.boxShadow) node.style.boxShadow = "none";
-                if (node.style.textShadow) node.style.textShadow = "none";
-              }
-            }
-
-            // 7. Sanitize all modern CSS color functions in cloned style tags (Tailwind v4 compatibility)
-            const styleElements = Array.from(clonedDoc.querySelectorAll("style"));
-            styleElements.forEach((styleTag) => {
-              if (styleTag.textContent) {
-                styleTag.textContent = sanitizeModernColorFunctions(styleTag.textContent);
-              }
-            });
-
-            // 8. Transfer CSS variables from document root
-            const rootStyle = window.getComputedStyle(document.documentElement);
-            const fontVar = rootStyle.getPropertyValue("--font-open-sans");
-            if (fontVar) {
-              clonedDoc.documentElement.style.setProperty(
-                "--font-open-sans",
-                fontVar
-              );
-            }
-
-            // 9. Transfer loaded font faces to cloned document
-            document.fonts.forEach((font) => {
-              try {
-                clonedDoc.fonts.add(font);
-              } catch {
-                // Ignore if font already added
-              }
-            });
-
-            // 10. Strip any interactive toolbars or editor buttons from cloned element
-            clonedElement
-              .querySelectorAll(
-                '[data-html2canvas-ignore="true"], [data-no-print="true"], [data-pdf-ignore="true"], button'
-              )
-              .forEach((btn) => btn.remove());
-
-            // 11. Enforce font rendering stability and strip modern shadows via high-priority style tag
-            const style = clonedDoc.createElement("style");
-            style.textContent = `
+              // 11. Enforce font rendering stability and strip modern shadows via high-priority style tag
+              const style = clonedDoc.createElement("style");
+              style.textContent = `
               *, *::before, *::after {
                 font-variant-ligatures: none !important;
                 font-feature-settings: "liga" 0 !important;
@@ -543,101 +547,101 @@ export async function generateDocumentPdf(
                 text-decoration-thickness: 0.55pt !important;
               }
             `;
-            clonedDoc.head.appendChild(style);
-          },
-        });
-      } finally {
-        // Always restore the box-shadow
-        pageEl.style.boxShadow = originalBoxShadow;
-      }
+              clonedDoc.head.appendChild(style);
+            },
+          });
+        } finally {
+          // Always restore the box-shadow
+          pageEl.style.boxShadow = originalBoxShadow;
+        }
 
-      return canvas.toDataURL("image/jpeg", 0.98);
-    })
-  );
-
-  // --- 5. Assemble the PDF pages in order --------------------------------------
-  imageDatas.forEach((imgData, i) => {
-    // Add a new PDF page for every page after the first
-    if (i > 0) {
-      pdf.addPage("a4", "portrait");
-    }
-
-    const pageEl = pageElements[i];
-
-    // 5a. Embed sanitized, selectable text layer positioned across the page for ATS & copy-paste
-    const pageText = extractSanitizedPageText(pageEl);
-    if (pageText.trim()) {
-      pdf.setFontSize(9.5);
-      pdf.setTextColor(255, 255, 255);
-      const lines = pdf.splitTextToSize(pageText, A4_W_MM - 18.1);
-      const lineHeightMm = 4.2;
-      let curY = 12;
-      for (const line of lines) {
-        if (curY > A4_H_MM - 12) break;
-        pdf.text(line, 9.2, curY);
-        curY += lineHeightMm;
-      }
-    }
-
-    // 5b. Fill the entire A4 PDF page with the captured image (bicubic interpolation)
-    pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "SLOW");
-
-    // 5c. Attach real, clickable PDF hyperlinks on top of the image
-    const linkElements = Array.from(
-      pageEl.querySelectorAll<HTMLElement>("a[href], [data-pdf-link]")
+        return canvas.toDataURL("image/jpeg", 0.98);
+      })
     );
-    const pageRect = pageEl.getBoundingClientRect();
-    if (pageRect.width > 0 && pageRect.height > 0) {
-      linkElements.forEach((el) => {
-        const rawHref =
-          el.getAttribute("data-pdf-link") || el.getAttribute("href");
-        if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:"))
-          return;
 
-        const normalizedUrl = normalizePdfUrl(rawHref);
-        if (!normalizedUrl) return;
+    // --- 5. Assemble the PDF pages in order --------------------------------------
+    imageDatas.forEach((imgData, i) => {
+      // Add a new PDF page for every page after the first
+      if (i > 0) {
+        pdf.addPage("a4", "portrait");
+      }
 
-        // Use getClientRects to support inline links that wrap across multiple lines
-        const clientRects = Array.from(el.getClientRects());
-        const rectsToProcess =
-          clientRects.length > 0 ? clientRects : [el.getBoundingClientRect()];
+      const pageEl = pageElements[i];
 
-        rectsToProcess.forEach((rect) => {
-          if (rect.width > 0 && rect.height > 0) {
-            const relX = (rect.left - pageRect.left) * (A4_W_MM / pageRect.width);
-            const relY = (rect.top - pageRect.top) * (A4_H_MM / pageRect.height);
-            const relW = rect.width * (A4_W_MM / pageRect.width);
-            const relH = rect.height * (A4_H_MM / pageRect.height);
-            if (relW > 0 && relH > 0) {
-              pdf.link(relX, relY, relW, relH, { url: normalizedUrl });
+      // 5a. Embed sanitized, selectable text layer positioned across the page for ATS & copy-paste
+      const pageText = extractSanitizedPageText(pageEl);
+      if (pageText.trim()) {
+        pdf.setFontSize(9.5);
+        pdf.setTextColor(255, 255, 255);
+        const lines = pdf.splitTextToSize(pageText, A4_W_MM - 18.1);
+        const lineHeightMm = 4.2;
+        let curY = 12;
+        for (const line of lines) {
+          if (curY > A4_H_MM - 12) break;
+          pdf.text(line, 9.2, curY);
+          curY += lineHeightMm;
+        }
+      }
+
+      // 5b. Fill the entire A4 PDF page with the captured image (bicubic interpolation)
+      pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, "", "SLOW");
+
+      // 5c. Attach real, clickable PDF hyperlinks on top of the image
+      const linkElements = Array.from(
+        pageEl.querySelectorAll<HTMLElement>("a[href], [data-pdf-link]")
+      );
+      const pageRect = pageEl.getBoundingClientRect();
+      if (pageRect.width > 0 && pageRect.height > 0) {
+        linkElements.forEach((el) => {
+          const rawHref =
+            el.getAttribute("data-pdf-link") || el.getAttribute("href");
+          if (!rawHref || rawHref === "#" || rawHref.startsWith("javascript:"))
+            return;
+
+          const normalizedUrl = normalizePdfUrl(rawHref);
+          if (!normalizedUrl) return;
+
+          // Use getClientRects to support inline links that wrap across multiple lines
+          const clientRects = Array.from(el.getClientRects());
+          const rectsToProcess =
+            clientRects.length > 0 ? clientRects : [el.getBoundingClientRect()];
+
+          rectsToProcess.forEach((rect) => {
+            if (rect.width > 0 && rect.height > 0) {
+              const relX = (rect.left - pageRect.left) * (A4_W_MM / pageRect.width);
+              const relY = (rect.top - pageRect.top) * (A4_H_MM / pageRect.height);
+              const relW = rect.width * (A4_W_MM / pageRect.width);
+              const relH = rect.height * (A4_H_MM / pageRect.height);
+              if (relW > 0 && relH > 0) {
+                pdf.link(relX, relY, relW, relH, { url: normalizedUrl });
+              }
             }
-          }
+          });
         });
-      });
-    }
-  });
+      }
+    });
 
-  // --- 6. Set Metadata & Download ---------------------------------------------
-  const filename = buildFilename(data, options);
-  const embeddedPayload: EmbeddedPdfPayload<DocumentData> = {
-    generator: "templete-generator",
-    version: 1,
-    type: options?.documentType || "Resume",
-    timestamp: new Date().toISOString(),
-    data,
-  };
+    // --- 6. Set Metadata & Download ---------------------------------------------
+    const filename = buildFilename(data, options);
+    const embeddedPayload: EmbeddedPdfPayload<DocumentData> = {
+      generator: "templete-generator",
+      version: 1,
+      type: options?.documentType || "Resume",
+      timestamp: new Date().toISOString(),
+      data,
+    };
 
-  pdf.setProperties({
-    title: filename,
-    subject: encodeEmbeddedData(embeddedPayload),
-    author: data.personal?.fullName?.trim() || "Candidate",
-    keywords: "templete-generator,resume,v1",
-    creator: "TempleteGenerator",
-  });
+    pdf.setProperties({
+      title: filename,
+      subject: encodeEmbeddedData(embeddedPayload),
+      author: data.personal?.fullName?.trim() || "Candidate",
+      keywords: "templete-generator,resume,v1",
+      creator: "TempleteGenerator",
+    });
 
-  const pdfBase64 = pdf.output("datauristring");
-  pdf.save(filename);
-  return { filename, pdfBase64 };
+    const pdfBase64 = pdf.output("datauristring");
+    pdf.save(filename);
+    return { filename, pdfBase64 };
   } finally {
     restoreImages();
   }
