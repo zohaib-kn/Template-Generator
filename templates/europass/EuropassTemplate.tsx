@@ -208,37 +208,37 @@ export function EuropassTemplate({
   // ── Stable primitive/memoized refs for fields used directly in useIsomorphicLayoutEffect ──
   // Using individual stable values instead of the whole `data` object prevents the
   // effect from re-running on every render (data is a new object reference each time).
-  const aboutMe            = data.aboutMe ?? "";
-  const academicInterests  = useMemo(() => data.academicInterests  ?? [], [data.academicInterests]);
-  const motherTongue       = data.motherTongue ?? "";
-  const languages          = useMemo(() => data.languages          ?? [], [data.languages]);
+  const aboutMe = data.aboutMe ?? "";
+  const academicInterests = useMemo(() => data.academicInterests ?? [], [data.academicInterests]);
+  const motherTongue = data.motherTongue ?? "";
+  const languages = useMemo(() => data.languages ?? [], [data.languages]);
   const hasLanguages = useMemo(
     () =>
       Boolean(
         motherTongue.trim() ||
-          (languages &&
-            languages.length > 0 &&
-            languages.some((l) => l.language?.trim()))
+        (languages &&
+          languages.length > 0 &&
+          languages.some((l) => l.language?.trim()))
       ),
     [motherTongue, languages]
   );
-  const skills             = useMemo(() => data.skills             ?? [], [data.skills]);
-  const hobbies            = useMemo(() => data.hobbies            ?? [], [data.hobbies]);
-  const recommendations    = useMemo(() => data.recommendations    ?? [], [data.recommendations]);
-  const declaration        = data.declaration ?? "";
+  const skills = useMemo(() => data.skills ?? [], [data.skills]);
+  const hobbies = useMemo(() => data.hobbies ?? [], [data.hobbies]);
+  const recommendations = useMemo(() => data.recommendations ?? [], [data.recommendations]);
+  const declaration = data.declaration ?? "";
   const englishCertificate = useMemo(() => data.englishCertificate ?? null, [data.englishCertificate]);
   const hasEnglishCert = useMemo(
     () =>
       Boolean(
         englishCertificate &&
-          (englishCertificate.examName ||
-            englishCertificate.score ||
-            englishCertificate.listening ||
-            englishCertificate.reading ||
-            englishCertificate.writing ||
-            englishCertificate.speaking ||
-            englishCertificate.issuingBody ||
-            englishCertificate.trfNumber)
+        (englishCertificate.examName ||
+          englishCertificate.score ||
+          englishCertificate.listening ||
+          englishCertificate.reading ||
+          englishCertificate.writing ||
+          englishCertificate.speaking ||
+          englishCertificate.issuingBody ||
+          englishCertificate.trfNumber)
       ),
     [englishCertificate]
   );
@@ -1365,147 +1365,147 @@ export function EuropassTemplate({
             data-measure-page
             style={{ height: "278.5mm", boxSizing: "border-box" }}
           />
-        <div data-measure="header">
-          <EuropassHeader personal={data.personal} />
-        </div>
+          <div data-measure="header">
+            <EuropassHeader personal={data.personal} />
+          </div>
 
-        {/* Atomic sections */}
-        {data.aboutMe && (
-          <div data-measure="about">
-            <AboutSection text={data.aboutMe} />
-          </div>
-        )}
-        {data.academicInterests && (
-          <div data-measure="academicInterests">
-            <AcademicInterestsSection entries={data.academicInterests} />
-          </div>
-        )}
-        {hasLanguages && (
-          <div data-measure="languages">
-            <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
-          </div>
-        )}
-        {hasEnglishCert && englishCertificate && (
-          <div data-measure="englishCertificate">
-            <EnglishCertificateSection cert={englishCertificate} />
-          </div>
-        )}
-        {data.skills && (
-          <div data-measure="skills">
-            <SkillsSection entries={data.skills} />
-          </div>
-        )}
-        {data.hobbies && (
-          <div data-measure="hobbies">
-            <HobbiesSection entries={data.hobbies} />
-          </div>
-        )}
-        {data.declaration && (
-          <div data-measure="declaration">
-            <DeclarationSection text={data.declaration} />
-          </div>
-        )}
+          {/* Atomic sections */}
+          {data.aboutMe && (
+            <div data-measure="about">
+              <AboutSection text={data.aboutMe} />
+            </div>
+          )}
+          {data.academicInterests && (
+            <div data-measure="academicInterests">
+              <AcademicInterestsSection entries={data.academicInterests} />
+            </div>
+          )}
+          {hasLanguages && (
+            <div data-measure="languages">
+              <LanguageSkillsSection motherTongue={motherTongue} entries={languages} />
+            </div>
+          )}
+          {hasEnglishCert && englishCertificate && (
+            <div data-measure="englishCertificate">
+              <EnglishCertificateSection cert={englishCertificate} />
+            </div>
+          )}
+          {data.skills && (
+            <div data-measure="skills">
+              <SkillsSection entries={data.skills} />
+            </div>
+          )}
+          {data.hobbies && (
+            <div data-measure="hobbies">
+              <HobbiesSection entries={data.hobbies} />
+            </div>
+          )}
+          {data.declaration && (
+            <div data-measure="declaration">
+              <DeclarationSection text={data.declaration} />
+            </div>
+          )}
 
-        {(data.customSections || []).map((cs) => (
-          <div key={cs.id} data-measure={`custom_${cs.id}`}>
-            <section className={styles.sectionWrapper}>
-              <EuropassSectionTitle title={cs.title.toUpperCase()} />
-              <div className={styles.bulletList}>
-                {cs.content.split("\n").filter(Boolean).map((line, idx) => {
-                  const isBullet = line.startsWith("•") || line.startsWith("-");
-                  const text = line.replace(/^[•\-\*]\s*/, "");
-                  return (
-                    <div key={idx} className={isBullet ? styles.bulletItem : undefined}>
-                      {isBullet && <span className={styles.bulletDot} aria-hidden="true">•</span>}
-                      <span className={isBullet ? styles.bulletText : undefined}>{text}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-        ))}
+          {(data.customSections || []).map((cs) => (
+            <div key={cs.id} data-measure={`custom_${cs.id}`}>
+              <section className={styles.sectionWrapper}>
+                <EuropassSectionTitle title={cs.title.toUpperCase()} />
+                <div className={styles.bulletList}>
+                  {cs.content.split("\n").filter(Boolean).map((line, idx) => {
+                    const isBullet = line.startsWith("•") || line.startsWith("-");
+                    const text = line.replace(/^[•\-\*]\s*/, "");
+                    return (
+                      <div key={idx} className={isBullet ? styles.bulletItem : undefined}>
+                        {isBullet && <span className={styles.bulletDot} aria-hidden="true">•</span>}
+                        <span className={isBullet ? styles.bulletText : undefined}>{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+          ))}
 
-        {/* Splittable repeatable sections */}
-        {/* Education */}
-        <div data-measure-title="education" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="EDUCATION AND TRAINING" />
-        </div>
-        {educationEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="education" data-index={idx}>
-            <EducationSection entries={[e]} title="" />
+          {/* Splittable repeatable sections */}
+          {/* Education */}
+          <div data-measure-title="education" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="EDUCATION AND TRAINING" />
           </div>
-        ))}
+          {educationEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="education" data-index={idx}>
+              <EducationSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Internships */}
-        <div data-measure-title="internships" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="WORK EXPERIENCE / INTERNSHIPS" />
-        </div>
-        {internshipEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="internships" data-index={idx}>
-            <InternshipSection entries={[e]} title="" />
+          {/* Internships */}
+          <div data-measure-title="internships" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="WORK EXPERIENCE / INTERNSHIPS" />
           </div>
-        ))}
+          {internshipEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="internships" data-index={idx}>
+              <InternshipSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Academic Projects */}
-        <div data-measure-title="academicProjects" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="ACADEMIC PROJECTS" />
-        </div>
-        {projectEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="academicProjects" data-index={idx}>
-            <AcademicProjectsSection entries={[e]} title="" />
+          {/* Academic Projects */}
+          <div data-measure-title="academicProjects" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="ACADEMIC PROJECTS" />
           </div>
-        ))}
+          {projectEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="academicProjects" data-index={idx}>
+              <AcademicProjectsSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Achievements */}
-        <div data-measure-title="achievements" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="ACHIEVEMENTS & AWARDS" />
-        </div>
-        {achievementEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="achievements" data-index={idx}>
-            <AchievementsSection entries={[e]} title="" />
+          {/* Achievements */}
+          <div data-measure-title="achievements" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="ACHIEVEMENTS & AWARDS" />
           </div>
-        ))}
+          {achievementEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="achievements" data-index={idx}>
+              <AchievementsSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Leadership */}
-        <div data-measure-title="leadership" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="LEADERSHIP & EXTRACURRICULAR" />
-        </div>
-        {leadershipEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="leadership" data-index={idx}>
-            <LeadershipSection entries={[e]} title="" />
+          {/* Leadership */}
+          <div data-measure-title="leadership" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="LEADERSHIP & EXTRACURRICULAR" />
           </div>
-        ))}
+          {leadershipEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="leadership" data-index={idx}>
+              <LeadershipSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Volunteering */}
-        <div data-measure-title="volunteering" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="VOLUNTEERING / COMMUNITY ENGAGEMENT" />
-        </div>
-        {volunteeringEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="volunteering" data-index={idx}>
-            <VolunteeringSection entries={[e]} title="" />
+          {/* Volunteering */}
+          <div data-measure-title="volunteering" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="VOLUNTEERING / COMMUNITY ENGAGEMENT" />
           </div>
-        ))}
+          {volunteeringEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="volunteering" data-index={idx}>
+              <VolunteeringSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Certifications */}
-        <div data-measure-title="certifications" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="CERTIFICATIONS" />
-        </div>
-        {certificationEntries.map((e, idx) => (
-          <div key={e.id} data-measure-entry="certifications" data-index={idx}>
-            <CertificationsSection entries={[e]} title="" />
+          {/* Certifications */}
+          <div data-measure-title="certifications" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="CERTIFICATIONS" />
           </div>
-        ))}
+          {certificationEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="certifications" data-index={idx}>
+              <CertificationsSection entries={[e]} title="" />
+            </div>
+          ))}
 
-        {/* Recommendations */}
-        <div data-measure-title="recommendations" className={styles.sectionWrapper}>
-          <EuropassSectionTitle title="RECOMMENDATIONS" />
-        </div>
-        {recommendations.map((e, idx) => (
-          <div key={e.id || idx} data-measure-entry="recommendations" data-index={idx}>
-            <RecommendationsSection entries={[e]} title="" />
+          {/* Recommendations */}
+          <div data-measure-title="recommendations" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="RECOMMENDATIONS" />
           </div>
-        ))}
+          {recommendations.map((e, idx) => (
+            <div key={e.id || idx} data-measure-entry="recommendations" data-index={idx}>
+              <RecommendationsSection entries={[e]} title="" />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1543,8 +1543,8 @@ export function EuropassTemplate({
                 item.secKey === "about"
                   ? "aboutMe"
                   : item.secKey === "leadership"
-                  ? "leadershipActivities"
-                  : item.secKey;
+                    ? "leadershipActivities"
+                    : item.secKey;
 
               const meta = RESUME_SECTION_METADATA[canonicalKey] ?? { title: canonicalKey };
 

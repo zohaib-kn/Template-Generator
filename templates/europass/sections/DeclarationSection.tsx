@@ -25,7 +25,6 @@ export const DeclarationSection = memo(function DeclarationSection({
       {showTitle && (
         <EuropassSectionTitle title={title || "DECLARATION"} />
       )}
-      <div className={styles.declarationSubheading}>Declaration</div>
       {isInteractive && onUpdate ? (
         <EditableText
           value={text ?? ""}

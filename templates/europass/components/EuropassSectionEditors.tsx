@@ -96,6 +96,7 @@ export function EducationInlineForm({
   const [startDate, setStartDate] = useState(initialData?.startDate || "");
   const [endDate, setEndDate] = useState(initialData?.endDate || "");
   const [address, setAddress] = useState(initialData?.address || "");
+  const [website, setWebsite] = useState(initialData?.website || "");
   const [finalGrade, setFinalGrade] = useState(initialData?.finalGrade || "");
   const [description, setDescription] = useState(initialData?.description || "");
 
@@ -109,6 +110,7 @@ export function EducationInlineForm({
       startDate: startDate.trim(),
       endDate: endDate.trim(),
       address: address.trim(),
+      website: website.trim(),
       finalGrade: finalGrade.trim(),
       description: description.trim(),
     });
@@ -172,6 +174,16 @@ export function EducationInlineForm({
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="e.g. New Delhi, India"
+          />
+        </div>
+        <div>
+          <label className={styles.inlineFormLabel}>Website URL (Optional)</label>
+          <input
+            type="text"
+            className={styles.inlineFormInput}
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            placeholder="e.g. https://www.school-domain.edu"
           />
         </div>
         <div>

@@ -36,7 +36,7 @@ export const CertificationsSection = memo(function CertificationsSection({
     <section className={styles.sectionWrapper}>
       {showTitle && (
         <EuropassSectionTitle
-          title={title || "CERTIFICATIONS"}
+          title={title || "CERTIFICATIONS & LANGUAGE PROFICIENCY"}
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Certification entry"

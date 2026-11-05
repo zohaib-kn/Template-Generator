@@ -290,10 +290,22 @@ export async function generateDocumentPdf(
     import("jspdf"),
   ]);
 
-  // --- 1. Locate page elements -------------------------------------------------
-  const pageElements = Array.from(
-    document.querySelectorAll<HTMLElement>('[data-pdf-page="true"]')
+  // --- 1. Locate active document page elements --------------------------------
+  const activeContainer =
+    document.querySelector<HTMLElement>('[data-document-studio-canvas="true"]') ||
+    document.querySelector<HTMLElement>('[class*="templateContainer"]') ||
+    document;
+
+  const rawPages = Array.from(
+    activeContainer.querySelectorAll<HTMLElement>('[data-pdf-page="true"]')
   );
+
+  // Filter out any hidden measurement nodes, zero-size pages, or aria-hidden elements
+  const pageElements = rawPages.filter((el) => {
+    if (el.closest('[aria-hidden="true"]')) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
 
   if (pageElements.length === 0) {
     throw new Error(

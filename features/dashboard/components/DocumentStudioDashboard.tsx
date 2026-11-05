@@ -5738,102 +5738,102 @@ export function DocumentStudioDashboard() {
                 ) : (
                   <>
                     <button
-                  type="button"
-                  onClick={() => {
-                    setIsStudentDropdownOpen(!isStudentDropdownOpen);
-                    setIsDocTypeDropdownOpen(false);
-                  }}
-                  className="w-full px-3.5 py-2.5 text-sm text-slate-900 bg-white border border-slate-300 rounded-xl outline-none hover:border-indigo-500 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 flex items-center justify-between text-left transition cursor-pointer"
-                >
-                  <span className="truncate">
-                    {selectedStudent
-                      ? `${selectedStudent.name}${selectedStudent.email ? ` (${selectedStudent.email})` : ""}`
-                      : "Select a student..."}
-                  </span>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${isStudentDropdownOpen ? "rotate-180" : ""
-                      }`}
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
+                      type="button"
+                      onClick={() => {
+                        setIsStudentDropdownOpen(!isStudentDropdownOpen);
+                        setIsDocTypeDropdownOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-sm text-slate-900 bg-white border border-slate-300 rounded-xl outline-none hover:border-indigo-500 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 flex items-center justify-between text-left transition cursor-pointer"
+                    >
+                      <span className="truncate">
+                        {selectedStudent
+                          ? `${selectedStudent.name}${selectedStudent.email ? ` (${selectedStudent.email})` : ""}`
+                          : "Select a student..."}
+                      </span>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        className={`text-slate-500 shrink-0 ml-2 transition-transform duration-150 ${isStudentDropdownOpen ? "rotate-180" : ""
+                          }`}
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
 
-                {isStudentDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-72 z-50 flex flex-col overflow-hidden">
-                    <div className="p-2 border-b border-slate-100 bg-slate-50 shrink-0">
-                      <div className="relative">
-                        <input
-                          ref={studentSearchInputRef}
-                          type="text"
-                          value={studentSearchQuery}
-                          onChange={(e) => setStudentSearchQuery(e.target.value)}
-                          placeholder="Search student by name or email..."
-                          className="w-full pl-8 pr-7 py-1.5 text-xs text-slate-900 bg-white border border-slate-300 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-                        >
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        {studentSearchQuery && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setStudentSearchQuery("");
-                            }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700 p-0.5"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    {isStudentDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-72 z-50 flex flex-col overflow-hidden">
+                        <div className="p-2 border-b border-slate-100 bg-slate-50 shrink-0">
+                          <div className="relative">
+                            <input
+                              ref={studentSearchInputRef}
+                              type="text"
+                              value={studentSearchQuery}
+                              onChange={(e) => setStudentSearchQuery(e.target.value)}
+                              placeholder="Search student by name or email..."
+                              className="w-full pl-8 pr-7 py-1.5 text-xs text-slate-900 bg-white border border-slate-300 rounded-lg outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-400"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                            >
+                              <circle cx="11" cy="11" r="8" />
+                              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            {studentSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStudentSearchQuery("");
+                                }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-700 p-0.5"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="overflow-y-auto max-h-56 py-1 divide-y divide-slate-100">
-                      {filteredStudentRoster.map((s) => (
-                        <div
-                          key={s.id}
-                          onClick={() => {
-                            setModalStudentId(s.id);
-                            setIsStudentDropdownOpen(false);
-                          }}
-                          className={`px-3.5 py-2.5 text-sm cursor-pointer transition flex items-center justify-between ${s.id === modalStudentId
-                            ? "bg-indigo-50 text-indigo-700 font-semibold"
-                            : "text-slate-800 hover:bg-slate-50"
-                            }`}
-                        >
-                          <span className="truncate font-medium">{s.name}</span>
-                          {s.email && (
-                            <span className="text-xs text-slate-500 ml-2 truncate max-w-[220px]">
-                              {s.email}
-                            </span>
+                        <div className="overflow-y-auto max-h-56 py-1 divide-y divide-slate-100">
+                          {filteredStudentRoster.map((s) => (
+                            <div
+                              key={s.id}
+                              onClick={() => {
+                                setModalStudentId(s.id);
+                                setIsStudentDropdownOpen(false);
+                              }}
+                              className={`px-3.5 py-2.5 text-sm cursor-pointer transition flex items-center justify-between ${s.id === modalStudentId
+                                ? "bg-indigo-50 text-indigo-700 font-semibold"
+                                : "text-slate-800 hover:bg-slate-50"
+                                }`}
+                            >
+                              <span className="truncate font-medium">{s.name}</span>
+                              {s.email && (
+                                <span className="text-xs text-slate-500 ml-2 truncate max-w-[220px]">
+                                  {s.email}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+
+                          {filteredStudentRoster.length === 0 && (
+                            <div className="p-4 text-center text-xs text-slate-500">
+                              No students found matching &quot;{studentSearchQuery}&quot;
+                            </div>
                           )}
                         </div>
-                      ))}
-
-                      {filteredStudentRoster.length === 0 && (
-                        <div className="p-4 text-center text-xs text-slate-500">
-                          No students found matching &quot;{studentSearchQuery}&quot;
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -7443,7 +7443,10 @@ export function DocumentStudioDashboard() {
 
               {/* ── Document Canvas: Either Cairo Europass Theme or Tiptap Caret Engine ── */}
               {editableDocContent.docType === "CV" && cvViewMode === "europass" ? (
-                <div className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar">
+                <div
+                  data-document-studio-canvas="true"
+                  className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar"
+                >
                   <div
                     style={{
                       transform: `scale(${zoomLevel / 100})`,

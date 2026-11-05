@@ -146,4 +146,39 @@ describe("Education and Training sequence: Address -> Website URL -> Final grade
     assert.strictEqual(ordered[3], "Subjects: Physics, Chemistry, Mathematics");
     assert.strictEqual(ordered[4], "Language of instruction: English");
   });
+
+  it("TEST 5: getOrderedEducationParts respects explicit removal (website: '') and does not resurrect fallback", () => {
+    // K.d.b. Public School has a known fallback, but user explicitly removed website
+    const entry: EducationEntry = {
+      id: "edu-removed-1",
+      institution: "K.d.b. Public School",
+      qualification: "Grade 10th",
+      address: "Ghaziabad, India",
+      website: "",
+      finalGrade: "93.80%/100",
+      description: "Address: Ghaziabad, India | Final grade: 93.80%/100",
+    };
+
+    const ordered = getOrderedEducationParts(entry);
+    // Should NOT have website
+    assert.strictEqual(ordered[0], "Address: Ghaziabad, India");
+    assert.strictEqual(ordered[1], "Final grade: 93.80%/100");
+    assert.strictEqual(ordered.length, 2);
+  });
+
+  it("TEST 6: getOrderedEducationParts orders newly added website URL correctly", () => {
+    const entry: EducationEntry = {
+      id: "edu-added-1",
+      institution: "Tiny Tots School Civil Lines Faizabad Up",
+      qualification: "Grade 10th",
+      address: "Faizabad, India",
+      website: "https://tinytots.edu.in",
+      finalGrade: "77.60%/100",
+    };
+
+    const ordered = getOrderedEducationParts(entry);
+    assert.strictEqual(ordered[0], "Address: Faizabad, India");
+    assert.strictEqual(ordered[1], "Website: https://tinytots.edu.in");
+    assert.strictEqual(ordered[2], "Final grade: 77.60%/100");
+  });
 });
