@@ -35,8 +35,15 @@ describe("Studio AI edit guardrails", () => {
 
   it("rejects unusable model output", () => {
     assert.throws(() => parseStudioResponse("not json", req));
-    assert.throws(() => parseStudioResponse(JSON.stringify({ reply: "x", sections: [] }), req));
+    assert.throws(() => parseStudioResponse(JSON.stringify({ sections: [] }), req));
     assert.throws(() => parseStudioResponse(JSON.stringify({ sections: [{ heading: 1 }] }), req));
+  });
+
+  it("treats a reply with no sections as an answer that leaves the document unchanged", () => {
+    const r = parseStudioResponse(JSON.stringify({ reply: "Your IELTS score is 7.0.", sections: [] }), req);
+    assert.equal(r.reply, "Your IELTS score is 7.0.");
+    assert.deepEqual(r.sections, req.sections);
+    assert.deepEqual(r.changedHeadings, []);
   });
 
   it("finds invented emails and multi-digit numbers only", () => {

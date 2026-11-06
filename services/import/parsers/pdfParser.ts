@@ -13,6 +13,7 @@
 
 import { extractText, getDocumentProxy } from "unpdf";
 import { decodeEmbeddedData } from "@/services/pdf/pdfMetadata";
+import type { DocumentData } from "@/types";
 
 export class ScannedPdfError extends Error {
   constructor(
@@ -33,7 +34,7 @@ export class PasswordProtectedPdfError extends Error {
 export interface PdfParseResult {
   text: string;
   numPages: number;
-  embeddedData?: any;
+  embeddedData?: DocumentData | null;
 }
 
 export async function parsePdfBuffer(
@@ -50,7 +51,7 @@ export async function parsePdfBuffer(
       ]);
 
       const subject = (meta?.info as Record<string, unknown> | undefined)?.Subject as string | undefined;
-      const embeddedPayload = decodeEmbeddedData(subject);
+      const embeddedPayload = decodeEmbeddedData<DocumentData>(subject);
 
       return {
         text: textResult?.text || "",

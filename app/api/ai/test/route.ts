@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aiService, getActiveAiProvider } from "@/services/ai/gemini/geminiClient";
+import { aiService, isAiConfigured } from "@/services/ai/openaiClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,21 +52,21 @@ Strict Rules:
 
 /**
  * Dedicated backend test route for Phase AI-1.
- * Tests server-side AI provider connectivity (OpenAI or Gemini) using dummy data only.
+ * Tests server-side OpenAI connectivity using dummy data only.
  *
  * Security:
- * - API key is read solely from the server environment (OPENAI_API_KEY / GEMINI_API_KEY).
+ * - API key is read solely from the server environment (OPENAI_API_KEY).
  * - API key is NEVER passed to frontend or included in responses/logs.
  * - Does not accept or process real student or CRM data.
  */
 export async function POST(req: NextRequest) {
-  // 1. Verify an AI key (OpenAI or Gemini) is configured on the server
-  if (!getActiveAiProvider()) {
+  // 1. Verify an OpenAI key is configured on the server
+  if (!isAiConfigured()) {
     const errorBody: AiTestErrorResponse = {
       success: false,
       error: {
         code: "AI_API_KEY_MISSING",
-        message: "No AI key is configured on the server. Set OPENAI_API_KEY (or GEMINI_API_KEY) in your .env file.",
+        message: "No AI key is configured on the server. Set OPENAI_API_KEY in your .env file.",
       },
     };
     return NextResponse.json(errorBody, { status: 500 });
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     // Body parsing failure is non-fatal for { test: true } calls
   }
 
-  // 3. Generate through the shared provider-aware client (model cascade + timeouts inside)
+  // 3. Generate through the shared OpenAI client (model cascade + timeouts inside)
   const result = await aiService.generate({ prompt: DUMMY_SOP_PROMPT, timeoutMs: 15_000, minOutputLength: 1 });
   if (result.success) {
     const successBody: AiTestSuccessResponse = { success: true, model: result.model, text: result.text };

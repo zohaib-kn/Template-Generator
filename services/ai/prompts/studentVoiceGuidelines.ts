@@ -388,7 +388,7 @@ export interface NaturalStudentPromptOptions {
 }
 
 /**
- * Builds the complete prompt for Gemini to generate or rewrite an SOP section
+ * Builds the complete prompt for the AI model to generate or rewrite an SOP section
  * in an authentic, natural, professional student voice.
  */
 export function buildNaturalStudentPrompt(

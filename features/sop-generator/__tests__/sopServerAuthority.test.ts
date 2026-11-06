@@ -7,13 +7,13 @@
  * - Test 21: Server blocks sensitive section (why-course) with HTTP 403 on unresolved mismatch
  * - Test 22: Non-sensitive section (family-background, travel-history) is permitted during mismatch
  * - Test 25: Multiple programs: program-scoped resume draft isolation (no cross-program leakage)
- * - Test 26: Malicious client academic context: client sends ***REMOVED*** with tampered engineering qualifications,
+ * - Test 26: Malicious client academic context: client sends Meera with tampered engineering qualifications,
  *            server loads authoritative CRM snapshot (Law), discards tampered context, returns HTTP 403
  * - Test 27: Fake client evidence: client sends fake skills/certs in body/context; server ignores them,
  *            finds no verified evidence in DB, returns HTTP 403
  * - Test 28: Stale resolution: resolution confirmed for Course A, student applies for Course B;
  *            server detects stale resolution and returns HTTP 403 with isStale: true
- * - Test 29: Confirmed transition with verified evidence packet injects guidance into Gemini prompt
+ * - Test 29: Confirmed transition with verified evidence packet injects guidance into the AI prompt
  * - Test 30: Indeterminate / UNKNOWN domain blocks sensitive section generation with HTTP 403
  * - Test 31: Input validation: missing sectionId or context returns HTTP 400
  */
@@ -289,10 +289,10 @@ describe("Phase 6: Server-Side Authority for /api/sop/generate", () => {
 
   // ── Test 26 ──────────────────────────────────────────────────────────────
   test("Test 26: Malicious client academic context: server discards client engineering context and uses CRM Law background", async () => {
-    // ***REMOVED***'s real ID is 6a508a96af13bb33e9fc07ce in CRM fixtures (Rizvi Law College)
-    const kaavyaId = "6a508a96af13bb33e9fc07ce";
+    // Meera Anand Kalsekar's real ID is 5a0000000000000000000001 in CRM fixtures (Rizvi Law College)
+    const sampleStudentAId = "5a0000000000000000000001";
 
-    // Tampered client context claims ***REMOVED*** has a B.Tech in Mechanical Engineering
+    // Tampered client context claims Meera has a B.Tech in Mechanical Engineering
     const tamperedClientContext = createBaseContext({
       destination: {
         course: "MSc Automotive Engineering",
@@ -308,7 +308,7 @@ describe("Phase 6: Server-Side Authority for /api/sop/generate", () => {
     });
 
     const req = makeGenerateRequest({
-      studentId: kaavyaId,
+      studentId: sampleStudentAId,
       programId: "prog-automotive-1",
       sectionId: "why-course",
       sectionTitle: "Why This Course",
@@ -318,7 +318,7 @@ describe("Phase 6: Server-Side Authority for /api/sop/generate", () => {
 
     const res = await POST(req);
 
-    // Server must discard fake B.Tech Mechanical, load ***REMOVED***'s authoritative Law background,
+    // Server must discard fake B.Tech Mechanical, load Meera's authoritative Law background,
     // detect Law -> Automotive Engineering mismatch, and block with 403
     assert.equal(res.status, 403);
     const data = await res.json();
@@ -421,7 +421,7 @@ describe("Phase 6: Server-Side Authority for /api/sop/generate", () => {
   });
 
   // ── Test 29 ──────────────────────────────────────────────────────────────
-  test("Test 29: Confirmed transition with verified evidence packet injects guidance into Gemini prompt", async () => {
+  test("Test 29: Confirmed transition with verified evidence packet injects guidance into the AI prompt", async () => {
     const studentId = "student-confirmed-ds-1";
     const programId = "prog-ds-1";
     const targetCourse = "Master of Science in Data Science";

@@ -7,7 +7,7 @@
  * 3. same study area
  * 4. similar education level
  *
- * Maximum examples sent to Gemini: 2 or 3 (to minimize token usage on free API keys).
+ * Maximum examples sent to the AI model: 2 or 3 (to minimize token usage on free API keys).
  * Structured so it can be swapped for vector/semantic search later without touching generation service.
  */
 
@@ -71,7 +71,7 @@ export async function retrieveRelevantExamples(
 }
 
 /**
- * Formats retrieved examples into a compact text block for the Gemini prompt.
+ * Formats retrieved examples into a compact text block for the the AI model prompt.
  */
 export function formatExamplesForPrompt(examples: ApprovedDocumentExample[]): string {
   if (examples.length === 0) return "";

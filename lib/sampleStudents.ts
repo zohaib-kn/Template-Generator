@@ -208,7 +208,7 @@ export function getSampleAafiaAmeenSnapshot(): CrmSnapshot {
           pnr: "SAMPL1",
         },
       },
-    } as any,
+    },
     appliedPrograms: [
       {
         _id: "app-aafia-1",

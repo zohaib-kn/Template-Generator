@@ -88,8 +88,8 @@ test("PDF Parser: detects and parses embedded structured document data without S
 
   const res = await parsePdfBuffer(embeddedPdf);
   assert.ok(res.embeddedData, "Expected embeddedData to be extracted");
-  assert.equal(res.embeddedData.personal.fullName, "Aarav Sharma");
-  assert.equal(res.embeddedData.education[0].institution, "IIT Bombay");
+  assert.equal(res.embeddedData.personal?.fullName, "Aarav Sharma");
+  assert.equal(res.embeddedData.education?.[0]?.institution, "IIT Bombay");
 });
 
 

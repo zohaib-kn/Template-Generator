@@ -74,9 +74,9 @@ const DocumentSchema = new Schema<DocumentRecord>(
       default: {},
     },
     validationIssues: {
-      type: [Schema.Types.Mixed],
+      type: [{}],
       default: [],
-    } as any,
+    },
     normalizedProfile: {
       type: Schema.Types.Mixed,
       required: true,

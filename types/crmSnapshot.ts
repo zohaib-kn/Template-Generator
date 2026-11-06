@@ -26,6 +26,8 @@ export interface CrmPersonalDetails {
   dob?: string;           // ISO-8601, e.g. "2018-05-24T00:00:00.000Z"
   gender?: string;
   maritalStatus?: string;
+  portfolioUrl?: string;
+  website?: string;
 }
 
 export interface CrmNationality {
@@ -155,6 +157,10 @@ export interface CrmTest {
   dateTaken?: string;
   dateOfExam?: string;
   examDate?: string;
+  issueDate?: string;
+  dateOfIssue?: string;
+  /** Alternative test-name key used by some CRM versions */
+  test?: string;
   listening?: string | number;
   reading?: string | number;
   writing?: string | number;
@@ -168,8 +174,16 @@ export interface CrmTest {
     reading?: string | number;
     writing?: string | number;
     speaking?: string | number;
+    trfNumber?: string | number;
   };
   subScores?: {
+    listening?: string | number;
+    reading?: string | number;
+    writing?: string | number;
+    speaking?: string | number;
+    trfNumber?: string | number;
+  };
+  components?: {
     listening?: string | number;
     reading?: string | number;
     writing?: string | number;
@@ -184,11 +198,65 @@ export interface CrmTest {
   trfNumber?: string;
   testReportNumber?: string;
   testReportFormNumber?: string;
+  trf?: string;
+  trfNo?: string;
+  testReportFormNo?: string;
+  test_report_form_number?: string;
+  trf_number?: string;
+  candidateNumber?: string;
+  candidateNo?: string;
+  testReportForm?: string;
   yetToReceive?: boolean;
   yetToReceiveDate?: string;
   waiver?: boolean;
   waiver12thEnglishMarkCheck?: boolean;
   waiver12thEnglishMark?: string | number;
+}
+
+/** Visa logistics (accommodation / insurance / travel) — present on some CRM records */
+export type CrmVisaLogistics = {
+  accommodation?: {
+    name?: string;
+    type?: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    fromDate?: string;
+    toDate?: string;
+    bookingReference?: string;
+  };
+  insurance?: {
+    provider?: string;
+    type?: string;
+    policyNumber?: string;
+    coverageAmount?: string;
+    fromDate?: string;
+    toDate?: string;
+  };
+  travel?: {
+    airline?: string;
+    flightNumber?: string;
+    origin?: string;
+    destination?: string;
+    transit?: string;
+    travelDate?: string;
+    pnr?: string;
+    returnDate?: string;
+  };
+  consulate?: {
+    name?: string;
+    city?: string;
+    address?: string;
+  };
+};
+
+/** Family details used for visa cover letters — present on some CRM records */
+export interface CrmFamily {
+  count?: string;
+  father?: { name?: string; occupation?: string; annualIncome?: string };
+  mother?: { name?: string; occupation?: string };
+  sibling?: string;
+  returnReason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +297,16 @@ export interface CrmStudent {
   familyProfile?: Record<string, unknown>;
   /** Master info for SOP */
   masterInfo?: Record<string, unknown>;
+  /** Alternative test-array key used by some CRM versions */
+  testScores?: CrmTest[];
+  academicAchievements?: unknown;
+  achievements?: unknown;
+  portfolioUrl?: string;
+  portfolio?: string;
+  website?: string;
+  family?: CrmFamily;
+  finance?: Record<string, unknown>;
+  visaLogistics?: CrmVisaLogistics;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,4 +320,9 @@ export interface CrmSnapshot {
   documentExtractions?: unknown[];
   shortlistedPrograms?: CrmAppliedProgram[];
   appliedPrograms?: CrmAppliedProgram[];
+  /** Alternative test-array key used by some CRM versions */
+  testScores?: CrmTest[];
+  academicAchievements?: unknown;
+  finance?: Record<string, unknown>;
+  visaLogistics?: CrmVisaLogistics;
 }

@@ -1,9 +1,9 @@
 /**
  * services/ai/validators/conflictDetector.ts
  *
- * Deterministically scans input data for factual contradictions BEFORE calling Gemini.
+ * Deterministically scans input data for factual contradictions BEFORE calling the AI model.
  * If conflicts exist, returns NEEDS_REVIEW with the conflicting fields and values.
- * Gemini must NEVER guess which conflicting value is correct.
+ * the AI model must NEVER guess which conflicting value is correct.
  */
 
 import { CanonicalDocumentData } from "../documents/canonicalDocument";

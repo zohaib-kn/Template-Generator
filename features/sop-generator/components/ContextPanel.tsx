@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type {
   StudentDocumentContext,
   ValidationIssue,
@@ -179,11 +179,15 @@ export function ContextPanel({
   const [showRefreshSuccess, setShowRefreshSuccess] = useState(false);
   const [isEditingTarget, setIsEditingTarget] = useState(false);
 
-  useEffect(() => {
+  // Mirror the controlled tab into internal state when the prop changes
+  // (render-phase "previous props" pattern instead of a syncing effect).
+  const [prevActiveTabProp, setPrevActiveTabProp] = useState(activeTabProp);
+  if (activeTabProp !== prevActiveTabProp) {
+    setPrevActiveTabProp(activeTabProp);
     if (activeTabProp !== undefined) {
       setInternalTab(activeTabProp);
     }
-  }, [activeTabProp]);
+  }
 
   const activeTab = activeTabProp !== undefined ? activeTabProp : internalTab;
 

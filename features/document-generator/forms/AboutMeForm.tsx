@@ -150,7 +150,7 @@ export function AboutMeForm() {
             </button>
           </div>
           <p className="text-xs text-slate-600 italic leading-relaxed">
-            "{suggestedTemplate}"
+            &quot;{suggestedTemplate}&quot;
           </p>
         </div>
       ) : (
@@ -178,7 +178,7 @@ export function AboutMeForm() {
                 </button>
               </div>
               <p className="text-xs text-slate-600 italic leading-relaxed">
-                "{suggestedTemplate}"
+                &quot;{suggestedTemplate}&quot;
               </p>
             </div>
           )}

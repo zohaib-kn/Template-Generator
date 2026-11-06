@@ -7,7 +7,7 @@ import {
   type HydratedDocumentData,
 } from "@/features/dashboard/utils/documentHydrator";
 import { getEuropassData } from "@/features/dashboard/utils/documentHydrator";
-import type { CrmSnapshot } from "@/types/crmSnapshot";
+import type { CrmSnapshot, CrmStudent } from "@/types/crmSnapshot";
 
 describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
   // Mock CRM Snapshots for two distinct students
@@ -16,7 +16,7 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
       _id: "6a27a10d8e3cf265b9ab2ca8",
       name: "Angad Deep",
       email: "angad@example.com",
-      phone: "+91 ***REMOVED***",
+      phone: "+91 90000 11111",
       personalDetails: {
         firstName: "Angad",
         lastName: "Deep",
@@ -37,18 +37,18 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
       },
       education: [],
       workExperience: [],
-    } as any,
+    } as unknown as CrmStudent,
   };
 
   const shubhSnapshot: CrmSnapshot = {
     student: {
       _id: "6aa12f3ac975d038580b66e2",
-      name: "***REMOVED***",
+      name: "Kabir Solanki",
       email: "shubh@example.com",
-      phone: "+91 ***REMOVED***",
+      phone: "+91 90000 22222",
       personalDetails: {
-        firstName: "Shubh",
-        lastName: "***REMOVED***",
+        firstName: "Kabir",
+        lastName: "Solanki",
         gender: "Male",
         dob: "2002-06-29",
         nationality: "Indian",
@@ -66,21 +66,21 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
       },
       education: [],
       workExperience: [],
-    } as any,
+    } as unknown as CrmStudent,
   };
 
   describe("1. Strict Cross-Student CRM Snapshot Isolation (getEuropassData)", () => {
     it("strictly rejects foreign student CRM snapshots and never loads another student's data", () => {
-      // Operator is on Angad Deep's document, but ***REMOVED***'s CRM data is in context
+      // Operator is on Angad Deep's document, but Kabir Solanki's CRM data is in context
       const result = getEuropassData(
         "6a27a10d8e3cf265b9ab2ca8", // Angad's ID
         "Angad Deep",
         shubhSnapshot // Foreign snapshot
       );
 
-      // Must NOT contain ***REMOVED***'s name, passport, or address
+      // Must NOT contain Kabir Solanki's name, passport, or address
       assert.equal(result.personal?.fullName, "Angad Deep");
-      assert.notEqual(result.personal?.fullName, "***REMOVED***");
+      assert.notEqual(result.personal?.fullName, "Kabir Solanki");
       assert.equal(result.personal?.passportNumber, undefined);
       assert.equal(result.personal?.address, undefined);
     });
@@ -204,12 +204,12 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
         sections: [],
       };
 
-      const docShubh: HydratedDocumentData = {
+      const docKabir: HydratedDocumentData = {
         id: "doc_shubh_cv_1",
         title: "Europass Academic CV", // Shared identical default title
         docType: "CV",
         docTypeName: "Europass Academic CV",
-        studentName: "***REMOVED***",
+        studentName: "Kabir Solanki",
         studentId: "student_shubh_456",
         updatedAt: "Just now",
         targetUniversity: "Symbiosis",
@@ -221,7 +221,7 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
       };
 
       let recent = syncDocumentToRecentList([], docAngad);
-      recent = syncDocumentToRecentList(recent, docShubh);
+      recent = syncDocumentToRecentList(recent, docKabir);
 
       assert.equal(recent.length, 2, "Both students must retain their documents despite identical titles");
       assert.ok(recent.some((d) => d.studentId === "student_angad_123"));
@@ -279,7 +279,7 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
         activeDocRef.studentId === responsePayload.targetStudentId;
       assert.equal(isAcceptedA, true);
 
-      // CASE B: Operator switched to Shubh while AI was running
+      // CASE B: Operator switched to Kabir while AI was running
       activeDocRef = { docId: "doc_shubh_2", studentId: "stud_shubh" };
       activeRequestRef = {
         requestId: "req_token_456",
@@ -312,12 +312,12 @@ describe("Phase 1: Student Identity Isolation & Safe Data Persistence", () => {
       const freshCrm = angadSnapshot;
 
       // Hydration logic: only fill missing fields
-      const updatedPersonal = { ...currentCv.personal };
+      const updatedPersonal: { fullName: string; email: string; address?: string } = { ...currentCv.personal };
       let changed = false;
 
       const crmAddress = freshCrm.student?.mailingAddress?.city + ", " + freshCrm.student?.mailingAddress?.country;
       if (!updatedPersonal.address && crmAddress) {
-        (updatedPersonal as any).address = crmAddress;
+        updatedPersonal.address = crmAddress;
         changed = true;
       }
 

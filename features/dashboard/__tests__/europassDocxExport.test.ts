@@ -12,22 +12,22 @@ import type { DocumentData } from "@/types/document";
 describe("Europass DOCX Export Engine", () => {
   const sampleCvData: DocumentData = {
     personal: {
-      fullName: "***REMOVED***",
+      fullName: "Tara Nandwani",
       passportNumber: "AR125966",
       nationality: "Indian",
       dateOfBirth: "2006-05-31",
       placeOfBirth: "Lucknow, India",
       gender: "Female",
       phone: "(+91) 70393979",
-      email: "***REMOVED***",
-      address: "577, Dalmandi Faizabad, Ayodhya, UP, India, 224001",
+      email: "tara.nandwani@example.com",
+      address: "577, Dalmandi Faizabad, Sampleton, UP, India, 224001",
       photoUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
     },
     education: [
       {
         id: "edu-1",
         qualification: "Grade 10th",
-        institution: "Tiny Tots School Civil Lines Faizabad Up",
+        institution: "Greenfield Public School Civil Lines Faizabad Up",
         startDate: "2020-04",
         address: "Faizabad, India",
         finalGrade: "77.60%/100",
@@ -50,7 +50,7 @@ describe("Europass DOCX Export Engine", () => {
       {
         title: "EDUCATION AND TRAINING",
         content:
-          "Grade 10th\nTiny Tots School Civil Lines Faizabad Up [ 2020 - 04 ]\nAddress: Faizabad, India | Final grade: 77.60%/100",
+          "Grade 10th\nGreenfield Public School Civil Lines Faizabad Up [ 2020 - 04 ]\nAddress: Faizabad, India | Final grade: 77.60%/100",
       },
       {
         title: "WORK EXPERIENCE / INTERNSHIPS",
@@ -65,7 +65,7 @@ describe("Europass DOCX Export Engine", () => {
     ];
 
     const elements = await buildEuropassDocxElements(
-      "***REMOVED***",
+      "Tara Nandwani",
       sections,
       sampleCvData,
       "Arial"
@@ -93,7 +93,7 @@ describe("Europass DOCX Export Engine", () => {
 
   it("synthesizes sections directly from cvData when sections array is empty", async () => {
     const elements = await buildEuropassDocxElements(
-      "***REMOVED***",
+      "Tara Nandwani",
       [],
       sampleCvData,
       "Arial"

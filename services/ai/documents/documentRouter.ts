@@ -9,7 +9,7 @@
  * - SOP
  * - LOR
  *
- * Explicitly rejects unsupported types without making unnecessary Gemini calls.
+ * Explicitly rejects unsupported types without making unnecessary the AI model calls.
  */
 
 import { DocumentType, isValidDocumentType, SUPPORTED_DOCUMENT_TYPES } from "../config/documentTypes";

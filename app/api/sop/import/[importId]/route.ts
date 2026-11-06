@@ -8,17 +8,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { SopImportModel } from "@/models/SopImport";
+import { canAccessRecord, requireSession } from "@/lib/auth/session";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ importId: string }> }
 ) {
   try {
     const { importId } = await params;
     await connectToDatabase();
 
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     const record = await SopImportModel.findOne({ id: importId });
-    if (!record) {
+    if (!record || !canAccessRecord(auth.session, record)) {
       return NextResponse.json(
         { success: false, error: "Import record not found." },
         { status: 404 }
@@ -27,8 +31,8 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: record });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -40,7 +44,14 @@ export async function PATCH(
     const { importId } = await params;
     const body = await req.json();
 
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     await connectToDatabase();
+    const existing = await SopImportModel.findOne({ id: importId }).select("studentId createdBy").lean();
+    if (!existing || !canAccessRecord(auth.session, existing)) {
+      return NextResponse.json({ success: false, error: "Import record not found." }, { status: 404 });
+    }
     const updated = await SopImportModel.findOneAndUpdate(
       { id: importId },
       {
@@ -65,7 +76,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, data: updated });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

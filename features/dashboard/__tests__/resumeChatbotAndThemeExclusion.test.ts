@@ -125,7 +125,8 @@ describe("Resume Chatbot Features & Quick Actions", () => {
   });
 
   describe("2. Quick-Action Buttons Functionality", () => {
-    const createBaseCv = (): any => ({
+    const createBaseCv = (): DocumentData =>
+      ({
       personal: {
         fullName: "Aafia Ameen",
         firstName: "Aafia",
@@ -148,7 +149,7 @@ describe("Resume Chatbot Features & Quick Actions", () => {
       skills: [{ id: "sk-1", name: "Python" }],
       languages: [{ id: "lang-1", name: "English" }],
       declaration: "I hereby declare that the above furnished details are true to the best of my knowledge and belief.",
-    });
+    }) as unknown as DocumentData;
 
     it("Visa Check updates declaration to genuine student intent and syncs to CV", () => {
       const baseCv = createBaseCv();

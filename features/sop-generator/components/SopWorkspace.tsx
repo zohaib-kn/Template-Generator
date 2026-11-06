@@ -1447,12 +1447,11 @@ export function SopWorkspace({ initialDraft }: SopWorkspaceProps = {}) {
   }
 
   // Selected section (falls back to first section if current selection doesn't exist in active template)
-  const effectiveSelectedId = useMemo(() => {
-    if (selectedSectionId && sections.some((s) => s.id === selectedSectionId)) {
-      return selectedSectionId;
-    }
-    return sections[0]?.id ?? null;
-  }, [selectedSectionId, sections]);
+  // Primitive result — computed directly (no memo needed; keeps React Compiler happy).
+  const effectiveSelectedId =
+    selectedSectionId && sections.some((s) => s.id === selectedSectionId)
+      ? selectedSectionId
+      : sections[0]?.id ?? null;
 
   const selectedSection = sections.find((s) => s.id === effectiveSelectedId) ?? null;
   const displayStudentName = loadedStudentName || (useSampleData ? application.studentName : "No Student Selected");

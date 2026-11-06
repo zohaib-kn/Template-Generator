@@ -175,7 +175,7 @@ describe("University SOP Integration & Core Requirements", () => {
   });
 
   it("Requirement 6: Draft storage round-trips documentType correctly", () => {
-    (global as any).window = {
+    (globalThis as unknown as { window: unknown }).window = {
       localStorage: new MockLocalStorage(),
     };
 

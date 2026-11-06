@@ -65,7 +65,7 @@ export function useAcademicAlignment(
   } = options;
 
   const [resolution, setResolution] = useState<AcademicAlignmentResolutionRecord | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(() => Boolean(studentId && programId));
   const [error, setError] = useState<string | null>(null);
   const [alignmentVersion, setAlignmentVersion] = useState<number>(1);
 
@@ -74,12 +74,11 @@ export function useAcademicAlignment(
   // -------------------------------------------------------------------------
   // Fetch Persisted Resolution from MongoDB
   // -------------------------------------------------------------------------
-  const fetchResolution = useCallback(async () => {
-    if (!studentId || !programId) {
-      setResolution(null);
-      setLoading(false);
-      return;
-    }
+  // Performs the request; callers are responsible for the synchronous
+  // "start loading" state updates (see fetchResolution / render-phase reset).
+  // Uses a promise chain so every setState runs asynchronously in a callback.
+  const runFetch = useCallback((): Promise<void> => {
+    if (!studentId || !programId) return Promise.resolve();
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -87,44 +86,69 @@ export function useAcademicAlignment(
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(
-        `/api/academic-alignment?studentId=${encodeURIComponent(studentId)}&programId=${encodeURIComponent(programId)}`,
-        { signal: controller.signal }
-      );
-
-      if (!res.ok) {
-        throw new Error(`Failed to load resolution (${res.status})`);
-      }
-
-      const data = await res.json();
-      if (data.success) {
-        setResolution(data.resolution || null);
-      } else {
-        setError(data.error || "Failed to load academic alignment resolution");
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === "AbortError") {
-        return; // Ignore aborted requests
-      }
-      const message = err instanceof Error ? err.message : "Error fetching resolution";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    return fetch(
+      `/api/academic-alignment?studentId=${encodeURIComponent(studentId)}&programId=${encodeURIComponent(programId)}`,
+      { signal: controller.signal }
+    )
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load resolution (${res.status})`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          setResolution(data.resolution || null);
+        } else {
+          setError(data.error || "Failed to load academic alignment resolution");
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") {
+          return; // Ignore aborted requests
+        }
+        const message = err instanceof Error ? err.message : "Error fetching resolution";
+        setError(message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [studentId, programId]);
 
+  const fetchResolution = useCallback(async () => {
+    if (!studentId || !programId) {
+      setResolution(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    await runFetch();
+  }, [studentId, programId, runFetch]);
+
+  // Reset load state during render when the student/program changes
+  // (replaces the synchronous setState calls that used to run in the effect).
+  const fetchKey = `${studentId ?? ""}\u0000${programId ?? ""}`;
+  const [prevFetchKey, setPrevFetchKey] = useState(fetchKey);
+  if (prevFetchKey !== fetchKey) {
+    setPrevFetchKey(fetchKey);
+    if (!studentId || !programId) {
+      setResolution(null);
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
+  }
+
   useEffect(() => {
-    fetchResolution();
+    runFetch();
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchResolution]);
+  }, [runFetch]);
 
   // -------------------------------------------------------------------------
   // Snapshot Strings (for comparison & persistence)

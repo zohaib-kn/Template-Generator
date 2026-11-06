@@ -37,6 +37,8 @@ const ResumeDraftSchema = new Schema<ResumeDraftRecord>(
      * queries but continue to load/render normally in the Resume Builder.
      */
     studentId: { type: String, sparse: true, index: true },
+    /** Operator (session sub) who first saved the draft. */
+    createdBy: { type: String, sparse: true, index: true },
     /**
      * NormalizedAppliedProgram.id for the target application at save time.
      * sparse: true preserves compatibility with pre-Phase-0 drafts.

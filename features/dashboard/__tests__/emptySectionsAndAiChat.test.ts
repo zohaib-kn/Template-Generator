@@ -8,7 +8,7 @@ import {
 import { syncSectionsToCvData } from "@/features/dashboard/utils/documentStudioSync";
 import type { DocumentData } from "@/types/document";
 import { getSampleRohanIyerSnapshot } from "@/lib/sampleStudents";
-import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
+import sampleStudentBSnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentB.json";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 
 describe("Empty Sections Customization & Zero Fallbacks Policy", () => {
@@ -97,11 +97,11 @@ describe("Empty Sections Customization & Zero Fallbacks Policy", () => {
     );
   });
 
-  it("hydrates ***REMOVED***n CV with verified CRM data and zero fake Deloitte fallback", () => {
+  it("hydrates Devansh CV with verified CRM data and zero fake Deloitte fallback", () => {
     const doc = hydrateDocumentFromSnapshot(
       "CV",
-      fardeeSnapshot as unknown as CrmSnapshot,
-      "fardee-snapshot"
+      sampleStudentBSnapshot as unknown as CrmSnapshot,
+      "devansh-snapshot"
     );
 
     // Must NOT contain fake Deloitte or PwC
@@ -111,7 +111,7 @@ describe("Empty Sections Customization & Zero Fallbacks Policy", () => {
   });
 
   it("leaves space empty for missing sections when student has no work history", () => {
-    const snapshotWithoutWork: CrmSnapshot = JSON.parse(JSON.stringify(fardeeSnapshot));
+    const snapshotWithoutWork: CrmSnapshot = JSON.parse(JSON.stringify(sampleStudentBSnapshot));
     if (snapshotWithoutWork.student) {
       snapshotWithoutWork.student.workExperience = [];
     }
@@ -119,7 +119,7 @@ describe("Empty Sections Customization & Zero Fallbacks Policy", () => {
     const doc = hydrateDocumentFromSnapshot(
       "CV",
       snapshotWithoutWork,
-      "fardee-no-work"
+      "devansh-no-work"
     );
 
     const workSec = doc.sections.find(

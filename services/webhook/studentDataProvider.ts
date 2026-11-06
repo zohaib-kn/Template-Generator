@@ -9,8 +9,8 @@
  */
 
 import type { CrmSnapshot } from "@/types/crmSnapshot";
-import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
-import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
+import sampleStudentASnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentA.json";
+import sampleStudentBSnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentB.json";
 
 export class StudentNotFoundError extends Error {
   constructor(public readonly studentId: string, message?: string) {
@@ -65,13 +65,14 @@ export class CrmApiStudentDataProvider implements StudentDataProvider {
       throw new StudentNotFoundError(studentId, "Empty studentId provided.");
     }
 
-    // 1. Development cached fixture check (fast & offline resilient)
-    const normalized = trimmedId.toLowerCase();
-    if (normalized === "6a508a96af13bb33e9fc07ce") {
-      return kaavyaSnapshot as unknown as CrmSnapshot;
+    // 1. Development cached fixture check (fast & offline resilient). Never in production:
+    // these are saved copies of real records and would mask the live CRM data.
+    const normalized = process.env.NODE_ENV === "production" ? "" : trimmedId.toLowerCase();
+    if (normalized === "5a0000000000000000000001") {
+      return sampleStudentASnapshot as unknown as CrmSnapshot;
     }
-    if (normalized === "69e600e750f7c6e4051f547e") {
-      return fardeeSnapshot as unknown as CrmSnapshot;
+    if (normalized === "5a000000000000000000001b") {
+      return sampleStudentBSnapshot as unknown as CrmSnapshot;
     }
 
     // 2. Live upstream fetch

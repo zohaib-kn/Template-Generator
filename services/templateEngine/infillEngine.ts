@@ -5,12 +5,12 @@
  * Implements deterministic template hydration:
  * - Tier 1: Static Boilerplate (transferred verbatim, zero AI)
  * - Tier 2: CRM Interpolation (deterministic substitution with missing-data badges)
- * - Tier 3: AI Narrative Infill (Gemini micro-prompts under strict token & word bounds)
+ * - Tier 3: AI Narrative Infill (AI micro-prompts under strict token & word bounds)
  */
 
 import type { TemplateRecord, TemplateSectionSlot } from "@/models/Template";
 import type { NormalizedStudentProfile } from "@/types/normalizedStudent";
-import { geminiService } from "@/services/ai/gemini/geminiClient";
+import { aiService } from "@/services/ai/openaiClient";
 
 export interface HydratedSection {
   slotId: string;
@@ -198,7 +198,7 @@ Strict Constraints:
       const maxTokens = Math.ceil((section.maxWords || 100) * 1.6);
 
       try {
-        const aiResponse = await geminiService.generate({
+        const aiResponse = await aiService.generate({
           prompt,
           temperature: 0.25,
           maxOutputTokens: maxTokens,

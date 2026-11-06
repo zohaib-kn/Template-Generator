@@ -4,8 +4,8 @@ import type { ApplicationTarget } from "@/features/document-generator/guidance/t
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { mapCrmSnapshot } from "@/features/document-generator/utils/mapCrmSnapshot";
 import { testStudentData } from "@/features/document-generator/utils/testStudentData";
-import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
-import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
+import sampleStudentASnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentA.json";
+import sampleStudentBSnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentB.json";
 
 // ---------------------------------------------------------------------------
 // Response type
@@ -99,8 +99,8 @@ async function buildResponse(customInput?: string): Promise<NextResponse<Student
 }
 
 function cachedOrFallbackResponse(studentId?: string): NextResponse<StudentWebhookResponse> {
-  if (studentId === "6a508a96af13bb33e9fc07ce") {
-    const snapshot = kaavyaSnapshot as unknown as CrmSnapshot;
+  if (studentId === "5a0000000000000000000001") {
+    const snapshot = sampleStudentASnapshot as unknown as CrmSnapshot;
     const { student, target } = mapCrmSnapshot(snapshot);
     return NextResponse.json({
       success: true,
@@ -112,8 +112,8 @@ function cachedOrFallbackResponse(studentId?: string): NextResponse<StudentWebho
     });
   }
 
-  if (studentId === "69e600e750f7c6e4051f547e") {
-    const snapshot = fardeeSnapshot as unknown as CrmSnapshot;
+  if (studentId === "5a000000000000000000001b") {
+    const snapshot = sampleStudentBSnapshot as unknown as CrmSnapshot;
     const { student, target } = mapCrmSnapshot(snapshot);
     return NextResponse.json({
       success: true,
@@ -137,7 +137,15 @@ function cachedOrFallbackResponse(studentId?: string): NextResponse<StudentWebho
 // Route Handlers
 // ---------------------------------------------------------------------------
 
+/** Development-only endpoint: it serves fixture copies of real CRM records. */
+function disabledInProduction(): NextResponse | null {
+  if (process.env.NODE_ENV !== "production") return null;
+  return NextResponse.json({ success: false, error: "Not found." }, { status: 404 }) as NextResponse;
+}
+
 export async function GET(req: NextRequest) {
+  const disabled = disabledInProduction();
+  if (disabled) return disabled;
   const { searchParams } = req.nextUrl;
   const input =
     searchParams.get("input") ||
@@ -148,6 +156,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const disabled = disabledInProduction();
+  if (disabled) return disabled;
   let input: string | undefined;
   try {
     const body = await req.json();

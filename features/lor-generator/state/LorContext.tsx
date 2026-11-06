@@ -55,6 +55,7 @@ export function LorProvider({ children }: { children: ReactNode }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.metadata && parsed.institution) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time post-mount hydration from localStorage; reading it during render would cause an SSR hydration mismatch
           setDocument(parsed);
           setIsDirty(true);
         }

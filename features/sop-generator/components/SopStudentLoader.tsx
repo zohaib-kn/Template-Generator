@@ -26,7 +26,7 @@
  * AI integration is intentionally absent (future phase).
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { StudentDocumentContext, DataSource } from "../types/sop-generator";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import type { NormalizedAppliedProgram } from "@/types/normalizedStudent";
@@ -150,15 +150,18 @@ export function SopStudentLoader({
     });
   }, [selectedStudentData, onStudentLoaded]);
 
-  // Reset when student is cleared
-  useEffect(() => {
+  // Reset when student is cleared (render-phase "previous props" pattern
+  // instead of a syncing effect).
+  const [prevSelectedStudentId, setPrevSelectedStudentId] = useState(selectedStudentId);
+  if (selectedStudentId !== prevSelectedStudentId) {
+    setPrevSelectedStudentId(selectedStudentId);
     if (!selectedStudentId) {
       setFetchStatus({ kind: "idle" });
       setCurrentSnapshot(null);
       setAvailablePrograms([]);
       setSelectedProgramId("");
     }
-  }, [selectedStudentId]);
+  }
 
 
 

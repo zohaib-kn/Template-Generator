@@ -6,7 +6,7 @@
  * Orchestration pipeline:
  * 1. File buffer extraction (PDF / DOCX) with timeouts and error safeguards.
  * 2. Deterministic paragraph segmentation.
- * 3. Gemini AI semantic paragraph classification and entity extraction.
+ * 3. the AI model AI semantic paragraph classification and entity extraction.
  * 4. Section mapping against the 16 standard template sections.
  * 5. CRM conflict detection against verified student profile.
  * 6. MongoDB persistence (GridFS original file storage + SopImportModel).
@@ -21,7 +21,7 @@ import type { NormalizedStudentProfile } from "@/types/normalizedStudent";
 import { parsePdfBuffer } from "./parsers/pdfParser";
 import { parseDocxBuffer } from "./parsers/docxParser";
 import { segmentSopParagraphs } from "./normalizers/sopParagraphSegmenter";
-import { classifySopWithGemini } from "./normalizers/geminiSopClassifier";
+import { classifySopWithAi } from "./normalizers/aiSopClassifier";
 import { detectSopCrmConflicts } from "./normalizers/sopConflictDetector";
 import { saveFileToGridFS } from "./storage/gridfsStorage";
 import { SopImportModel } from "@/models/SopImport";
@@ -37,6 +37,8 @@ export interface ProcessSopUploadOptions {
   crmProfile?: NormalizedStudentProfile | null;
   studentId?: string;
   studentName?: string;
+  /** Operator (session sub) performing the upload. */
+  createdBy?: string;
 }
 
 export function computeSopSectionsSummary(
@@ -100,7 +102,7 @@ export function computeSopSectionsSummary(
 export async function processSopUpload(
   options: ProcessSopUploadOptions
 ): Promise<SopImportResult> {
-  const { buffer, fileName, mimeType, crmProfile, studentId, studentName } = options;
+  const { buffer, fileName, mimeType, crmProfile, studentId, studentName, createdBy } = options;
   const importId = `IMP-SOP-${generateId()}`;
   const now = new Date().toISOString();
 
@@ -129,8 +131,8 @@ export async function processSopUpload(
   // 3. Segment raw text into paragraph blocks
   const blocks = segmentSopParagraphs(rawText);
 
-  // 4. Gemini Semantic Paragraph Classification & Shared Fact Extraction
-  const aiResult = await classifySopWithGemini(blocks);
+  // 4. the AI model Semantic Paragraph Classification & Shared Fact Extraction
+  const aiResult = await classifySopWithAi(blocks);
 
   // 5. Build section summary and structured sectionContents map
   const {
@@ -191,6 +193,7 @@ export async function processSopUpload(
     await SopImportModel.create({
       id: importId,
       studentId: studentId || crmProfile?.meta?.studentId,
+      createdBy,
       studentName: resolvedStudentName,
       fileName,
       fileSizeBytes: buffer.length,

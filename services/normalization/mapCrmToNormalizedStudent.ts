@@ -181,7 +181,7 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
   // Find test that matches IELTS / English or has an overallScore or subscores, fallback to first
   const targetTest =
     tests.find((t) => {
-      const anyT = t as Record<string, any>;
+      const anyT: CrmTest = t;
       const name = (
         (t as { type?: string }).type ||
         (t as { testName?: string }).testName ||
@@ -192,7 +192,7 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
       return name.includes("ielts") || name.includes("english") || name.includes("toefl") || name.includes("pte");
     }) ||
     tests.find((t) => {
-      const anyT = t as Record<string, any>;
+      const anyT: CrmTest = t;
       return Boolean(
         t.overallScore ||
         t.listening ||
@@ -208,7 +208,7 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
     tests[0];
 
   if (!targetTest) return undefined;
-  const anyT = targetTest as Record<string, any>;
+  const anyT: CrmTest = targetTest;
 
   const listening =
     toScoreString(targetTest.listening) ||
@@ -256,7 +256,7 @@ function mapEnglishTest(tests: CrmTest[] | undefined): NormalizedEnglishTest | u
     toScoreString(anyT.candidateNumber) ||
     toScoreString(anyT.candidateNo) ||
     toScoreString(anyT.testReportForm) ||
-    toScoreString((targetTest.subscores as Record<string, any>)?.trfNumber) ||
+    toScoreString(targetTest.subscores?.trfNumber) ||
     toScoreString(anyT.subScores?.trfNumber);
 
   const overallScore =
@@ -594,16 +594,16 @@ export function mapCrmToNormalizedStudent(
     : undefined;
 
   // 6b. Academic Achievements
-  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, any>;
-  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, any>;
-  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, any>;
+  const anyMasterInfo: Record<string, unknown> = s.masterInfo ?? {};
+  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, unknown>;
+  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, unknown>;
 
   const rawAchievements =
     anyMasterInfo.academicAchievements ||
     anyRawAcademicDetails.academicAchievements ||
-    (s as any).academicAchievements ||
-    (s as any).achievements ||
-    (snapshot as any).academicAchievements;
+    s.academicAchievements ||
+    s.achievements ||
+    snapshot.academicAchievements;
 
   const achievements = parseCrmAchievements(rawAchievements);
 
@@ -611,8 +611,8 @@ export function mapCrmToNormalizedStudent(
   const workExperience = (s.workExperience ?? []).map((w, i) => mapWorkEntry(w, i));
 
   // 8. Standardized tests
-  const anyS = s as Record<string, any>;
-  const anySnap = snapshot as Record<string, any>;
+  const anyS = s;
+  const anySnap = snapshot;
   const rawTests: CrmTest[] | undefined =
     (s.tests && s.tests.length > 0)
       ? s.tests
@@ -707,11 +707,11 @@ export function mapCrmToNormalizedStudent(
       placeOfBirth: placeOfBirth || undefined,
       photoUrl,
       portfolioUrl:
-        (s as any).portfolioUrl?.trim() ||
-        (s as any).portfolio?.trim() ||
-        (s as any).website?.trim() ||
-        (pd as any).portfolioUrl?.trim() ||
-        (pd as any).website?.trim() ||
+        s.portfolioUrl?.trim() ||
+        s.portfolio?.trim() ||
+        s.website?.trim() ||
+        pd.portfolioUrl?.trim() ||
+        pd.website?.trim() ||
         undefined,
     },
     academics: {
@@ -730,6 +730,6 @@ export function mapCrmToNormalizedStudent(
     },
     family,
     finance,
-    visaLogistics: (snapshot as any).visaLogistics || (snapshot.student as any)?.visaLogistics || undefined,
+    visaLogistics: snapshot.visaLogistics || snapshot.student?.visaLogistics || undefined,
   };
 }

@@ -38,8 +38,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
 
     const resumeData: DocumentData = {
       personal: {
-        fullName: "***REMOVED***",
-        email: "***REMOVED***",
+        fullName: "Meera Anand Kalsekar",
+        email: "meera.kalsekar1@example.com",
         phone: "+91 9876543210",
         address: "Kochi, Kerala, India",
         nationality: "Indian",
@@ -74,8 +74,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
       },
     };
 
-    assert.equal(syncedCtx.student.fullName, "***REMOVED***");
-    assert.equal(syncedCtx.student.email, "***REMOVED***");
+    assert.equal(syncedCtx.student.fullName, "Meera Anand Kalsekar");
+    assert.equal(syncedCtx.student.email, "meera.kalsekar1@example.com");
     assert.equal(syncedCtx.student.phone, "+91 9876543210");
     assert.equal(syncedCtx.student.address, "Kochi, Kerala, India");
     assert.equal(syncedCtx.academics.latestQualification, "Bachelor of Technology in Computer Science");
@@ -117,8 +117,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
       "template_gen_active_resume_student-123"
     );
     assert.equal(
-      getResumeSessionStorageKey("6a508a96af13bb33e9fc07ce"),
-      "template_gen_active_resume_6a508a96af13bb33e9fc07ce"
+      getResumeSessionStorageKey("5a0000000000000000000001"),
+      "template_gen_active_resume_5a0000000000000000000001"
     );
     assert.equal(getResumeSessionStorageKey(null), "template_gen_active_resume_data");
     assert.equal(getResumeSessionStorageKey(undefined), "template_gen_active_resume_data");
@@ -129,8 +129,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
     // Student A's Resume data with specialized certificates and projects
     const studentAResumeData: DocumentData = {
       personal: {
-        fullName: "***REMOVED***n Khan",
-        email: "fardeen@example.com",
+        fullName: "Devansh Devlekar",
+        email: "devansh@example.com",
       },
       certifications: [
         { id: "c1", name: "Certified Automotive Safety Engineer", provider: "SAE" },
@@ -144,8 +144,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
       ],
     };
 
-    // Active student in SOP is Student B (***REMOVED*** Nair)
-    const currentStudentName = "***REMOVED***".toLowerCase();
+    // Active student in SOP is Student B (Meera Kalsekar)
+    const currentStudentName = "Meera Anand Kalsekar".toLowerCase();
     const resumeStudentName = (studentAResumeData.personal?.fullName || "").toLowerCase();
 
     const isResumeForCurrentStudent = Boolean(
@@ -180,8 +180,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
   it("Cross-Student Isolation: Resume evidence is preserved and accessible when student identities match", () => {
     const studentBResumeData: DocumentData = {
       personal: {
-        fullName: "***REMOVED***",
-        email: "kaavya@example.com",
+        fullName: "Meera Anand Kalsekar",
+        email: "meera@example.com",
       },
       certifications: [
         { id: "c2", name: "Data Science Specialization", provider: "Coursera" },
@@ -189,7 +189,7 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
       skills: [{ id: "s2", name: "Python" }],
     };
 
-    const currentStudentName = "***REMOVED***".toLowerCase();
+    const currentStudentName = "Meera Anand Kalsekar".toLowerCase();
     const resumeStudentName = (studentBResumeData.personal?.fullName || "").toLowerCase();
 
     const isResumeForCurrentStudent = Boolean(
@@ -336,8 +336,8 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
     );
 
     assert.equal(
-      getAppTargetSessionStorageKey("6a508a96af13bb33e9fc07ce"),
-      "template_gen_active_target_6a508a96af13bb33e9fc07ce"
+      getAppTargetSessionStorageKey("5a0000000000000000000001"),
+      "template_gen_active_target_5a0000000000000000000001"
     );
     assert.equal(
       getAppTargetSessionStorageKey("sample-aarav-mehta"),
@@ -369,7 +369,7 @@ describe("Cross-Module Synchronization: Resume Builder <-> SOP Generator", () =>
     // Mock storage simulating sessionStorage
     const storage = new Map<string, string>();
 
-    const samiyahId = "6a508a96af13bb33e9fc07ce";
+    const samiyahId = "5a0000000000000000000001";
     const aaravId = "sample-aarav-mehta";
 
     const samiyahTarget: ApplicationTarget = {

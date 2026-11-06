@@ -98,7 +98,7 @@ export function ResumeImportDropzone({ onFileSelect, disabled = false }: ResumeI
             Click to upload or drag & drop
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            Upload your candidate's existing resume in PDF or DOCX format
+            Upload your candidate&apos;s existing resume in PDF or DOCX format
           </p>
         </div>
 

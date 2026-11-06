@@ -8,7 +8,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import type { ResumeDraftRecord } from "../types/draft";
 import { getAllResumeDrafts, deleteResumeDraft } from "../lib/resumeDraftStorage";
 
@@ -30,12 +30,16 @@ export function ResumeDraftsModal({
   const [drafts, setDrafts] = useState<ResumeDraftRecord[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Reload drafts each time the modal opens (render-phase "previous props"
+  // pattern instead of a syncing effect).
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setDrafts(getAllResumeDrafts());
       setConfirmDeleteId(null);
     }
-  }, [isOpen]);
+  }
 
   if (!isOpen) return null;
 

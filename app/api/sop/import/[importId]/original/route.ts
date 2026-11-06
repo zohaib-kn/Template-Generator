@@ -8,18 +8,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { SopImportModel } from "@/models/SopImport";
+import { canAccessRecord, requireSession } from "@/lib/auth/session";
 import { getFileFromGridFS } from "@/services/import/storage/gridfsStorage";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ importId: string }> }
 ) {
   try {
     const { importId } = await params;
     await connectToDatabase();
 
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     const record = await SopImportModel.findOne({ id: importId });
-    if (!record || !record.gridfsFileId) {
+    if (!record || !record.gridfsFileId || !canAccessRecord(auth.session, record)) {
       return NextResponse.json(
         { success: false, error: "Original file not found for this import." },
         { status: 404 }
@@ -43,7 +47,7 @@ export async function GET(
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

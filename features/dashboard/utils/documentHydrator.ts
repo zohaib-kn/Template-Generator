@@ -12,7 +12,7 @@ import type { DocumentData } from "@/types";
  * 3. Academic Letter of Recommendation (LOR)
  */
 
-import type { CrmSnapshot } from "@/types/crmSnapshot";
+import type { CrmSnapshot, CrmStudent, CrmFamily, CrmVisaLogistics } from "@/types/crmSnapshot";
 import { universitySopTemplate } from "@/features/sop-generator/templates/university-sop";
 import { italyTypeDCoverLetter } from "@/features/sop-generator/templates/italy-type-d-cover-letter";
 import { interpolate } from "@/features/sop-generator/lib/interpolateTemplate";
@@ -176,10 +176,10 @@ export function hydrateDocumentFromSnapshot(
 
     if (isVisa) {
       // Profile enrichment from the student's own CRM snapshot only
-      const rawStudent = (snapshot.student as any) || {};
-      const rawFamily = rawStudent.family || {};
-      const rawVisa = (snapshot as any).visaLogistics || rawStudent.visaLogistics || {};
-      const rawFinance = (snapshot as any).finance || rawStudent.finance || {};
+      const rawStudent: CrmStudent = snapshot.student || {};
+      const rawFamily: CrmFamily = rawStudent.family || {};
+      const rawVisa: CrmVisaLogistics = snapshot.visaLogistics || rawStudent.visaLogistics || {};
+      const rawFinance: Record<string, unknown> = snapshot.finance || rawStudent.finance || {};
 
       // Publicly verifiable facts for well-known institutions only; otherwise left missing
       if (!sopContext.destination.universityHistory) {
@@ -535,10 +535,17 @@ export function hydrateDocumentFromSnapshot(
   };
 }
 
+/** CRM snapshot as received by the dashboard, with the alternate id keys some sources use. */
+type IdentifiableSnapshot = CrmSnapshot & {
+  _id?: string;
+  id?: string;
+  student?: CrmStudent & { id?: string };
+};
+
 export function getEuropassData(
   studentId: string,
   studentName?: string,
-  globalStudentData?: any
+  globalStudentData?: IdentifiableSnapshot | null
 ): DocumentData {
   // Strict identity verification: candidate CRM data MUST belong to the requested student
   const isMatching =

@@ -20,7 +20,7 @@ describe("Cover Letter Unified Assistant Workflows (Workflows 1 & 2)", () => {
     },
     {
       heading: "Student Introduction",
-      content: "My name is ***REMOVED***, and I am from Ayodhya, India. I completed my High School from Tiny Tots School.",
+      content: "My name is TARA NANDWANI, and I am from Sampleton, India. I completed my High School from Greenfield Public School.",
     },
     {
       heading: "Academic Background",
@@ -44,7 +44,7 @@ describe("Cover Letter Unified Assistant Workflows (Workflows 1 & 2)", () => {
     },
     {
       heading: "Financial Sponsorship",
-      content: "My higher education and living expenses in Italy will be fully sponsored by my Father, ASHISH SAGAR JAISWAL.",
+      content: "My higher education and living expenses in Italy will be fully sponsored by my Father, ASHISH SAGAR NANDWANI.",
     },
     {
       heading: "Accommodation",
@@ -59,7 +59,7 @@ describe("Cover Letter Unified Assistant Workflows (Workflows 1 & 2)", () => {
   const mockCoverLetterDoc: HydratedDocumentData = {
     id: "doc-cl-001",
     studentId: "student-001",
-    studentName: "***REMOVED***",
+    studentName: "TARA NANDWANI",
     docType: "COVER_LETTER",
     title: "Italy Visa Cover Letter",
     sections: sampleCoverLetterSections,
@@ -75,7 +75,7 @@ describe("Cover Letter Unified Assistant Workflows (Workflows 1 & 2)", () => {
 
   const emptyCv: DocumentData = {
     personal: {
-      fullName: "***REMOVED***",
+      fullName: "TARA NANDWANI",
       email: "riddhi@example.com",
     },
     skills: [],

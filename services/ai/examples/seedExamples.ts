@@ -96,7 +96,7 @@ Thank you for considering my visa application. I respectfully request your favou
 Sincerely,
 Aafia Ameen
 Passport No: Z9876543
-Email: ***REMOVED*** | Phone: +91 94255 67890`,
+Email: aafia.ameen@mail.invalid | Phone: +91 94255 67890`,
     reviewerNotes: [
       "Strict single-page consular format.",
       "Clear separation of university vs country motivation.",

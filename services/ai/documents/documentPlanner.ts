@@ -1,7 +1,7 @@
 /**
  * services/ai/documents/documentPlanner.ts
  *
- * Generates an internal structured paragraph plan (blueprint) before prompting Gemini.
+ * Generates an internal structured paragraph plan (blueprint) before prompting the AI model.
  * Maps relevant canonical facts to each paragraph ID.
  * Does NOT expose chain-of-thought, keeping planning structured and deterministic.
  */

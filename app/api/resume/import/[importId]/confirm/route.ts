@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { ResumeImportModel } from "@/models/ResumeImport";
+import { canAccessRecord, requireSession } from "@/lib/auth/session";
 import { ResumeDraftModel } from "@/models/ResumeDraft";
 import type { DocumentData } from "@/types";
 import type { ApplicationTarget } from "@/features/document-generator/guidance/types";
@@ -23,8 +24,11 @@ export async function POST(
 
     await connectToDatabase();
 
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     const importRecord = await ResumeImportModel.findOne({ id: importId });
-    if (!importRecord) {
+    if (!importRecord || !canAccessRecord(auth.session, importRecord)) {
       return NextResponse.json(
         { success: false, error: "Import record not found." },
         { status: 404 }
@@ -42,6 +46,7 @@ export async function POST(
 
     const draft = await ResumeDraftModel.create({
       id: draftId,
+      studentId: importRecord.studentId,
       studentName,
       targetUniversity: applicationTarget?.universityName,
       intendedCourse: applicationTarget?.intendedCourse,
@@ -60,7 +65,7 @@ export async function POST(
       importId,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

@@ -51,13 +51,13 @@ export function ResumeStudentDetailsModal({
   const docs = snapshot.documents ?? s.documents ?? [];
   const programs = snapshot.appliedPrograms ?? [];
 
-  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, any>;
-  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, any>;
-  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, any>;
+  const anyMasterInfo = (s.masterInfo ?? {}) as Record<string, unknown>;
+  const anyRawSubmission = (anyMasterInfo.rawSubmission ?? {}) as Record<string, unknown>;
+  const anyRawAcademicDetails = (anyRawSubmission.academicDetails ?? {}) as Record<string, unknown>;
   const rawAchievements =
     (anyMasterInfo.academicAchievements as string) ||
     (anyRawAcademicDetails.academicAchievements as string) ||
-    ((s as any).academicAchievements as string) ||
+    ((s as Record<string, unknown>).academicAchievements as string) ||
     "";
 
   const fullName = [pd.firstName, pd.middleName, pd.lastName].filter(Boolean).join(" ") || "Student Profile";

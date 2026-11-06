@@ -192,8 +192,8 @@ export default function AdminTemplateStudioPage() {
           <div className="space-y-2 mb-6">
             {[
               { id: "aarav", name: "Aarav Mehta (Italy Pivot · Master's)", status: "Pass (390w · 1 Page)" },
-              { id: "kaavya", name: "***REMOVED*** (Direct Progression)", status: "Pass (410w · 1 Page)" },
-              { id: "fardee", name: "***REMOVED*** (Study Gap + Gaps)", status: "Pass (380w · 1 Page)" },
+              { id: "meera", name: "Meera (Direct Progression)", status: "Pass (410w · 1 Page)" },
+              { id: "devansh", name: "Devansh (Study Gap + Gaps)", status: "Pass (380w · 1 Page)" },
             ].map((p) => (
               <button
                 key={p.id}

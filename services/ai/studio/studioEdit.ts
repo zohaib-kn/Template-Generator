@@ -32,6 +32,8 @@ export interface StudioEditRequest {
   instruction: string;
   history?: StudioChatTurn[];
   targetAnchor?: StudioTargetAnchor;
+  /** Writing-relevant facts from the student's CRM profile, loaded on the server. */
+  profileFacts?: string;
 }
 
 export interface StudioEditResult {
@@ -44,7 +46,7 @@ export interface StudioEditResult {
 export const STUDIO_SYSTEM_INSTRUCTION = `You are the editing assistant inside a student admissions document studio (visa cover letters, statements of purpose, Europass CVs, recommendation letters). A counsellor gives you an instruction about the current document; you apply it.
 
 Rules — follow all of them:
-1. FACTS: Use only facts that already appear in the document or that the counsellor states in their message. Never invent names, scores, grades, dates, money amounts, employers, institutions, policy/booking numbers, emails or phone numbers.
+1. FACTS: Use only facts that appear in the document, in the "Verified student profile" section (from the CRM), or that the counsellor states in their message. Prefer the profile's facts over vague wording when they fit the request. Never invent names, scores, grades, dates, money amounts, employers, institutions, policy/booking numbers, emails or phone numbers.
 2. MISSING DATA: Text like [MISSING: field.name] marks data the CRM does not have. Keep each marker exactly as is unless the counsellor's message supplies that value — then replace the marker with the supplied value.
 3. SCOPE: Change only what the instruction asks for. Leave every other section's content byte-for-byte identical. Keep section headings unless asked to rename, add or delete a section.
 4. FORMAT: Keep **bold** markdown and line breaks style. Write in the student's first-person voice for letters/SOPs; plain, professional, natural English.
@@ -63,6 +65,7 @@ Rules — follow all of them:
    - When asked to add, integrate, highlight, or weave skills, experiences, or achievements into the "ABOUT ME" (or Personal Statement / Summary) section, synthesize them into a fluent, cohesive, professional first-person paragraph.
    - Do NOT append raw bullet lists, comma dumps, or conversational instructions into "ABOUT ME". Write natural, flowing sentences.
    - Strictly leave dedicated sections like "SKILLS" or "WORK EXPERIENCE" completely untouched unless explicitly requested.
+11. DETAILED BRIEFS: When the counsellor gives a detailed writing brief (for example a prompt they would give ChatGPT, with tone, length, structure or points to cover), follow that brief fully — its tone, length and structure take priority over your default style — and you may rewrite or draft whole sections to satisfy it. Rule 1 still applies: where the brief needs a fact that is in neither the document nor the brief, write around it or insert a [MISSING: field.name] marker instead of inventing it. Mention any such gaps in "reply".
 Respond with ONE JSON object only:
 {"reply": "<one or two sentences telling the counsellor what you changed or what you need>",
  "sections": [{"heading": "<heading>", "content": "<full section text>"}, ...],   // the COMPLETE document after your edit, in order
@@ -71,7 +74,7 @@ Respond with ONE JSON object only:
 export function buildStudioPrompt(req: StudioEditRequest): string {
   const doc = req.sections.map((s) => `### ${s.heading}\n${s.content}`).join("\n\n");
   const history = (req.history ?? [])
-    .slice(-6)
+    .slice(-10)
     .map((t) => `${t.sender === "user" ? "Counsellor" : "Assistant"}: ${t.text}`)
     .join("\n");
   const anchorNotice = req.targetAnchor?.heading
@@ -83,6 +86,7 @@ export function buildStudioPrompt(req: StudioEditRequest): string {
     `Document type: ${req.docType}${req.title ? ` — "${req.title}"` : ""}`,
     `IMPORTANT: This document has ${req.sections.length} distinct sections. In your JSON response, you MUST return all ${req.sections.length} sections separately in the "sections" array with their original headings. Do NOT merge them into one section. Do NOT write "###" in section content.`,
     anchorNotice,
+    req.profileFacts ? `Verified student profile (from the CRM; usable facts):\n${req.profileFacts}` : "",
     history ? `Recent conversation:\n${history}` : "",
     `Current document:\n${doc}`,
     `Counsellor instruction:\n<<<\n${req.instruction}\n>>>`,
@@ -214,6 +218,7 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   const changed = changedSections.map((s) => s.content);
   const unverifiedValues = findUnverifiedValues(changed.join("\n"), [
     req.instruction,
+    req.profileFacts ?? "",
     ...req.sections.map((s) => s.content),
     ...(req.history ?? []).filter((t) => t.sender === "user").map((t) => t.text),
   ]);

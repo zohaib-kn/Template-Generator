@@ -20,6 +20,8 @@ const SopDraftSchema = new Schema<SopDraftRecord>(
       enum: ["VISA_COVER_LETTER", "UNIVERSITY_SOP"],
       default: "VISA_COVER_LETTER",
     },
+    studentId: { type: String, sparse: true, index: true },
+    createdBy: { type: String, sparse: true, index: true },
     studentName: { type: String, required: true },
     course: { type: String },
     university: { type: String },

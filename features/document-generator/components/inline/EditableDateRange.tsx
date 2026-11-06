@@ -93,12 +93,6 @@ export function EditableDateRange({
   const [localValue, setLocalValue] = useState(currentDisplay);
 
   useEffect(() => {
-    if (!isEditing) {
-      setLocalValue(currentDisplay);
-    }
-  }, [currentDisplay, isEditing]);
-
-  useEffect(() => {
     if (isEditing && inputRef.current) {
       const el = inputRef.current;
       el.focus();
@@ -111,9 +105,11 @@ export function EditableDateRange({
     (e: React.MouseEvent) => {
       if (!isInteractive || !onUpdate) return;
       e.stopPropagation();
+      // localValue is only read while editing — seed it from the latest props here
+      setLocalValue(currentDisplay);
       setIsEditing(true);
     },
-    [isInteractive, onUpdate]
+    [isInteractive, onUpdate, currentDisplay]
   );
 
   const handleCommit = useCallback(() => {

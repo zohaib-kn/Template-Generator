@@ -324,7 +324,7 @@ export function ResumeImportReview({
                       className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3 text-xs"
                     >
                       <span className="font-medium text-slate-800 flex-1 truncate">
-                        "{amb.originalText}"
+                        &quot;{amb.originalText}&quot;
                       </span>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-[11px] text-slate-400">Assign to:</span>

@@ -229,7 +229,7 @@ describe("Hinglish → Natural English Transformation Tests", () => {
   // -------------------------------------------------------------------------
   test("TEST 10: Gracefully handles API failure without losing input text", async () => {
     setMockTransformationHandler(async () => {
-      throw new Error("Gemini API timeout");
+      throw new Error("AI request timeout");
     });
 
     const originalInput = "Maine accounts padha tha college me.";
@@ -260,7 +260,7 @@ describe("Hinglish → Natural English Transformation Tests", () => {
   // -------------------------------------------------------------------------
   // TEST 12 — Empty or Too Short Field
   // -------------------------------------------------------------------------
-  test("TEST 12: Rejects empty or too short text without calling Gemini API", async () => {
+  test("TEST 12: Rejects empty or too short text without calling the AI", async () => {
     let called = false;
     setMockTransformationHandler(async () => {
       called = true;

@@ -151,7 +151,7 @@ export function synthesizeEuropassAboutMe(profile: NormalizedStudentProfile): st
   const targetUniversity = activeProg?.university?.trim();
   const targetDomain = deriveDomain(activeProg?.course, degreeName, field);
 
-  const birthplace = (p as any)?.cityOfBirth || (p as any)?.placeOfBirth;
+  const birthplace = (p as typeof p & { cityOfBirth?: string })?.cityOfBirth || p?.placeOfBirth;
   const intro = birthplace
     ? `My name is ${fullName}, and I am from ${birthplace}.`
     : `My name is ${fullName}.`;

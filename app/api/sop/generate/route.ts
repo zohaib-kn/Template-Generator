@@ -4,7 +4,7 @@
  * Authoritative Server-Side AI Narrative Generator for SOP & Visa Cover Letter sections.
  *
  * Implements Phase 6 Server-Side Authority Architecture:
- * - Authoritative validation of academic alignment prior to calling Google Gemini.
+ * - Authoritative validation of academic alignment prior to calling OpenAI.
  * - Recomputes alignment server-side for sensitive sections (isSensitiveSection).
  * - Enforces trust boundary: untrusted client-supplied academics/qualifications are discarded
  *   when authoritative CRM snapshot is available.
@@ -12,14 +12,14 @@
  *   (studentId, programId) pair are promoted into the safe evidence packet.
  * - Stale resolution detection: flags when target course has changed since confirmation.
  * - Hard blocking with HTTP 403 (ACADEMIC_MISMATCH_UNRESOLVED) when alignment is not allowed.
- *   Gemini is NEVER invoked on unresolved mismatch or indeterminate alignment.
- * - Injects safe evidence packet into Gemini prompt via buildNaturalStudentPrompt.
+ *   the AI model is NEVER invoked on unresolved mismatch or indeterminate alignment.
+ * - Injects safe evidence packet into the AI model prompt via buildNaturalStudentPrompt.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
-import { aiService, getActiveAiKey } from "@/services/ai/gemini/geminiClient";
+import { aiService, getOpenAiKey } from "@/services/ai/openaiClient";
 import type {
   StudentDocumentContext,
   SopDocumentType,
@@ -449,7 +449,7 @@ export async function POST(req: NextRequest) {
   lastGeneratedPrompt = prompt;
 
   // ── Step 10: AI Model Execution ───────────────────────────────────────────
-  const apiKey = getActiveAiKey();
+  const apiKey = getOpenAiKey();
 
   // Test mode mock fallback
   if (isTestEnvironment() && (!apiKey || apiKey === "mock-test-key" || apiKey === "test")) {
@@ -484,7 +484,7 @@ export async function POST(req: NextRequest) {
         success: true,
         sectionId,
         mode,
-        model: "mock-gemini-test",
+        model: "mock-ai-test",
         text: mockText,
         validation,
       },
@@ -498,7 +498,7 @@ export async function POST(req: NextRequest) {
         success: false,
         error: {
           code: "API_KEY_MISSING",
-          message: "No AI key is configured on the server (set OPENAI_API_KEY or GEMINI_API_KEY).",
+          message: "No AI key is configured on the server (set OPENAI_API_KEY).",
         },
       },
       { status: 500 }

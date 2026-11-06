@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { interpolate, findMissingMarkers, getNaturalFallback } from "@/features/sop-generator/lib/interpolateTemplate";
 import { hydrateDocumentFromSnapshot } from "@/features/dashboard/utils/documentHydrator";
+import { getTotalMissingCount } from "@/features/dashboard/utils/coverLetterCleaner";
 import type { StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 
@@ -57,10 +58,14 @@ describe("Missing CRM data is never replaced with invented facts", () => {
       "Professional Executive", "Senior Associate", "Mr. Student", "Pending Issuance",
       "Pending Booking Confirmation", "IELTS Academic", "7.5", "6.5", "€30,000",
       "distinguished decades", "Galileo",
+      // No home country, field of study, sponsor or enclosed documents are on record.
+      "India", "engineering", "Bachelor's degree in", "full financial responsibility",
+      "I have enclosed", "I have initiated", "sponsored by my sponsor. He",
     ]) {
       assert.ok(!all.includes(invented), `must not invent "${invented}"`);
     }
-    assert.ok(findMissingMarkers(all).length > 0, "gaps must be visible to the counsellor");
+    // The clean cover letter shows gaps in the validation panel rather than inline markers.
+    assert.ok(getTotalMissingCount(emptyCtx) > 0, "gaps must be visible to the counsellor");
   });
 
   it("LOR does not sign as an invented recommender", () => {

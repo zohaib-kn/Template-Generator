@@ -18,11 +18,11 @@ describe("Export Endpoints — Master Template Verification", () => {
     },
     {
       title: "Student Introduction",
-      content: "My name is *****REMOVED*****, and I am from **Bhopal, India**.",
+      content: "My name is **Zaid Rahimtoola**, and I am from **Bhopal, India**.",
     },
     {
       title: "Academic Background",
-      content: "I completed my Class XII from *****REMOVED*** Bhopal Mp** under CBSE in 2024 with 85%. I also scored 7.5 on IELTS Academic.",
+      content: "I completed my Class XII from **Lakeview Public School Bhopal** under CBSE in 2024 with 85%. I also scored 7.5 on IELTS Academic.",
     },
     {
       title: "Why This Course",
@@ -70,7 +70,7 @@ describe("Export Endpoints — Master Template Verification", () => {
     },
     {
       title: "Student Contact & Signature",
-      content: "Sincerely,\n***REMOVED***\ntaha@example.com\n+91 9876543210",
+      content: "Sincerely,\nZaid Rahimtoola\ntaha@example.com\n+91 9876543210",
     },
   ];
 
@@ -79,8 +79,8 @@ describe("Export Endpoints — Master Template Verification", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
-        title: "***REMOVED*** – Italy Visa Cover Letter",
-        studentName: "***REMOVED***",
+        title: "Zaid Rahimtoola – Italy Visa Cover Letter",
+        studentName: "Zaid Rahimtoola",
         documentType: "COVER_LETTER",
         sections: sampleCoverLetterSections,
       }),
@@ -99,7 +99,7 @@ describe("Export Endpoints — Master Template Verification", () => {
     assert.ok(text.includes("COVER LETTER"), "Must include centered COVER LETTER header");
 
     // 2. Must NOT include candidate subheader banner
-    assert.ok(!text.includes("Candidate: ***REMOVED***"), "Must not include candidate subheader");
+    assert.ok(!text.includes("Candidate: Zaid Rahimtoola"), "Must not include candidate subheader");
     assert.ok(!text.includes("Document: COVER_LETTER"), "Must not include document type label");
 
     // 3. Must NOT include internal section headings
@@ -115,20 +115,20 @@ describe("Export Endpoints — Master Template Verification", () => {
     // 4. Must include the actual letter text
     assert.ok(text.includes("To,") && text.includes("The Respected Visa Officer"), "Must include recipient block");
     assert.ok(text.includes("Subject: Application for a Long-Term Type D Student Visa"), "Must include subject line");
-    assert.ok(text.includes("My name is ***REMOVED***"), "Must include student introduction");
-    assert.ok(text.includes("***REMOVED*** Bhopal Mp"), "Must include academic background");
+    assert.ok(text.includes("My name is Zaid Rahimtoola"), "Must include student introduction");
+    assert.ok(text.includes("Lakeview Public School Bhopal"), "Must include academic background");
     assert.ok(text.includes("Sincerely,"), "Must include closing signoff");
   });
 
   it("DOCX export correctly parses live HTML when provided from Tiptap editor", async () => {
-    const liveHtml = `<div style="text-align: center;"><span style="font-weight: bold; text-decoration: underline;">COVER LETTER</span></div><p>To,<br/>The Respected Visa Officer,<br/>Consulate of Italy</p><p><strong>Subject: Visa Application</strong></p><p>My name is <strong>***REMOVED***</strong>.</p><p>Sincerely,<br/>***REMOVED***</p>`;
+    const liveHtml = `<div style="text-align: center;"><span style="font-weight: bold; text-decoration: underline;">COVER LETTER</span></div><p>To,<br/>The Respected Visa Officer,<br/>Consulate of Italy</p><p><strong>Subject: Visa Application</strong></p><p>My name is <strong>Zaid Rahimtoola</strong>.</p><p>Sincerely,<br/>Zaid Rahimtoola</p>`;
 
     const req = new NextRequest("http://localhost:3000/api/export/docx", {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
-        title: "***REMOVED*** – Italy Visa Cover Letter",
-        studentName: "***REMOVED***",
+        title: "Zaid Rahimtoola – Italy Visa Cover Letter",
+        studentName: "Zaid Rahimtoola",
         documentType: "COVER_LETTER",
         html: liveHtml,
         sections: sampleCoverLetterSections,
@@ -143,7 +143,7 @@ describe("Export Endpoints — Master Template Verification", () => {
     const { value: text } = await mammoth.extractRawText({ buffer });
 
     assert.ok(text.includes("COVER LETTER"));
-    assert.ok(text.includes("***REMOVED***"));
+    assert.ok(text.includes("Zaid Rahimtoola"));
     assert.ok(text.includes("Subject: Visa Application"));
     assert.ok(!text.includes("Recipient / Consulate"));
   });
@@ -153,8 +153,8 @@ describe("Export Endpoints — Master Template Verification", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
-        title: "***REMOVED*** – Italy Visa Cover Letter",
-        studentName: "***REMOVED***",
+        title: "Zaid Rahimtoola – Italy Visa Cover Letter",
+        studentName: "Zaid Rahimtoola",
         documentType: "COVER_LETTER",
         sections: sampleCoverLetterSections,
       }),
@@ -173,8 +173,8 @@ describe("Export Endpoints — Master Template Verification", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: testSessionCookie() },
       body: JSON.stringify({
-        title: "***REMOVED*** – Italy Visa Cover Letter",
-        studentName: "***REMOVED***",
+        title: "Zaid Rahimtoola – Italy Visa Cover Letter",
+        studentName: "Zaid Rahimtoola",
         documentType: "COVER_LETTER",
         fontFamily: "Calibri",
         sections: sampleCoverLetterSections,
@@ -193,6 +193,6 @@ describe("Export Endpoints — Master Template Verification", () => {
     const { value: text } = await mammoth.extractRawText({ buffer });
 
     assert.ok(text.includes("COVER LETTER"));
-    assert.ok(text.includes("***REMOVED***"));
+    assert.ok(text.includes("Zaid Rahimtoola"));
   });
 });

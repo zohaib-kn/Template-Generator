@@ -519,6 +519,29 @@ export function getTotalMissingCount(
 }
 
 // ── Clean Section Renderers for Italy Type D Cover Letter ───────────────────
+//
+// These renderers never state a fact the CRM record does not contain. Where data is
+// missing they fall back to neutral wording (the gap is listed in the validation panel)
+// instead of assuming a home country, a field of study, a sponsor's gender or that
+// supporting documents are enclosed.
+
+/** The student's home country from the record, or null when unknown. */
+function homeCountry(ctx: StudentDocumentContext | null | undefined, ov?: Record<string, string>): string | null {
+  return resolveCleanField(ctx, ov, "student.country") || null;
+}
+
+/** Pronouns that follow from the stated sponsor relationship; neutral when unknown. */
+function sponsorPronouns(relationship: string): { subject: string; possessive: string } {
+  const r = relationship.toLowerCase();
+  if (/\b(mother|sister|aunt|grandmother|wife)\b/.test(r)) return { subject: "she", possessive: "her" };
+  if (/\b(father|brother|uncle|grandfather|husband)\b/.test(r)) return { subject: "he", possessive: "his" };
+  return { subject: "they", possessive: "their" };
+}
+
+/** True when the course name is itself a master's / postgraduate programme. */
+function isPostgraduateCourse(course: string): boolean {
+  return /\b(m\.?\s?sc|m\.?\s?a|mba|m\.?\s?eng|m\.?\s?tech|llm|master'?s?|postgraduate|ph\.?\s?d|doctorate)\b/i.test(course);
+}
 
 function renderCleanRecipient(
   ctx: StudentDocumentContext | null | undefined,
@@ -629,10 +652,10 @@ function renderCleanWhyCourse(
     : `I have always enjoyed subjects that challenge me to think logically.`;
 
   const middle = disciplines
-    ? `As I explored different branches of engineering, I found **${course}** the most interesting because it combines ${disciplines} instead of focusing on just one field.`
-    : `As I explored different branches of engineering, I found **${course}** the most compelling discipline for my academic and professional growth.`;
+    ? `As I explored different study options, I found **${course}** the most interesting because it combines ${disciplines} instead of focusing on just one field.`
+    : `As I explored different study options, I found **${course}** the most compelling choice for my academic and professional growth.`;
 
-  return `${intro} ${middle} Technology is evolving every day, and I know it will continue to change by the time I complete my degree. I want to build a strong understanding of these areas so that I am prepared to adapt, learn new technologies, and contribute confidently to the future of engineering.`;
+  return `${intro} ${middle} I know this field will keep changing by the time I complete my degree, and I want to build a strong understanding of it so that I am prepared to adapt, keep learning, and contribute confidently in my future career.`;
 }
 
 function renderCleanWhyUniversity(
@@ -640,7 +663,7 @@ function renderCleanWhyUniversity(
   ov?: Record<string, string>
 ): string {
   const uni = resolveCleanField(ctx, ov, "destination.university") || "the university";
-  const course = resolveCleanField(ctx, ov, "destination.course") || "engineering";
+  const course = resolveCleanField(ctx, ov, "destination.course") || "my chosen field";
   const history = resolveCleanField(ctx, ov, "destination.universityHistory");
   const scholars = resolveCleanField(ctx, ov, "destination.distinguishedScholars");
 
@@ -662,23 +685,33 @@ function renderCleanWhyItaly(
 ): string {
   const country = resolveCleanField(ctx, ov, "destination.country") || "Italy";
   const uni = resolveCleanField(ctx, ov, "destination.university") || "the institution";
-  return `I chose **${country}** because it is home to the **${uni}**, the institution that best matched my academic interests and career aspirations. ${country} is internationally recognized for the quality of its higher education, with its universities and engineering programmes earning strong global recognition for their academic standards and research. Another factor that influenced my decision was the country's climate, which is relatively similar to that of India. I believe this will help me adapt more comfortably to a new environment, allowing me to focus on my studies and make the most of my academic experience.`;
+  return `I chose **${country}** because it is home to the **${uni}**, the institution that best matched my academic interests and career aspirations. ${country} is internationally recognized for the quality of its higher education, with its universities earning strong global recognition for their academic standards and research. I believe studying here will allow me to focus on my studies and make the most of my academic experience.`;
 }
 
 function renderCleanFuturePlan(
   ctx: StudentDocumentContext | null | undefined,
   ov?: Record<string, string>
 ): string {
-  const course = resolveCleanField(ctx, ov, "destination.course") || "my undergraduate degree";
+  const course = resolveCleanField(ctx, ov, "destination.course") || "my studies";
   const spec = resolveCleanField(ctx, ov, "destination.masterSpecialization");
-  if (spec) {
-    return `After completing my Bachelor's degree in ${course}, I intend to further advance my academic knowledge by pursuing a Master's degree in **${spec}**, depending on the specialization that best aligns with my interests and career goals.`;
+  if (spec && !isPostgraduateCourse(course)) {
+    return `After completing **${course}**, I intend to further advance my academic knowledge by pursuing a Master's degree in **${spec}**, depending on the specialization that best aligns with my interests and career goals.`;
   }
-  return `After completing my Bachelor's degree in ${course}, I intend to further advance my academic knowledge by pursuing advanced postgraduate studies, focusing on the specialization that best aligns with my interests and career goals.`;
+  if (isPostgraduateCourse(course)) {
+    return `During and after **${course}**, I intend to deepen my knowledge in the specialization that best aligns with my interests and career goals, and to apply it in my professional work.`;
+  }
+  return `After completing **${course}**, I intend to further advance my academic knowledge by pursuing postgraduate studies in the specialization that best aligns with my interests and career goals.`;
 }
 
-function renderCleanCareerPlan(): string {
-  return `**In the short term,** upon completing my higher education, I intend to return to India and begin my professional career in the country's rapidly growing technology sector. I hope to secure an entry-level engineering role where I can apply the technical knowledge and international exposure gained through my education in Italy while continuing to learn from experienced professionals and develop my practical skills. **In the long term,** I aspire to grow into positions of greater responsibility and contribute to the development of innovative technology solutions that address real-world challenges and support India's technological advancement.`;
+function renderCleanCareerPlan(
+  ctx: StudentDocumentContext | null | undefined,
+  ov?: Record<string, string>
+): string {
+  const home = homeCountry(ctx, ov);
+  const homePhrase = home ? `to **${home}**` : "to my home country";
+  const course = resolveCleanField(ctx, ov, "destination.course");
+  const field = course ? `related to **${course}**` : "in my field";
+  return `**In the short term,** upon completing my higher education, I intend to return ${homePhrase} and begin my professional career. I hope to secure an entry-level role ${field} where I can apply the knowledge and international exposure gained through my education in Italy while continuing to learn from experienced professionals and develop my practical skills. **In the long term,** I aspire to grow into positions of greater responsibility and contribute meaningfully to my profession and my home country.`;
 }
 
 function renderCleanReturnIntent(
@@ -686,10 +719,12 @@ function renderCleanReturnIntent(
   ov?: Record<string, string>
 ): string {
   const reason = resolveCleanField(ctx, ov, "student.returnFamilyReason");
+  const home = homeCountry(ctx, ov);
+  const returning = home ? `returning to **${home}**` : "returning to my home country";
   if (reason) {
-    return `${reason}, returning to India is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
+    return `${reason}, ${returning} is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
   }
-  return `Returning to India is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
+  return `${returning.charAt(0).toUpperCase()}${returning.slice(1)} is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
 }
 
 function renderCleanFinance(
@@ -703,9 +738,10 @@ function renderCleanFinance(
     ? `My higher education and living expenses in Italy will be fully sponsored by my ${sponsorRel}, ${sponsorName}.`
     : `My higher education and living expenses in Italy will be fully sponsored by my ${sponsorRel}.`;
 
-  const pronoun = sponsorRel.toLowerCase().includes("mother") ? "she" : "he";
+  const { subject: pronoun, possessive } = sponsorPronouns(sponsorRel);
   const pronounCap = pronoun.charAt(0).toUpperCase() + pronoun.slice(1);
-  const possessive = pronoun === "she" ? "her" : "his";
+  const hasVerb = pronoun === "they" ? "have" : "has";
+  const isVerb = pronoun === "they" ? "are" : "is";
 
   const loanAmt = resolveCleanField(ctx, ov, "finance.educationLoanAmount");
   const loanProv = resolveCleanField(ctx, ov, "finance.loanProvider");
@@ -714,7 +750,7 @@ function renderCleanFinance(
 
   let loanPart = "";
   if (loanAmt) {
-    loanPart = ` To finance my studies, ${pronoun} has obtained an education loan of **${loanAmt}**`;
+    loanPart = ` To finance my studies, ${pronoun} ${hasVerb} obtained an education loan of **${loanAmt}**`;
     if (loanProv) loanPart += ` from ${loanProv}`;
     if (disbursed) {
       loanPart += `, of which **${disbursed}** has been disbursed`;
@@ -740,25 +776,28 @@ function renderCleanFinance(
     balancePart += `.`;
   }
 
-  const commitmentPart = ` My ${sponsorRel} has undertaken full financial responsibility for my tuition fees, accommodation, living expenses, travel, medical insurance, and all other costs associated with my education and stay in Italy.`;
+  const hasSponsorFacts = Boolean(sponsorName || resolveCleanField(ctx, ov, "sponsor.relationship"));
+  const commitmentPart = hasSponsorFacts
+    ? ` My ${sponsorRel} will cover my tuition fees, accommodation, living expenses, travel, medical insurance, and all other costs associated with my education and stay in Italy.`
+    : "";
 
   const netWorth = resolveCleanField(ctx, ov, "finance.netWorth");
   let netWorthPart = "";
   if (netWorth) {
-    netWorthPart = ` ${pronounCap} also has a CA-certified net worth of **${netWorth}** and is a regular income tax assessee.`;
+    netWorthPart = ` ${pronounCap} also ${hasVerb} a CA-certified net worth of **${netWorth}** and ${isVerb} a regular income tax assessee.`;
   }
 
   const itrYears = resolveCleanField(ctx, ov, "finance.itrYears");
-  const docsList = ["notarized sponsorship affidavit", "bank statement"];
-  if (loanAmt) docsList.unshift("education loan sanction letter");
+  // Only list documents the record gives evidence for.
+  const docsList: string[] = [];
+  if (loanAmt) docsList.push("education loan sanction letter");
+  if (availBal) docsList.push("bank statement");
   if (netWorth) docsList.push("CA-certified net worth certificate");
-  if (itrYears) {
-    docsList.push(`${possessive} Income Tax Returns for Assessment Years **${itrYears}**`);
-  } else {
-    docsList.push(`${possessive} latest Income Tax Returns`);
-  }
+  if (itrYears) docsList.push(`${possessive} Income Tax Returns for Assessment Years **${itrYears}**`);
 
-  const enclosurePart = ` In support of my application, I have enclosed the ${docsList.join(", ")} as evidence of ${possessive} financial capacity and commitment to sponsoring my education.`;
+  const enclosurePart = docsList.length
+    ? ` In support of my application, I have enclosed the ${docsList.join(", ")} as evidence of ${possessive} financial capacity and commitment to sponsoring my education.`
+    : "";
 
   return `${sponsorIntro}${loanPart}${balancePart}${commitmentPart}${netWorthPart}${enclosurePart}`;
 }
@@ -778,7 +817,7 @@ function renderCleanAccommodation(
     }
     return `I have made all the necessary arrangements for my stay in Italy. I have secured temporary accommodation at **${address}**${dates}, which will provide me with sufficient time to settle in and arrange my long-term accommodation after my arrival.`;
   }
-  return `I have initiated all necessary arrangements for my stay in Italy to ensure suitable accommodation upon my arrival before the commencement of my academic term.`;
+  return `I will arrange suitable accommodation in Italy before the commencement of my academic term.`;
 }
 
 function renderCleanInsurance(
@@ -799,7 +838,7 @@ function renderCleanInsurance(
     }
     return `I have also obtained a **${policyDesc}${cert}**${dates}, in compliance with the visa requirements.`;
   }
-  return `I am arranging comprehensive travel and health insurance coverage in full compliance with the visa requirements for the duration of my stay in Italy.`;
+  return `I will obtain travel and health insurance coverage that meets the visa requirements for the duration of my stay in Italy.`;
 }
 
 function renderCleanTravel(
@@ -807,7 +846,7 @@ function renderCleanTravel(
   ov?: Record<string, string>
 ): string {
   const airline = resolveCleanField(ctx, ov, "travel.airline");
-  const origin = resolveCleanField(ctx, ov, "travel.origin") || "India";
+  const origin = resolveCleanField(ctx, ov, "travel.origin") || homeCountry(ctx, ov) || "my home country";
   const destination = resolveCleanField(ctx, ov, "travel.destination") || "Italy";
   const transit = resolveCleanField(ctx, ov, "travel.transit");
   const travelDate = resolveCleanField(ctx, ov, "travel.travelDate");
@@ -820,7 +859,7 @@ function renderCleanTravel(
     const pnrPart = pnr ? ` under **PNR: ${pnr}**` : "";
     return `Additionally, I have confirmed my travel arrangements by booking an **${airlineName}** flight from **${origin}** to **${destination}**${transitPart}${datePart}${pnrPart}, ensuring my timely arrival in Italy before the commencement of my studies.`;
   }
-  return `Additionally, I am finalizing my travel itinerary to ensure timely arrival in Italy well before the commencement of the academic semester.`;
+  return `Additionally, I will plan my travel to ensure timely arrival in Italy before the commencement of the academic semester.`;
 }
 
 function renderCleanClosing(
@@ -861,7 +900,7 @@ export function renderCleanCoverLetterSections(
     { heading: "Why This University", content: renderCleanWhyUniversity(ctx, fieldOverrides) },
     { heading: "Why Italy / Why This Country", content: renderCleanWhyItaly(ctx, fieldOverrides) },
     { heading: "Future Academic Plan", content: renderCleanFuturePlan(ctx, fieldOverrides) },
-    { heading: "Career Plan", content: renderCleanCareerPlan() },
+    { heading: "Career Plan", content: renderCleanCareerPlan(ctx, fieldOverrides) },
     { heading: "Return / Home Country Intent", content: renderCleanReturnIntent(ctx, fieldOverrides) },
     { heading: "Financial Sponsorship", content: renderCleanFinance(ctx, fieldOverrides) },
     { heading: "Accommodation", content: renderCleanAccommodation(ctx, fieldOverrides) },
@@ -878,7 +917,7 @@ export function renderCleanCoverLetterSections(
 export function cleanCoverLetterText(text: string): string {
   if (!text) return "";
 
-  let cleaned = text
+  const cleaned = text
     // Strip [MISSING: ...]
     .replace(/\[MISSING:\s*[^\]]+\]/gi, "")
     // Clean empty markdown bolds

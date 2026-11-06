@@ -78,12 +78,12 @@ async function verifyLiveMongo() {
   const record: DocumentRecord = {
     id: testDocId,
     externalReferenceId: testExternalRef,
-    studentId: "6a508a96af13bb33e9fc07ce",
-    studentName: "***REMOVED*** Live Verification",
+    studentId: "5a0000000000000000000001",
+    studentName: "Meera Live Verification",
     documentType: "SOP",
     templateId: "italy-type-d-student-visa-cover-letter",
     status: "GENERATED",
-    reviewUrl: `/sop-generator/${testDocId}?studentId=6a508a96af13bb33e9fc07ce`,
+    reviewUrl: `/sop-generator/${testDocId}?studentId=5a0000000000000000000001`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     sectionContents: {
@@ -94,10 +94,10 @@ async function verifyLiveMongo() {
     },
     validationIssues: [],
     normalizedProfile: {
-      meta: { studentId: "6a508a96af13bb33e9fc07ce", source: "static-mock", fetchedAt: new Date().toISOString() },
+      meta: { studentId: "5a0000000000000000000001", source: "static-mock", fetchedAt: new Date().toISOString() },
       personal: {
-        fullName: "***REMOVED*** Live Verification",
-        firstName: "***REMOVED***",
+        fullName: "Meera Live Verification",
+        firstName: "Meera",
         lastName: "Verification",
       },
       academics: { qualifications: [] },
@@ -114,7 +114,7 @@ async function verifyLiveMongo() {
   console.log("\n[Test 2] Querying via findById()...");
   const retrieved = await findById(testDocId);
   assert.ok(retrieved, "Document must be found in Atlas");
-  assert.strictEqual(retrieved?.studentName, "***REMOVED*** Live Verification");
+  assert.strictEqual(retrieved?.studentName, "Meera Live Verification");
   console.log(" findById() successfully retrieved record from Atlas.");
 
   console.log("\n[Test 3] Querying via findByExternalRef()...");
@@ -137,7 +137,7 @@ async function verifyLiveMongo() {
 
   console.log("\n[Test 5] Finalizing PDF via savePdf()...");
   const samplePdfBase64 = Buffer.from("%PDF-1.4 sample live test binary").toString("base64");
-  const finalized = await savePdf(testDocId, samplePdfBase64, "***REMOVED***_SOP_LiveFinal.pdf");
+  const finalized = await savePdf(testDocId, samplePdfBase64, "SampleStudent_SOP_LiveFinal.pdf");
   assert.strictEqual(finalized?.status, "FINALIZED");
   console.log(" PDF successfully attached and status set to FINALIZED.");
 
@@ -154,7 +154,7 @@ async function verifyLiveMongo() {
   const pdfPayload = await getPdf(testDocId);
   assert.ok(pdfPayload, "PDF payload must be retrievable");
   assert.ok(pdfPayload?.buffer.length > 0);
-  assert.strictEqual(pdfPayload?.fileName, "***REMOVED***_SOP_LiveFinal.pdf");
+  assert.strictEqual(pdfPayload?.fileName, "SampleStudent_SOP_LiveFinal.pdf");
   assert.strictEqual(pdfPayload?.status, "FINALIZED");
   console.log(` getPdf() retrieved binary (${pdfPayload?.buffer.length} bytes) successfully.`);
 

@@ -58,18 +58,17 @@ export function StudentDropdown({
     function handleClickOutside(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setSearch("");
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Focus search on open
+  // Focus search on open (search is cleared wherever the dropdown is closed)
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => searchRef.current?.focus(), 50);
-    } else {
-      setSearch("");
     }
   }, [isOpen]);
 
@@ -93,6 +92,7 @@ export function StudentDropdown({
     (id: string) => {
       selectStudent(id);
       setIsOpen(false);
+      setSearch("");
     },
     [selectStudent]
   );
@@ -102,6 +102,7 @@ export function StudentDropdown({
       e.stopPropagation();
       clearStudent();
       setIsOpen(false);
+      setSearch("");
     },
     [clearStudent]
   );
@@ -120,7 +121,11 @@ export function StudentDropdown({
       {/* ── Trigger Button ──────────────────────────────────────────────── */}
       <button
         type="button"
-        onClick={() => !isLoading && setIsOpen((v) => !v)}
+        onClick={() => {
+          if (isLoading) return;
+          if (isOpen) setSearch("");
+          setIsOpen(!isOpen);
+        }}
         className={`
           flex items-center gap-2 w-full px-3 rounded-lg border transition-all duration-150
           ${buttonHeight}
@@ -217,7 +222,7 @@ export function StudentDropdown({
             </span>
             <button
               type="button"
-              onClick={() => { refreshStudentList(); setIsOpen(false); }}
+              onClick={() => { refreshStudentList(); setIsOpen(false); setSearch(""); }}
               className="text-[10px] text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

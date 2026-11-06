@@ -36,7 +36,7 @@ export interface PdfNamingOptions {
   year?: number | string;
   /** Document type label (defaults to "Resume"). */
   documentType?: string;
-  /** Optional explicit filename (e.g. "Angad_Deep_CV.pdf"). */
+  /** Optional explicit filename (e.g. "Student_Name_CV.pdf"). */
   customFilename?: string;
 }
 

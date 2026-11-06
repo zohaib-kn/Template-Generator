@@ -1,5 +1,5 @@
 /**
- * services/ai/gemini/generateDocument.ts
+ * services/ai/generation/generateDocument.ts
  *
  * Master Document Generation Engine.
  *
@@ -10,7 +10,7 @@
  * 4. Fact Lock Layer Extraction
  * 5. Document Planning (Blueprint)
  * 6. Priority Example Retrieval (max 2-3 examples)
- * 7. Gemini Writer Pass (Call #1)
+ * 7. the AI model Writer Pass (Call #1)
  * 8. Deterministic Local Validators (Locked Facts, Repetition, Sentence Length, Clichés, Density, Fillers)
  * 9. Conditional Auditor / Rewriter Pass (Call #2 triggered on density, clichés, missing facts, long sentences)
  * 10. Blocking Validator (blocks final output on [Placeholders], TBD, example.com, missing locked facts)
@@ -31,7 +31,7 @@ import { computeWritingQualityReport, WritingQualityReport } from "../validators
 import { retrieveRelevantExamples } from "../examples/exampleRetriever";
 import { exampleRepository } from "../examples/exampleRepository";
 import { buildWriterPrompt, buildAuditorPromptPayload } from "./promptBuilder";
-import { geminiService } from "./geminiClient";
+import { aiService } from "../openaiClient";
 import { AuditorIssue } from "../prompts/auditorPrompt";
 import { DOCUMENT_LENGTH_TARGETS } from "../config/writingRules";
 
@@ -130,7 +130,7 @@ export async function generateDocument(
     limit: 2,
   });
 
-  // ── Step 5: Gemini Writer Pass (Call #1) ──────────────────────────────────
+  // ── Step 5: the AI model Writer Pass (Call #1) ──────────────────────────────────
   const writerPayload = buildWriterPrompt({
     documentType,
     canonicalData,
@@ -139,7 +139,7 @@ export async function generateDocument(
   });
 
 
-  const writerResult = await geminiService.generate({
+  const writerResult = await aiService.generate({
     systemInstruction: writerPayload.systemInstruction,
     prompt: writerPayload.userPrompt,
     temperature: profile.temperature,
@@ -325,7 +325,7 @@ export async function generateDocument(
       lockedFacts,
     });
 
-    const auditorResult = await geminiService.generate({
+    const auditorResult = await aiService.generate({
       systemInstruction: auditorPayload.systemInstruction,
       prompt: auditorPayload.userPrompt,
       temperature: 0.2, // Low temperature for deterministic corrections

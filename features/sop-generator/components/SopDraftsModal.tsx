@@ -29,10 +29,19 @@ export function SopDraftsModal({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Reset transient state when the modal opens (render-phase "previous props"
+  // pattern); the effect below only performs the async load.
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      setConfirmDeleteId(null);
+      setIsLoading(true);
+    }
+  }
+
   useEffect(() => {
     if (!isOpen) return;
-    setConfirmDeleteId(null);
-    setIsLoading(true);
 
     fetch("/api/sop/drafts")
       .then((r) => r.json())

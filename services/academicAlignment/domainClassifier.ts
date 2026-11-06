@@ -8,7 +8,7 @@
  * 2. qualification / degree title text
  * 3. verified subjects (if present)
  * 4. other academic metadata
- * 5. Gemini semantic fallback (Phase 8)
+ * 5. the AI model semantic fallback (Phase 8)
  * 6. UNKNOWN (blocks sensitive generation)
  *
  * CRITICAL ARCHITECTURAL CONSTRAINTS:

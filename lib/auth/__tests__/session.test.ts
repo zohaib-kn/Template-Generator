@@ -2,6 +2,8 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import {
+  accessibleRecordsFilter,
+  canAccessRecord,
   canAccessStudent,
   decodeSession,
   encodeSession,
@@ -176,5 +178,27 @@ describe("Operator session (CRM token passthrough)", () => {
 
     const authed = await proxy(new NextRequest("http://localhost/api/templates", { headers: { Cookie: testSessionCookie() } }));
     assert.equal(authed.headers.get("x-middleware-next"), "1");
+  });
+});
+
+describe("Record access (imports, drafts)", () => {
+  const scoped = { sub: "op-1", students: ["stu-a"], exp: 0 };
+  const all = { sub: "admin", students: "*" as const, exp: 0 };
+
+  it("follows student access for student records and ownership for unassigned ones", () => {
+    assert.equal(canAccessRecord(scoped, { studentId: "stu-a" }), true);
+    assert.equal(canAccessRecord(scoped, { studentId: "stu-b", createdBy: "op-1" }), false);
+    assert.equal(canAccessRecord(scoped, { createdBy: "op-1" }), true);
+    assert.equal(canAccessRecord(scoped, { createdBy: "op-2" }), false);
+    assert.equal(canAccessRecord(scoped, {}), false, "legacy record with no owner");
+    assert.equal(canAccessRecord(all, {}), true);
+    assert.equal(canAccessRecord(scoped, null), false);
+  });
+
+  it("builds a list filter that matches the same rule", () => {
+    assert.deepEqual(accessibleRecordsFilter(all), {});
+    assert.deepEqual(accessibleRecordsFilter(scoped), {
+      $or: [{ studentId: { $in: ["stu-a"] } }, { studentId: { $in: [null, ""] }, createdBy: "op-1" }],
+    });
   });
 });

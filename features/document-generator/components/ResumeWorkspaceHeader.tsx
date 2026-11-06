@@ -215,7 +215,7 @@ interface ResumeWorkspaceHeaderProps {
   isGeneratingPdf?: boolean;
   pdfErrorMessage?: string | null;
   viewMode?: "split" | "editor" | "preview" | "edit";
-  onViewModeChange?: (mode: any) => void;
+  onViewModeChange?: (mode: "split" | "editor" | "preview" | "edit") => void;
   isContextOpen?: boolean;
   onToggleContext?: () => void;
   isSidebarCollapsed?: boolean;

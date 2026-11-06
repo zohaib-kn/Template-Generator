@@ -9,13 +9,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/session";
 import { InvalidJsonError, readJsonBody, RequestTooLargeError } from "@/lib/http/requestLimits";
-import { aiService } from "@/services/ai/gemini/geminiClient";
+import { aiService } from "@/services/ai/openaiClient";
 import {
   buildStudioPrompt,
   parseStudioResponse,
   STUDIO_SYSTEM_INSTRUCTION,
   type StudioEditRequest,
 } from "@/services/ai/studio/studioEdit";
+import { loadStudentProfileFacts } from "@/services/ai/studio/studentProfileFacts";
 
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_INSTRUCTION_CHARS = 12000;
@@ -66,8 +67,8 @@ export async function POST(req: NextRequest) {
     history: Array.isArray(body.history)
       ? body.history
           .filter((t) => (t?.sender === "user" || t?.sender === "assistant") && typeof t.text === "string")
-          .slice(-6)
-          .map((t) => ({ sender: t.sender, text: t.text.slice(0, 1000) }))
+          .slice(-10)
+          .map((t) => ({ sender: t.sender, text: t.text.slice(0, 4000) }))
       : [],
     targetAnchor:
       body.targetAnchor &&
@@ -79,6 +80,10 @@ export async function POST(req: NextRequest) {
           }
         : undefined,
   };
+
+  // The student's CRM profile, so the assistant can write from real facts (access to this
+  // student was checked above). Best effort: without it the assistant uses the document only.
+  request.profileFacts = (await loadStudentProfileFacts(cleanStudentId)) ?? undefined;
 
   const result = await aiService.generate({
     systemInstruction: STUDIO_SYSTEM_INSTRUCTION,

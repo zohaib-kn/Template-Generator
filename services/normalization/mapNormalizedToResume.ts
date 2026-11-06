@@ -334,8 +334,8 @@ export function mapNormalizedToResume(profile: NormalizedStudentProfile): Resume
   }
 
 
-  const aboutMe = (profile as any).aboutMe || undefined;
-  const declaration = (profile as any).declaration || undefined;
+  const aboutMe = (profile as NormalizedStudentProfile & { aboutMe?: string }).aboutMe || undefined;
+  const declaration = profile.declaration || undefined;
 
 
 

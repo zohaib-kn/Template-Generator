@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { SopImportModel } from "@/models/SopImport";
+import { canAccessRecord, requireSession } from "@/lib/auth/session";
 import { SopDraftModel } from "@/models/SopDraft";
 import type { ReviewStatus, StudentDocumentContext } from "@/features/sop-generator/types/sop-generator";
 
@@ -25,8 +26,11 @@ export async function POST(
 
     await connectToDatabase();
 
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     const importRecord = await SopImportModel.findOne({ id: importId });
-    if (!importRecord) {
+    if (!importRecord || !canAccessRecord(auth.session, importRecord)) {
       return NextResponse.json(
         { success: false, error: "Import record not found." },
         { status: 404 }
@@ -44,6 +48,8 @@ export async function POST(
 
     const draft = await SopDraftModel.create({
       id: draftId,
+      studentId: importRecord.studentId,
+      createdBy: importRecord.createdBy || auth.session.sub,
       documentType,
       studentName,
       course: ctx?.destination?.course,
@@ -67,7 +73,7 @@ export async function POST(
       importId,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

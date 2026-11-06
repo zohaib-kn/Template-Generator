@@ -41,8 +41,8 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     assert.ok(!html.includes("Sample Student Residence"), "Must not display Aafia's accommodation");
   });
 
-  it("***REMOVED***n Europass CV thumbnail renders ***REMOVED***n's initials monogram and zero Rohan Iyer data", () => {
-    const fardeenSections = [
+  it("Devansh Europass CV thumbnail renders Devansh's initials monogram and zero Rohan Iyer data", () => {
+    const devanshSections = [
       {
         heading: "ABOUT ME",
         content: "Ambitious international finance graduate seeking admission to Master in Management at ESCP Business School, Paris, France.",
@@ -64,32 +64,32 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(DocumentThumbnailPreview, {
         docType: "CV",
-        studentName: "***REMOVED***n",
+        studentName: "Devansh",
         targetUniversity: "ESCP Business School",
         targetCourse: "Master in Management",
         targetCountry: "France",
-        sections: fardeenSections,
+        sections: devanshSections,
         isTemplateCard: false,
       })
     );
 
-    // Must render ***REMOVED***n's dynamic details
-    assert.ok(html.includes("FARDEEN"), "Should render FARDEEN in uppercase");
-    assert.ok(html.includes("<span>FA</span>") || html.includes("<span>F</span>"), "Should render authoritative initials monogram");
+    // Must render Devansh's dynamic details
+    assert.ok(html.includes("DEVANSH"), "Should render DEVANSH in uppercase");
+    assert.ok(html.includes("<span>DE</span>") || html.includes("<span>D</span>"), "Should render authoritative initials monogram");
     assert.ok(html.includes("Deloitte India"), "Should render Deloitte India work experience");
     assert.ok(html.includes("Financial Analyst Trainee"), "Should render role");
-    assert.ok(html.includes("Bachelor of Commerce"), "Should render ***REMOVED***n's degree");
+    assert.ok(html.includes("Bachelor of Commerce"), "Should render Devansh's degree");
 
     // Must NOT contain Rohan Iyer's photo, passport, or internship
-    assert.ok(!html.includes("/sample-avatar.png"), "Must NOT render Rohan's avatar image for ***REMOVED***n");
+    assert.ok(!html.includes("/sample-avatar.png"), "Must NOT render Rohan's avatar image for Devansh");
     assert.ok(!html.includes("ROHAN IYER"), "Must NOT render Rohan's name");
     assert.ok(!html.includes("rohan.iyer.test@example.com"), "Must NOT render Rohan's email");
     assert.ok(!html.includes("TechSolutions Global"), "Must NOT render TechSolutions Global");
   });
 
   it("CV thumbnail renders the candidate photo only when one is supplied", () => {
-    const rohanSnapshot = getSampleRohanIyerSnapshot();
-    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
+    const sampleStudentBSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", sampleStudentBSnapshot, "sample-rohan-iyer");
 
     const html = ReactDOMServer.renderToStaticMarkup(
       React.createElement(DocumentThumbnailPreview, {
@@ -115,8 +115,8 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
   });
 
   it("Rohan Iyer CV hydrates IELTS Test Report Form data and TRF number", () => {
-    const rohanSnapshot = getSampleRohanIyerSnapshot();
-    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
+    const sampleStudentBSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", sampleStudentBSnapshot, "sample-rohan-iyer");
 
     const certSection = rohanDoc.sections.find((s) => s.heading === "ENGLISH LANGUAGE CERTIFICATE");
     assert.ok(certSection, "Must include ENGLISH LANGUAGE CERTIFICATE section");
@@ -130,8 +130,8 @@ describe("Dynamic Student Document Thumbnails & Studio Persistence", () => {
   });
 
   it("CEFR language skills levels accurately map from IELTS subscores (9.0 -> C2, 6.5 -> B2)", () => {
-    const rohanSnapshot = getSampleRohanIyerSnapshot();
-    const rohanDoc = hydrateDocumentFromSnapshot("CV", rohanSnapshot, "sample-rohan-iyer");
+    const sampleStudentBSnapshot = getSampleRohanIyerSnapshot();
+    const rohanDoc = hydrateDocumentFromSnapshot("CV", sampleStudentBSnapshot, "sample-rohan-iyer");
 
     const langSection = rohanDoc.sections.find((s) => s.heading === "LANGUAGE SKILLS");
     assert.ok(langSection, "Must include LANGUAGE SKILLS section");

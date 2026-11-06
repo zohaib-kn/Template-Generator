@@ -21,10 +21,10 @@ import { POST } from "@/app/api/documents/generate/route";
 import { GET as GET_DOC } from "@/app/api/documents/[documentId]/route";
 import { GET as GET_PDF, POST as POST_PDF } from "@/app/api/documents/[documentId]/pdf/route";
 import { clearAllDocuments } from "@/services/webhook/documentStore";
-import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
+import sampleStudentASnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentA.json";
 
 const TEST_API_KEY = "test_webhook_secret_key_123";
-const KNOWN_CACHED_STUDENT_ID = "6a508a96af13bb33e9fc07ce"; // ***REMOVED*** snapshot
+const KNOWN_CACHED_STUDENT_ID = "5a0000000000000000000001"; // Meera snapshot
 
 function makeRequest(
   body: Record<string, unknown> | string,
@@ -75,7 +75,7 @@ describe("Unified Document Generation Webhook", () => {
     const req = makeRequest({
       studentId: "custom-inline-student",
       documentType: "SOP",
-      studentData: kaavyaSnapshot,
+      studentData: sampleStudentASnapshot,
     });
 
     const res = await POST(req);
@@ -257,8 +257,15 @@ describe("Unified Document Generation Webhook", () => {
     const genBody = await genRes.json();
     const docId = genBody.documentId;
 
-    // 2. Fetch document
-    const getReq = new NextRequest(`http://localhost:3000/api/documents/${docId}`);
+    // 2. Without credentials the document is not readable
+    const anonReq = new NextRequest(`http://localhost:3000/api/documents/${docId}`);
+    const anonRes = await GET_DOC(anonReq, { params: Promise.resolve({ documentId: docId }) });
+    assert.strictEqual(anonRes.status, 401);
+
+    // 3. Fetch document as the server-to-server caller
+    const getReq = new NextRequest(`http://localhost:3000/api/documents/${docId}`, {
+      headers: { "X-API-Key": TEST_API_KEY },
+    });
     const getRes = await GET_DOC(getReq, { params: Promise.resolve({ documentId: docId }) });
     const getBody = await getRes.json();
 
@@ -320,7 +327,7 @@ describe("Unified Document Generation Webhook", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pdfBase64: `data:application/pdf;base64,${dummyBase64}`,
-        fileName: "***REMOVED***_SOP_Final.pdf",
+        fileName: "SampleStudent_SOP_Final.pdf",
       }),
     });
     const uploadRes = await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });
@@ -329,7 +336,7 @@ describe("Unified Document Generation Webhook", () => {
     assert.strictEqual(uploadRes.status, 200);
     assert.strictEqual(uploadBody.success, true);
     assert.strictEqual(uploadBody.status, "FINALIZED");
-    assert.strictEqual(uploadBody.fileName, "***REMOVED***_SOP_Final.pdf");
+    assert.strictEqual(uploadBody.fileName, "SampleStudent_SOP_Final.pdf");
   });
 
   test("Scenario 14: GET /api/documents/[documentId]/pdf streams raw PDF binary once finalized", async () => {
@@ -349,7 +356,7 @@ describe("Unified Document Generation Webhook", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pdfBase64: dummyBase64,
-        fileName: "***REMOVED***_SOP_Final.pdf",
+        fileName: "SampleStudent_SOP_Final.pdf",
       }),
     });
     await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });
@@ -363,7 +370,7 @@ describe("Unified Document Generation Webhook", () => {
 
     assert.strictEqual(getPdfRes.status, 200);
     assert.strictEqual(getPdfRes.headers.get("content-type"), "application/pdf");
-    assert.ok(getPdfRes.headers.get("content-disposition")?.includes("***REMOVED***_SOP_Final.pdf"));
+    assert.ok(getPdfRes.headers.get("content-disposition")?.includes("SampleStudent_SOP_Final.pdf"));
     
     const arrayBuffer = await getPdfRes.arrayBuffer();
     const text = Buffer.from(arrayBuffer).toString();
@@ -386,7 +393,7 @@ describe("Unified Document Generation Webhook", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pdfBase64: dummyBase64,
-        fileName: "***REMOVED***_SOP_Final.pdf",
+        fileName: "SampleStudent_SOP_Final.pdf",
       }),
     });
     await POST_PDF(uploadReq, { params: Promise.resolve({ documentId: docId }) });

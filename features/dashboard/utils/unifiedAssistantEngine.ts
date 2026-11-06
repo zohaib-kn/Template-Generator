@@ -404,10 +404,57 @@ function isIssueReport(prompt: string): boolean {
     /\b(?:keyboard|laptop|screen|mouse|charger|pc|computer|mic|microphone|camera)\s+(?:stopped|broke|is\s+broken|not\s+working|failed|crashed|died)\b/i,
     /\b(?:website|portal|appointment|server|page|system|form|app|slot|vfs|embassy\s+site|consulate\s+site)\s*(?:has\s+)?(?:crashed|down|error|bug|issue|timed\s*out|glitch|failed|not\s+loading|broken)\b/i,
     /\b(?:crashed|down|froze|stuck)\s+while\s+(?:booking|filling|applying|scheduling|submitting)\b/i,
-    /\b(?:stuck|error|bug|issue|problem|not\s+working|cannot\s+type|page\s+froze)\b/i,
-    /\b(?:lost\s+my|forgot\s+my|can't\s+find\s+my|unable\s+to\s+find)\b/i,
   ];
-  return ISSUE_PATTERNS.some((rx) => rx.test(lower)) && !/^(?:add|set|update|change|insert|create)\b/i.test(lower);
+  // Only short, explicit problem reports. Generic words like "issue" or "problem" are common
+  // in writing requests ("address the gap-year issue") and must still reach the AI.
+  if (lower.length > 200) return false;
+  return ISSUE_PATTERNS.some((rx) => rx.test(lower)) && !/^(?:add|set|update|change|insert|create|write|rewrite|draft|explain|mention)\b/i.test(lower);
+}
+
+
+/**
+ * True for a detailed writing brief (e.g. a prompt written for ChatGPT). Such messages skip
+ * the keyword shortcuts and go to the AI unchanged.
+ */
+export function isDetailedBrief(prompt: string): boolean {
+  const p = prompt.trim();
+  return p.length > 300 || p.split(/\n+/).filter((l) => l.trim()).length > 2;
+}
+
+/** Hands the message to the AI, targeting one section only for short directives that name it. */
+function buildAiRoute(p: string, currentDoc: HydratedDocumentData): UnifiedProcessResult {
+  const docType = currentDoc.docType;
+  // ── 13. Route to OpenAI Intelligence Layer for Narrative Directives ─────────
+  // Find target section from prompt keywords or anchors
+  const identifiedTargetSection = isDetailedBrief(p) ? undefined : findMatchingSection(p, currentDoc.sections);
+
+  const enrichedAiPrompt = identifiedTargetSection
+    ? `The counsellor instruction is: "${p}". Rewrite, polish, and elevate ONLY the "${identifiedTargetSection}" section for clarity, flow, and professional impact while strictly preserving all facts, dates, names, and credentials. Leave all other sections 100% identical and unchanged.`
+    : p;
+
+  return {
+    success: true,
+    reply: identifiedTargetSection
+      ? `Refining section **${identifiedTargetSection}**...`
+      : "Refining document content with academic polish...",
+    actionType: "REWRITE_SECTION",
+    route: "openai",
+    needsAiRewrite: true,
+    targetSection: identifiedTargetSection,
+    targetAnchor: identifiedTargetSection ? { heading: identifiedTargetSection, snippet: "" } : undefined,
+    aiPrompt: enrichedAiPrompt,
+    diagnostic: {
+      instruction: p,
+      detectedIntent: "REWRITE_SECTION",
+      selectedDocument: docType,
+      targetSectionOrField: identifiedTargetSection,
+      clarificationNeeded: false,
+      processingRoute: "openai",
+      proposedOperation: `Semantic rewriting via OpenAI intelligence layer${identifiedTargetSection ? ` targeting ${identifiedTargetSection}` : ""}`,
+      saveResult: "persisted",
+      actualChangedFields: identifiedTargetSection ? [identifiedTargetSection] : [],
+    },
+  };
 }
 
 /**
@@ -418,7 +465,7 @@ export async function processUnifiedMessage(
   currentDoc: HydratedDocumentData,
   currentCv: DocumentData,
   activeSopContext: StudentDocumentContext | null | undefined,
-  selectedStudentData: any,
+  selectedStudentData: unknown,
   history: ChatTurn[] = [],
   pendingTask: PendingClarificationTask | null = null,
   lastActiveTarget: string | null = null
@@ -443,15 +490,16 @@ export async function processUnifiedMessage(
           id: `intern-${Date.now()}`,
           role,
           company,
-          endDate: dates.endDate || dates.year || "6 Months",
-          description: `• Contributed to key organizational initiatives and business deliverables.\n• Demonstrated strong technical aptitude and collaborative execution.`,
+          endDate: dates.endDate || dates.year || "",
+          // Left empty on purpose: what the student did there must come from them, not be invented.
+          description: "",
         };
         updatedCv.internships = [newEntry, ...(updatedCv.internships || [])];
         const updatedSections = syncCvDataToSections(updatedCv, currentDoc.sections);
 
         return {
           success: true,
-          reply: `✅ Added **${role}** at **${company}**${dates.endDate ? ` [ ${dates.endDate} ]` : ""} to your Work Experience. All other sections remain unchanged.`,
+          reply: `✅ Added **${role}** at **${company}**${dates.endDate ? ` [ ${dates.endDate} ]` : ""} to your Work Experience. Tell me what you worked on there and I'll add it as bullet points.`,
           actionType: "ADD_FIELD",
           route: "local",
           targetSection: "WORK EXPERIENCE",
@@ -479,14 +527,15 @@ export async function processUnifiedMessage(
         const newProj: AcademicProject = {
           id: `proj-${Date.now()}`,
           title,
-          description: "Engineered scalable solution using industry-standard architecture, modular programming, and rigorous data evaluation.",
+          // Left empty on purpose: the project description must come from the student.
+          description: "",
         };
         updatedCv.academicProjects = [...(updatedCv.academicProjects || []), newProj];
         const updatedSections = syncCvDataToSections(updatedCv, currentDoc.sections);
 
         return {
           success: true,
-          reply: `✅ Added academic project: **${title}** to Projects. All other sections remain unchanged.`,
+          reply: `✅ Added academic project: **${title}** to Projects. Tell me what the project did and which tools you used, and I'll write the description.`,
           actionType: "ADD_FIELD",
           route: "local",
           targetSection: "PROJECTS",
@@ -572,6 +621,11 @@ export async function processUnifiedMessage(
         saveResult: "persisted",
       },
     };
+  }
+
+  // ── 2.5 Detailed briefs go straight to the AI, unchanged ─────────────────────
+  if (isDetailedBrief(p)) {
+    return buildAiRoute(p, currentDoc);
   }
 
   // ── 3. Question Answering (No Document Modification) ────────────────────────
@@ -709,7 +763,28 @@ export async function processUnifiedMessage(
       const skillToRemove = cleanTarget.replace(/from\s+(?:digital\s+)?skills?/i, "").replace(/skills?/i, "").trim();
       const updatedCv = JSON.parse(JSON.stringify(currentCv)) as DocumentData;
       if (skillToRemove && updatedCv.skills) {
-        updatedCv.skills = updatedCv.skills.filter((s) => !s.name?.toLowerCase().includes(skillToRemove));
+        // Exact (case-insensitive) match only: removing "java" must not remove "JavaScript".
+        const countBefore = updatedCv.skills.length;
+        updatedCv.skills = updatedCv.skills.filter((s) => s.name?.trim().toLowerCase() !== skillToRemove);
+        if (updatedCv.skills.length === countBefore) {
+          return {
+            success: true,
+            reply: `I couldn't find a skill named **${skillToRemove}** in Digital Skills, so nothing was removed.`,
+            actionType: "ANSWER_QUESTION",
+            route: "local",
+            diagnostic: {
+              instruction: p,
+              detectedIntent: "DELETE_SECTION",
+              selectedDocument: docType,
+              targetSectionOrField: "DIGITAL SKILLS",
+              clarificationNeeded: true,
+              processingRoute: "local",
+              proposedOperation: `No skill named ${skillToRemove}`,
+              saveResult: "not_applicable",
+              actualChangedFields: [],
+            },
+          };
+        }
         const updatedSections = syncCvDataToSections(updatedCv, currentDoc.sections);
         return {
           success: true,
@@ -1423,36 +1498,7 @@ export async function processUnifiedMessage(
     }
   }
 
-  // ── 13. Route to OpenAI Intelligence Layer for Narrative Directives ─────────
-  // Find target section from prompt keywords or anchors
-  const identifiedTargetSection = findMatchingSection(p, currentDoc.sections);
-
-  const enrichedAiPrompt = identifiedTargetSection
-    ? `The counsellor instruction is: "${p}". Rewrite, polish, and elevate ONLY the "${identifiedTargetSection}" section for clarity, flow, and professional impact while strictly preserving all facts, dates, names, and credentials. Leave all other sections 100% identical and unchanged.`
-    : p;
-
-  return {
-    success: true,
-    reply: identifiedTargetSection
-      ? `Refining section **${identifiedTargetSection}**...`
-      : "Refining document content with academic polish...",
-    actionType: "REWRITE_SECTION",
-    route: "openai",
-    needsAiRewrite: true,
-    targetSection: identifiedTargetSection,
-    targetAnchor: identifiedTargetSection ? { heading: identifiedTargetSection, snippet: "" } : undefined,
-    aiPrompt: enrichedAiPrompt,
-    diagnostic: {
-      instruction: p,
-      detectedIntent: "REWRITE_SECTION",
-      selectedDocument: docType,
-      targetSectionOrField: identifiedTargetSection,
-      clarificationNeeded: false,
-      processingRoute: "openai",
-      proposedOperation: `Semantic rewriting via OpenAI intelligence layer${identifiedTargetSection ? ` targeting ${identifiedTargetSection}` : ""}`,
-      saveResult: "persisted",
-      actualChangedFields: identifiedTargetSection ? [identifiedTargetSection] : [],
-    },
-  };
+  // ── 13. Route to the AI for narrative directives ─────────────────────────────
+  return buildAiRoute(p, currentDoc);
 }
 

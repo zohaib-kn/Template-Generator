@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth/session";
 import { processResumeUpload } from "@/services/import/resumeImportService";
 import { mapCrmToNormalizedStudent } from "@/services/normalization";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
@@ -118,7 +119,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Process upload
+    // The student this upload is for (form field or the attached CRM snapshot) must be one
+    // the operator can access; uploads with no student belong to the uploading operator.
+    const targetStudentId = studentId || crmProfile?.meta?.studentId || null;
+    const auth = await requireSession(req, { studentId: targetStudentId });
+    if (auth.response) return auth.response;
+
     const result = await processResumeUpload({
+      createdBy: auth.session.sub,
       buffer,
       fileName,
       mimeType,

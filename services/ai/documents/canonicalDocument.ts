@@ -3,7 +3,7 @@
  *
  * Canonical Document Data Schema.
  * Every input (whether form, CRM snapshot, or existing context) is normalized
- * into this standard structure before processing or prompting Gemini.
+ * into this standard structure before processing or prompting the AI model.
  */
 
 import { DocumentType } from "../config/documentTypes";

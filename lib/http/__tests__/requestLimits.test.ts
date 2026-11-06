@@ -41,7 +41,7 @@ describe("Request limits, safe filenames and side-effect-free GETs", () => {
     assert.equal((await exportPdf(jsonReq("http://localhost/api/export/pdf", huge))).status, 413);
     assert.equal((await generate(jsonReq("http://localhost/api/sop/generate", huge))).status, 413);
 
-    const longInstruction = JSON.stringify({ sectionId: "s", context: {}, instruction: "x".repeat(1001) });
+    const longInstruction = JSON.stringify({ sectionId: "s", context: {}, instruction: "x".repeat(8001) });
     assert.equal((await generate(jsonReq("http://localhost/api/sop/generate", longInstruction))).status, 400);
   });
 

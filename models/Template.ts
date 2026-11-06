@@ -5,7 +5,7 @@
  * Enforces strict 3-tier slot classifications:
  * 1. STATIC_BOILERPLATE: Invariant text (e.g. consulate address headers).
  * 2. CRM_VARIABLE: Deterministic data fields interpolated from student profiles.
- * 3. AI_NARRATIVE: Contextual student narratives synthesized by Gemini under strict token & word limits.
+ * 3. AI_NARRATIVE: Contextual student narratives synthesized by the AI model under strict token & word limits.
  */
 
 import mongoose, { Schema, Model } from "mongoose";

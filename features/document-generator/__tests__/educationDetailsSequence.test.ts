@@ -169,7 +169,7 @@ describe("Education and Training sequence: Address -> Website URL -> Final grade
   it("TEST 6: getOrderedEducationParts orders newly added website URL correctly", () => {
     const entry: EducationEntry = {
       id: "edu-added-1",
-      institution: "Tiny Tots School Civil Lines Faizabad Up",
+      institution: "Greenfield Public School Civil Lines Faizabad Up",
       qualification: "Grade 10th",
       address: "Faizabad, India",
       website: "https://tinytots.edu.in",

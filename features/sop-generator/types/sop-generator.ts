@@ -326,6 +326,10 @@ export type DataSource = "live-crm" | "cached-crm" | "test-data" | "imported-sop
 
 /** Persisted draft record for localStorage or backend store. */
 export interface SopDraftRecord {
+  /** CRM student this draft belongs to, when known. */
+  studentId?: string;
+  /** Operator (session sub) who first saved the draft. */
+  createdBy?: string;
   id: string;
   documentType?: SopDocumentType;
   studentName: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import type { DocumentData } from "@/types";
 import { DEFAULT_MOVABLE_SECTION_ORDER } from "@/types";
 import { RESUME_SECTION_METADATA } from "./ResumeSectionSidebar";
@@ -24,7 +24,13 @@ export function RearrangeSectionsModal({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  useEffect(() => {
+  // Re-seed the draft whenever the modal opens or the saved order changes
+  // (render-phase "previous props" pattern instead of a syncing effect).
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
+  const [prevSectionOrder, setPrevSectionOrder] = useState(data.sectionOrder);
+  if (isOpen !== prevIsOpen || data.sectionOrder !== prevSectionOrder) {
+    setPrevIsOpen(isOpen);
+    setPrevSectionOrder(data.sectionOrder);
     if (isOpen) {
       const custom = data.sectionOrder ?? DEFAULT_MOVABLE_SECTION_ORDER;
       const complete = [
@@ -35,7 +41,7 @@ export function RearrangeSectionsModal({
       setDraggedIndex(null);
       setDragOverIndex(null);
     }
-  }, [isOpen, data.sectionOrder]);
+  }
 
   if (!isOpen) return null;
 

@@ -1,7 +1,7 @@
 /**
- * services/import/normalizers/geminiSopClassifier.ts
+ * services/import/normalizers/aiSopClassifier.ts
  *
- * Semantic classification engine using Gemini Flash with retry mechanisms,
+ * Semantic classification engine using OpenAI with retry mechanisms,
  * timeouts, and strict non-rewriting invariants.
  *
  * Responsibilities:
@@ -11,7 +11,7 @@
  * - Strictly preserves original text verbatim without modifying, polishing, or expanding.
  */
 
-import { geminiService } from "@/services/ai/gemini/geminiClient";
+import { aiService } from "@/services/ai/openaiClient";
 import type {
   SopParagraphBlock,
   ExtractedSopFacts,
@@ -126,7 +126,7 @@ function parseJsonClean(text: string): Record<string, unknown> | null {
   }
 }
 
-export async function classifySopWithGemini(
+export async function classifySopWithAi(
   blocks: RawParagraphBlock[],
   maxRetries = 2
 ): Promise<SopClassificationResult> {
@@ -143,7 +143,7 @@ export async function classifySopWithGemini(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const result = await geminiService.generate({
+      const result = await aiService.generate({
         systemInstruction: SYSTEM_INSTRUCTION,
         prompt,
         temperature: 0.0,

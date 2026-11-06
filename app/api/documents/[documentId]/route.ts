@@ -6,9 +6,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { findById } from "@/services/webhook/documentStore";
+import { canAccessStudent, getSession } from "@/lib/auth/session";
+import { authenticateWebhookRequest } from "@/services/webhook/authenticate";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ documentId: string }> }
 ) {
   const { documentId } = await context.params;
@@ -27,7 +29,19 @@ export async function GET(
     );
   }
 
-  const document = await findById(trimmedId);
+  // Server-to-server callers (X-API-Key) may read any document; operators only those of
+  // students they can access. Inaccessible documents look the same as missing ones.
+  const isWebhookCaller = authenticateWebhookRequest(req);
+  const session = isWebhookCaller ? null : await getSession(req);
+  if (!isWebhookCaller && !session) {
+    return NextResponse.json(
+      { success: false, error: { code: "UNAUTHORIZED", message: "Sign in through the CRM to use this service." } },
+      { status: 401 }
+    );
+  }
+
+  const found = await findById(trimmedId);
+  const document = found && (isWebhookCaller || (session && canAccessStudent(session, found.studentId))) ? found : null;
   if (!document) {
     return NextResponse.json(
       {

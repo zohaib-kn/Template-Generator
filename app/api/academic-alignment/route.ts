@@ -93,8 +93,8 @@ export async function GET(req: NextRequest) {
       resolution: found ? stripMongoMeta(found) : null,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -169,8 +169,8 @@ export async function POST(req: NextRequest) {
       resolution: stripMongoMeta(saved),
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -216,7 +216,7 @@ export async function DELETE(req: NextRequest) {
       deleted: result.deletedCount > 0,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

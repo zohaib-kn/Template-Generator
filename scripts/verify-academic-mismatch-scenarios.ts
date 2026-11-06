@@ -49,7 +49,7 @@ import type {
 } from "../types";
 
 function createValidSopContext(overrides?: {
-  [K in keyof StudentDocumentContext]?: any;
+  [K in keyof StudentDocumentContext]?: Partial<NonNullable<StudentDocumentContext[K]>>;
 }): StudentDocumentContext {
   return {
     student: {
@@ -147,7 +147,7 @@ function createValidSopContext(overrides?: {
       pnr: "PNR-12345",
     },
     ...overrides,
-  };
+  } as StudentDocumentContext;
 }
 
 async function runScenarioVerification() {
@@ -602,8 +602,8 @@ async function runScenarioVerification() {
   try {
     clearTestStore();
 
-    // ***REMOVED***'s real ID in CRM fixtures: Rizvi Law College (Law)
-    const kaavyaId = "6a508a96af13bb33e9fc07ce";
+    // Meera Anand Kalsekar's real ID in CRM fixtures: Rizvi Law College (Law)
+    const sampleStudentAId = "5a0000000000000000000001";
 
     // Tampered payload attempting client-side bypass:
     // Claims student has B.Tech Mechanical Engineering and sends fake Python/ML skills in body
@@ -611,7 +611,7 @@ async function runScenarioVerification() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        studentId: kaavyaId,
+        studentId: sampleStudentAId,
         programId: "prog-automotive-bypass",
         sectionId: "why-course",
         sectionTitle: "Why This Course",

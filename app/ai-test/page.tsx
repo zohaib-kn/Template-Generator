@@ -76,7 +76,7 @@ export default function AiTestPage() {
             </span>
           </div>
           <h1 className="text-2xl font-bold text-white mt-3">
-            Gemini API Connection Test
+            OpenAI Connection Test
           </h1>
           <p className="text-sm text-slate-400 mt-1">
             Validates server-side Google GenAI SDK connectivity using fictional dummy context (Aarav Mehta). No real CRM data is sent.
@@ -112,10 +112,10 @@ export default function AiTestPage() {
                     d="M4 12a8 8 0 018-8v8H4z"
                   />
                 </svg>
-                <span>Calling Gemini API...</span>
+                <span>Calling OpenAI...</span>
               </>
             ) : (
-              <span>Test Gemini API</span>
+              <span>Test OpenAI</span>
             )}
           </button>
 
@@ -186,7 +186,7 @@ export default function AiTestPage() {
           {/* Idle Placeholder */}
           {status === "idle" && (
             <div className="text-center py-8 text-xs text-slate-500 border border-dashed border-slate-700 rounded-lg">
-              Click &quot;Test Gemini API&quot; to initiate server-side generation via POST /api/ai/test
+              Click &quot;Test OpenAI&quot; to initiate server-side generation via POST /api/ai/test
             </div>
           )}
         </div>
@@ -194,7 +194,7 @@ export default function AiTestPage() {
         {/* Security & Privacy Footer */}
         <div className="mt-8 pt-4 border-t border-slate-700/60 flex flex-col gap-1 text-[11px] text-slate-400">
           <div className="flex items-center gap-1.5">
-            <span className="text-emerald-400">✓</span> Server-side key protection: GEMINI_API_KEY is not exposed to frontend.
+            <span className="text-emerald-400">✓</span> Server-side key protection: OPENAI_API_KEY is not exposed to frontend.
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-emerald-400">✓</span> Fictional data only: No real CRM records or student PII transmitted.

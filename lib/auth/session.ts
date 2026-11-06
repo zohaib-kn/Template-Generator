@@ -121,6 +121,27 @@ export function canAccessStudent(session: OperatorSession, studentId: string | n
   return session.students.includes(studentId);
 }
 
+/**
+ * Access to a stored record (import, draft, document). A record tied to a student follows
+ * that student's access; a record with no student belongs to the operator who created it.
+ * Operators with access to all students can open everything, including legacy records.
+ */
+export function canAccessRecord(
+  session: OperatorSession,
+  record: { studentId?: string | null; createdBy?: string | null } | null | undefined
+): boolean {
+  if (!record) return false;
+  if (session.students === "*") return true;
+  if (record.studentId) return canAccessStudent(session, record.studentId);
+  return Boolean(record.createdBy && record.createdBy === session.sub);
+}
+
+/** Mongo filter for the records an operator may list (see canAccessRecord). */
+export function accessibleRecordsFilter(session: OperatorSession): Record<string, unknown> {
+  if (session.students === "*") return {};
+  return { $or: [{ studentId: { $in: session.students } }, { studentId: { $in: [null, ""] }, createdBy: session.sub }] };
+}
+
 export function unauthorizedResponse(): NextResponse {
   return NextResponse.json(
     { success: false, error: { code: "UNAUTHORIZED", message: "Sign in through the CRM to use this service." } },

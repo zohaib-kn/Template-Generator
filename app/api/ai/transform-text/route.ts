@@ -7,7 +7,7 @@
  * Lightweight, privacy-respecting endpoint:
  * - Accepts only text to transform (no passport, DOB, CRM data).
  * - Enforces length boundaries.
- * - Invokes server-side Gemini via textTransformationService.
+ * - Invokes OpenAI via textTransformationService.
  */
 
 import { NextRequest, NextResponse } from "next/server";

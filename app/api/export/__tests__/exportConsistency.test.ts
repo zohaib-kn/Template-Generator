@@ -89,7 +89,7 @@ describe("Export consistency", () => {
       })
     );
     const out = await docxHtml(res);
-    assert.ok(out.includes("SAMPLE APPLICANT"));
+    assert.ok(out.includes("Sample Applicant"), "name is shown as in the CV preview (Title Case)");
     assert.ok(out.includes("EDUCATION AND TRAINING"));
     assert.match(out, /<strong>BSc Computer Science<\/strong>/);
     assert.ok(out.includes("• Final grade: 8/10") || out.includes("Final grade: 8/10"));

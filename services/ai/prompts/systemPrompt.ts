@@ -1,7 +1,7 @@
 /**
  * services/ai/prompts/systemPrompt.ts
  *
- * Master permanent system instruction for Gemini.
+ * Master permanent system instruction for the AI model.
  * Enforces factual fidelity, natural semantic variation, capable student voice,
  * plain language transformation, and zero fact fabrication.
  */

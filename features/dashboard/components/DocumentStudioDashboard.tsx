@@ -878,7 +878,11 @@ export function DocumentStudioDashboard() {
     return "sample-aafia-ameen";
   });
 
-  useEffect(() => {
+  // Re-apply the URL student lock whenever the globally selected student changes
+  // (adjusting state during render instead of in an effect).
+  const [urlLockSyncedFor, setUrlLockSyncedFor] = useState<{ id: string | null } | null>(null);
+  if (urlLockSyncedFor === null || urlLockSyncedFor.id !== selectedStudentId) {
+    setUrlLockSyncedFor({ id: selectedStudentId });
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const sId = params.get("studentId") || params.get("student");
@@ -893,7 +897,7 @@ export function DocumentStudioDashboard() {
         }
       }
     }
-  }, [selectedStudentId]);
+  }
   const [modalDocType, setModalDocType] = useState<"COVER_LETTER" | "SOP" | "CV" | "LOR" | "BLANK">("COVER_LETTER");
 
   // Roster State
@@ -1145,12 +1149,18 @@ export function DocumentStudioDashboard() {
     [editableDocContent, cvDocumentData]
   );
 
+  // Clear the student context as soon as the document has no student
+  // (adjusting state during render instead of in an effect).
+  const sopContextStudentId = editableDocContent?.studentId;
+  const [prevSopContextStudentId, setPrevSopContextStudentId] = useState(sopContextStudentId);
+  if (prevSopContextStudentId !== sopContextStudentId) {
+    setPrevSopContextStudentId(sopContextStudentId);
+    if (!sopContextStudentId) setActiveSopContext(null);
+  }
+
   // Synchronize student context for Cover Letter validation
   useEffect(() => {
-    if (!editableDocContent?.studentId) {
-      setActiveSopContext(null);
-      return;
-    }
+    if (!editableDocContent?.studentId) return;
     let isMounted = true;
     loadStudentSnapshot(editableDocContent.studentId).then((snapshot) => {
       if (!isMounted) return;
@@ -1636,6 +1646,7 @@ export function DocumentStudioDashboard() {
     const sessionsKey = `antigravity_studio_chat_sessions_${studentId}_${docType}`;
     const legacyKey = `antigravity_studio_chat_${studentId}_${docType}`;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- chatMessages is set from many async AI/assistant paths; folding the active session (title + messages) into chatSessions and persisting it to localStorage here is the single sync point, and moving it to every setter would change persistence timing.
     setChatSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === activeSessionId);
       let updated: ChatSession[];
@@ -2416,13 +2427,13 @@ export function DocumentStudioDashboard() {
         return;
       }
 
-      // For Cover Letter, SOP, and LOR, any natural conversational prompt goes directly to Gemini AI
+      // For Cover Letter, SOP, and LOR, any natural conversational prompt goes directly to the AI
       if (editableDocContent.docType !== "CV" && !isDeleteRequest) {
         void runAiEdit(customPrompt.trim());
         return;
       }
 
-      // For CV, only structured section commands stay local; natural conversational instructions go to Gemini AI
+      // For CV, only structured section commands stay local; natural conversational instructions go to the AI
       const isStructuredCvCommand =
         isDeleteRequest ||
         pLower.includes("ielts") ||
@@ -3202,13 +3213,11 @@ export function DocumentStudioDashboard() {
     if (actionKey === "academic_polish") {
       updated.sections = updated.sections.map((section) => {
         let polished = section.content;
+        // Offline fallback: only wording changes that keep the meaning (no inflated claims).
         polished = polished
-          .replace(/\bI want to\b/g, "I aim to")
-          .replace(/\bvery good\b/g, "rigorous")
-          .replace(/\blots of\b/g, "substantial")
-          .replace(/\bhelp me to\b/g, "enable me to")
-          .replace(/\bI think that\b/g, "I am convinced that")
-          .replace(/\bgood at\b/g, "proficient in");
+          .replace(/\blots of\b/g, "a lot of")
+          .replace(/\bhelp me to\b/g, "help me")
+          .replace(/\bin order to\b/gi, "to");
         return { ...section, content: polished };
       });
       appliedFeedback = "Polished overall academic diction and tone while preserving student profile facts.";
@@ -3217,13 +3226,9 @@ export function DocumentStudioDashboard() {
     } else if (actionKey === "improve" || actionKey === "trim_budget") {
       updated.sections = updated.sections.map((section) => {
         let content = section.content;
+        // Offline fallback: only wording changes that keep the meaning (no inflated claims).
         content = content
-          .replace(/\bresponsible for\b/gi, "spearheaded and managed")
-          .replace(/\bworked on\b/gi, "actively engineered and implemented")
-          .replace(/\bhelped in\b/gi, "facilitated and contributed to")
-          .replace(/\blearned\b/gi, "mastered and applied")
-          .replace(/\bgood knowledge of\b/gi, "demonstrated proficiency in")
-          .replace(/\bhandled\b/gi, "directed and optimized")
+          .replace(/\bhelped in\b/gi, "helped with")
           .replace(/\bin order to\b/gi, "to")
           .replace(/\bdue to the fact that\b/gi, "because")
           .replace(/\bat this point in time\b/gi, "presently");
@@ -3263,7 +3268,7 @@ export function DocumentStudioDashboard() {
       studentId: targetStudentId,
     };
 
-    const history = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
+    const history = chatMessages.slice(-10).map((m) => ({ sender: m.sender, text: m.text }));
 
     const reportFailure = (text: string) => {
       // Guard: do not report failure if request is already obsolete
@@ -3324,9 +3329,13 @@ export function DocumentStudioDashboard() {
       const unverified: string[] = json.unverifiedValues || [];
       if (changed.length === 0) {
         const isEditDirective = /\b(make|improve|enhance|polish|rewrite|rephrase|add|update|change|delete|remove|fix)\b/i.test(instruction);
-        const replyText = isEditDirective
-          ? `I could not apply any text changes to that section. Please specify the exact sentence or paragraph you'd like to improve.`
-          : json.reply;
+        // Show the AI's own explanation when it gave one; the generic hint is only a fallback.
+        const aiReply = typeof json.reply === "string" && json.reply.trim() && json.reply.trim() !== "Done." ? json.reply.trim() : "";
+        const replyText =
+          aiReply ||
+          (isEditDirective
+            ? `I could not apply any text changes to that section. Please specify the exact sentence or paragraph you'd like to improve.`
+            : "I don't have an answer for that yet. Could you rephrase?");
         const asstMsg: ChatMessage = {
           id: generateUniqueId("asst"),
           sender: "assistant",
@@ -3433,7 +3442,7 @@ export function DocumentStudioDashboard() {
         cvDocumentData ||
         getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
 
-      const recentHistory = chatMessages.slice(-6).map((m) => ({ sender: m.sender, text: m.text }));
+      const recentHistory = chatMessages.slice(-10).map((m) => ({ sender: m.sender, text: m.text }));
 
       void (async () => {
         let isHandledByAiEdit = false;
@@ -3632,7 +3641,7 @@ export function DocumentStudioDashboard() {
       setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(currentCv))]);
       setRedoHistory([]);
       setCvRedoHistory([]);
-      const updatedCv = JSON.parse(JSON.stringify(currentCv));
+      const updatedCv: DocumentData = JSON.parse(JSON.stringify(currentCv));
 
       // Preserve photoUrl if set
       if (currentCv.personal?.photoUrl) {
@@ -3657,7 +3666,7 @@ export function DocumentStudioDashboard() {
 
           // Deduplicate against existing hobbies
           const existingHobbies = updatedCv.hobbies || [];
-          const existingNames = new Set(existingHobbies.map((h: any) => h.name?.toLowerCase().trim()));
+          const existingNames = new Set(existingHobbies.map((h) => h.name?.toLowerCase().trim()));
           const newUniqueItems = items.filter((item) => !existingNames.has(item.toLowerCase()));
           const itemsToAdd = newUniqueItems.length > 0 ? newUniqueItems : items;
 
@@ -3683,7 +3692,7 @@ export function DocumentStudioDashboard() {
           const items = rawItems.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
 
           const existingSkills = updatedCv.skills || [];
-          const existingNames = new Set(existingSkills.map((s: any) => s.name?.toLowerCase().trim()));
+          const existingNames = new Set(existingSkills.map((s) => s.name?.toLowerCase().trim()));
           const newUniqueItems = items.filter((item) => !existingNames.has(item.toLowerCase()));
           const itemsToAdd = newUniqueItems.length > 0 ? newUniqueItems : items;
 
@@ -3865,7 +3874,7 @@ export function DocumentStudioDashboard() {
             endDate: dates.split(/[–-]|to/i)[1]?.trim() || "",
             description: desc,
           };
-          const existingInterns = (updatedCv.internships || []).filter((e: any) => e.role || e.company);
+          const existingInterns = (updatedCv.internships || []).filter((e) => e.role || e.company);
           updatedCv.internships = [...existingInterns, newInternEntry];
           break;
         }
@@ -3914,7 +3923,7 @@ export function DocumentStudioDashboard() {
             endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
             finalGrade: grade || undefined,
           };
-          const existingEdu = (updatedCv.education || []).filter((e: any) => e.qualification || e.institution);
+          const existingEdu = (updatedCv.education || []).filter((e) => e.qualification || e.institution);
           updatedCv.education = [...existingEdu, newEdu];
           break;
         }
@@ -3952,7 +3961,7 @@ export function DocumentStudioDashboard() {
             startDate: dates ? dates.split(/[–-]|to/i)[0]?.trim() || "" : "",
             endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
           };
-          const existingEdu = (updatedCv.education || []).filter((e: any) => e.qualification || e.institution);
+          const existingEdu = (updatedCv.education || []).filter((e) => e.qualification || e.institution);
           updatedCv.education = [...existingEdu, newTrainEdu];
           break;
         }
@@ -3987,7 +3996,7 @@ export function DocumentStudioDashboard() {
             provider,
             completionDate,
           };
-          const existingCerts = (updatedCv.certifications || []).filter((c: any) => c.name);
+          const existingCerts = (updatedCv.certifications || []).filter((c) => c.name);
           updatedCv.certifications = [...existingCerts, newCert];
           break;
         }
@@ -4018,7 +4027,7 @@ export function DocumentStudioDashboard() {
             title,
             description: desc,
           };
-          const existingProj = (updatedCv.academicProjects || []).filter((p: any) => p.title);
+          const existingProj = (updatedCv.academicProjects || []).filter((p) => p.title);
           updatedCv.academicProjects = [...existingProj, newProj];
           break;
         }
@@ -4061,7 +4070,7 @@ export function DocumentStudioDashboard() {
             duration: duration || undefined,
             description: desc || undefined,
           };
-          const existingLead = (updatedCv.leadershipActivities || []).filter((l: any) => l.activity || l.description);
+          const existingLead = (updatedCv.leadershipActivities || []).filter((l) => l.activity || l.description);
           updatedCv.leadershipActivities = [...existingLead, newLead];
           break;
         }
@@ -4195,8 +4204,8 @@ export function DocumentStudioDashboard() {
           const textMatch = cleanAnswer.match(/(?:text|quote|feedback|comments?)\s*[:=-]\s*([\s\S]+)/i);
 
           let recName = nameMatch ? nameMatch[1].trim() : "";
-          let recTitle = titleMatch ? titleMatch[1].trim() : "";
-          let recOrg = orgMatch ? orgMatch[1].trim() : "";
+          const recTitle = titleMatch ? titleMatch[1].trim() : "";
+          const recOrg = orgMatch ? orgMatch[1].trim() : "";
           let recText = textMatch ? textMatch[1].trim() : "";
 
           if (!recName) {
@@ -4260,7 +4269,7 @@ export function DocumentStudioDashboard() {
               ? "REPLACE"
               : "\n\n";
 
-      let updatedSections = [...editableDocContent.sections];
+      const updatedSections = [...editableDocContent.sections];
       if (existingSectionIdx >= 0) {
         const existingSec = updatedSections[existingSectionIdx];
         let mergedContent = formattedContent;
@@ -4345,7 +4354,7 @@ export function DocumentStudioDashboard() {
       setActiveCvSectionPrompt(null);
 
       // Post Assistant confirmation
-      const isExisting = Boolean(('isExisting' in activeSectionPrompt && (activeSectionPrompt as any).isExisting) || existingSectionIdx >= 0);
+      const isExisting = Boolean(('isExisting' in activeSectionPrompt && activeSectionPrompt.isExisting) || existingSectionIdx >= 0);
       const assistantMsg: ChatMessage = {
         id: generateUniqueId("assistant-cv-section-success"),
         sender: "assistant",
@@ -4422,7 +4431,7 @@ export function DocumentStudioDashboard() {
         setActiveFieldPrompt(null);
 
         // 8.5 Trigger green underline highlight & floating badge on the changed section
-        const changedSec = updatedSections.find((sec: any, idx: number) => {
+        const changedSec = updatedSections.find((sec, idx: number) => {
           const oldSec = editableDocContent?.sections[idx];
           return !oldSec || oldSec.content !== sec.content;
         });
@@ -4522,7 +4531,7 @@ export function DocumentStudioDashboard() {
         setActiveFieldPrompt(null);
 
         // 8.5 Trigger green underline highlight & floating badge on the changed section
-        const changedSec = updatedSections.find((sec: any, idx: number) => {
+        const changedSec = updatedSections.find((sec, idx: number) => {
           const oldSec = editableDocContent?.sections[idx];
           return !oldSec || oldSec.content !== sec.content;
         });
@@ -4622,7 +4631,7 @@ export function DocumentStudioDashboard() {
       setActiveFieldPrompt(null);
 
       // 8.5 Trigger green underline highlight & floating badge on the changed section
-      const changedSec = updatedSections.find((sec: any, idx: number) => {
+      const changedSec = updatedSections.find((sec, idx: number) => {
         const oldSec = editableDocContent.sections[idx];
         return !oldSec || oldSec.content !== sec.content;
       });
@@ -4968,11 +4977,6 @@ export function DocumentStudioDashboard() {
     );
   }, [recentDocs, searchQuery]);
 
-  // Reset to first page when search changes
-  useEffect(() => {
-    setRecentDocsPage(1);
-  }, [searchQuery]);
-
   const totalRecentPages = Math.max(1, Math.ceil(filteredRecentDocs.length / recentDocsPerPage));
   const safeRecentPage = Math.min(Math.max(1, recentDocsPage), totalRecentPages);
 
@@ -5063,7 +5067,19 @@ export function DocumentStudioDashboard() {
       docId: safeDoc.id || "",
       studentId: safeDoc.studentId,
     };
-    setActiveDocument(safeDoc);
+    // Cover letters: the active (baseline) document gets placeholder-cleaned sections,
+    // while the editable copy and Tiptap HTML keep the original sections (as before).
+    const activeDoc: HydratedDocumentData =
+      safeDoc.docType === "COVER_LETTER" && Array.isArray(safeDoc.sections)
+        ? {
+            ...safeDoc,
+            sections: safeDoc.sections.map((sec) => ({
+              ...sec,
+              content: cleanCoverLetterText(sec.content),
+            })),
+          }
+        : safeDoc;
+    setActiveDocument(activeDoc);
     setEditableDocContent(JSON.parse(JSON.stringify(safeDoc)));
     setDocHistory([]);
     setRedoHistory([]);
@@ -5075,12 +5091,6 @@ export function DocumentStudioDashboard() {
       tiptapEditor.commands.setContent(html);
     }
     if (safeDoc.docType === "COVER_LETTER") {
-      if (Array.isArray(safeDoc.sections)) {
-        safeDoc.sections = safeDoc.sections.map((sec) => ({
-          ...sec,
-          content: cleanCoverLetterText(sec.content),
-        }));
-      }
       setFontFamily("Calibri, Carlito, Aptos, 'Segoe UI', sans-serif");
       setFontFamilyLabel("Calibri");
       setFontSize(11);
@@ -5249,7 +5259,11 @@ export function DocumentStudioDashboard() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                // Reset to first page when search changes
+                setRecentDocsPage(1);
+              }}
               placeholder="Search student documents..."
               className="w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-900 rounded-xl text-xs text-white border border-slate-700/80 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder-slate-400"
             />
@@ -7453,10 +7467,10 @@ export function DocumentStudioDashboard() {
                       transformOrigin: "top center",
                       fontFamily,
                       color: textColor,
-                      ["--europass-font-family" as any]: fontFamily,
-                      ["--europass-font-size-base" as any]: `${fontSize}pt`,
-                      ["--europass-text-dark" as any]: textColor,
-                    }}
+                      "--europass-font-family": fontFamily,
+                      "--europass-font-size-base": `${fontSize}pt`,
+                      "--europass-text-dark": textColor,
+                    } as React.CSSProperties}
                   >
                     {(() => {
                       const activeCvForRender =

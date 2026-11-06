@@ -627,7 +627,7 @@ export async function processCvChatInstruction(
   if (!updatedCv.personal) updatedCv.personal = {};
 
   const appliedSummaries: string[] = [];
-  let touchedSections = new Set<string>();
+  const touchedSections = new Set<string>();
 
   for (const clause of clauses) {
     const cLower = clause.toLowerCase();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import type {
   TemplateSection,
   ReviewStatus,
@@ -257,11 +257,16 @@ export function SectionEditor({
   const [showGuidance, setShowGuidance] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  // Sync draftText when section changes
-  useEffect(() => {
+  // Sync draftText when section changes (render-phase "previous props"
+  // pattern instead of a syncing effect).
+  const [prevSectionId, setPrevSectionId] = useState(section.id);
+  const [prevContent, setPrevContent] = useState(content);
+  if (section.id !== prevSectionId || content !== prevContent) {
+    setPrevSectionId(section.id);
+    setPrevContent(content);
     setDraftText(content);
     setFeedback(null);
-  }, [section.id, content]);
+  }
 
   const isModified = content !== section.content;
 

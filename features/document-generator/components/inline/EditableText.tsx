@@ -49,13 +49,6 @@ export function EditableText({
   const [localValue, setLocalValue] = useState(value);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
-  // Keep local value in sync with external prop when not editing
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalValue(value);
-    }
-  }, [value, isEditing]);
-
   // Auto-focus and position cursor at end when entering edit mode
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -71,9 +64,11 @@ export function EditableText({
       if (!isInteractive) return;
       e.preventDefault(); // Prevent browser navigation if Tag is an anchor
       e.stopPropagation(); // prevent ResumeInteractiveSection body click from opening drawer
+      // localValue is only read while editing — seed it from the latest prop here
+      setLocalValue(value);
       setIsEditing(true);
     },
-    [isInteractive]
+    [isInteractive, value]
   );
 
   const handleChange = useCallback(

@@ -1,7 +1,7 @@
 /**
- * services/ai/gemini/promptBuilder.ts
+ * services/ai/generation/promptBuilder.ts
  *
- * Constructs structured prompts for the Gemini Writer and Auditor passes.
+ * Constructs structured prompts for the the AI model Writer and Auditor passes.
  * Separates permanent system instructions from dynamic applicant facts and examples.
  */
 

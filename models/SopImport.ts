@@ -12,6 +12,8 @@ import type { SopImportResult } from "@/features/sop-generator/types/import";
 export interface SopImportRecord {
   id: string;
   studentId?: string;
+  /** Operator (session sub) who uploaded the file. */
+  createdBy?: string;
   studentName: string;
   fileName: string;
   fileSizeBytes: number;
@@ -75,6 +77,7 @@ const SopImportSchema = new Schema<SopImportRecord>(
   {
     id: { type: String, required: true, unique: true, index: true },
     studentId: { type: String, sparse: true, index: true },
+    createdBy: { type: String, sparse: true, index: true },
     studentName: { type: String, required: true },
     fileName: { type: String, required: true },
     fileSizeBytes: { type: Number, required: true },
@@ -89,10 +92,10 @@ const SopImportSchema = new Schema<SopImportRecord>(
     },
     rawTextSnippet: { type: String },
     sectionContents: { type: Schema.Types.Mixed, default: {} },
-    sectionsSummary: { type: [Schema.Types.Mixed], default: [] } as any,
-    ambiguousItems: { type: [Schema.Types.Mixed], default: [] } as any,
-    unmappedParagraphs: { type: [Schema.Types.Mixed], default: [] } as any,
-    crmConflicts: { type: [Schema.Types.Mixed], default: [] } as any,
+    sectionsSummary: { type: [{}], default: [] },
+    ambiguousItems: { type: [{}], default: [] },
+    unmappedParagraphs: { type: [{}], default: [] },
+    crmConflicts: { type: [{}], default: [] },
     extractedFacts: { type: Schema.Types.Mixed, default: {} },
     errorMessage: { type: String },
     createdAt: { type: String, required: true },

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { SopDraftModel } from "@/models/SopDraft";
-import { requireSession } from "@/lib/auth/session";
+import { accessibleRecordsFilter, canAccessRecord, requireSession } from "@/lib/auth/session";
 import type {
   ReviewStatus,
   StudentDocumentContext,
@@ -18,11 +18,14 @@ import type {
 
 // ── GET /api/sop/drafts ───────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await requireSession(req);
+    if (auth.response) return auth.response;
+
     await connectToDatabase();
 
-    const drafts = await SopDraftModel.find({})
+    const drafts = await SopDraftModel.find(accessibleRecordsFilter(auth.session))
       .sort({ savedAt: -1 })
       .lean();
 
@@ -31,8 +34,8 @@ export async function GET() {
 
     return NextResponse.json({ success: true, drafts: cleaned });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }
 
@@ -67,8 +70,17 @@ export async function POST(req: NextRequest) {
 
     await connectToDatabase();
 
+    // Overwriting an existing draft requires access to it.
+    if (incomingId) {
+      const existing = await SopDraftModel.findOne({ id: incomingId }).select("studentId createdBy").lean();
+      if (existing && !canAccessRecord(auth.session, existing)) {
+        return NextResponse.json({ success: false, error: "Draft not found." }, { status: 404 });
+      }
+    }
+
     const payload = {
       id: draftId,
+      ...(targetStudentId ? { studentId: String(targetStudentId) } : {}),
       documentType,
       studentName,
       course,
@@ -87,7 +99,7 @@ export async function POST(req: NextRequest) {
     // Upsert: update if exists, create if not — keyed on `id` field
     const draft = await SopDraftModel.findOneAndUpdate(
       { id: draftId },
-      { $set: payload },
+      { $set: payload, $setOnInsert: { createdBy: auth.session.sub } },
       { upsert: true, new: true, lean: true }
     );
 
@@ -97,7 +109,7 @@ export async function POST(req: NextRequest) {
       savedAt,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    console.error("[api] request failed:", err);
+    return NextResponse.json({ success: false, error: "Internal error" }, { status: 500 });
   }
 }

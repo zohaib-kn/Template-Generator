@@ -6,7 +6,7 @@
  * Orchestration pipeline:
  * 1. File buffer extraction (PDF / DOCX) with timeouts and error safeguards.
  * 2. Deterministic parsing (contacts, headers, regex dates).
- * 3. Gemini AI semantic classification (with retry & fallback degradation).
+ * 3. the AI model AI semantic classification (with retry & fallback degradation).
  * 4. Section completeness summary generation.
  * 5. CRM conflict detection against verified student profile.
  * 6. MongoDB persistence (GridFS original file storage + ResumeImportModel).
@@ -22,7 +22,7 @@ import { parsePdfBuffer } from "./parsers/pdfParser";
 import { parseDocxBuffer } from "./parsers/docxParser";
 import { extractPdfProfilePhoto } from "./parsers/pdfImageExtractor";
 import { parseDocumentDeterministically } from "./normalizers/deterministicParser";
-import { classifyResumeWithGemini } from "./normalizers/geminiResumeClassifier";
+import { classifyResumeWithAi } from "./normalizers/aiResumeClassifier";
 import { detectCrmConflicts } from "./normalizers/crmConflictDetector";
 import { saveFileToGridFS } from "./storage/gridfsStorage";
 import { ResumeImportModel } from "@/models/ResumeImport";
@@ -37,6 +37,8 @@ export interface ProcessResumeUploadOptions {
   crmProfile?: NormalizedStudentProfile | null;
   studentId?: string;
   studentName?: string;
+  /** Operator (session sub) performing the upload. */
+  createdBy?: string;
 }
 
 export function computeSectionsSummary(data: DocumentData): DetectedSectionSummary[] {
@@ -76,7 +78,7 @@ export function computeSectionsSummary(data: DocumentData): DetectedSectionSumma
 export async function processResumeUpload(
   options: ProcessResumeUploadOptions
 ): Promise<ResumeImportResult> {
-  const { buffer, fileName, mimeType, crmProfile, studentId, studentName } = options;
+  const { buffer, fileName, mimeType, crmProfile, studentId, studentName, createdBy } = options;
   const importId = `IMP-${generateId()}`;
   const now = new Date().toISOString();
 
@@ -135,8 +137,8 @@ export async function processResumeUpload(
     // 3. Deterministic Extraction
     const deterministic = parseDocumentDeterministically(rawText);
 
-    // 4. Gemini Semantic Classification (with retries & fallback)
-    const aiResult = await classifyResumeWithGemini(rawText);
+    // 4. the AI model Semantic Classification (with retries & fallback)
+    const aiResult = await classifyResumeWithAi(rawText);
 
     // 5. Merge Deterministic + AI Results (AI takes precedence for lists, deterministic for contacts)
     mergedData = {
@@ -225,6 +227,7 @@ export async function processResumeUpload(
     await ResumeImportModel.create({
       id: importId,
       studentId: studentId || crmProfile?.meta?.studentId,
+      createdBy,
       studentName: resolvedStudentName,
       fileName,
       fileSizeBytes: buffer.length,

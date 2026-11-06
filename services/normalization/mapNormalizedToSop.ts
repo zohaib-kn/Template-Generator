@@ -20,7 +20,16 @@ export function mapNormalizedToSop(profile: NormalizedStudentProfile): StudentDo
   const activeProg = profile.applications.activeProgram;
   const eng = profile.tests.english;
   const fam = profile.family;
-  const fin = profile.finance;
+  const fin = profile.finance as
+    | (NonNullable<NormalizedStudentProfile["finance"]> & {
+        availableBalance?: string;
+        totalFundsAvailable?: string;
+        disbursedAmount?: string;
+        bankAccount?: string;
+        statementDate?: string;
+        availableBalanceEur?: string;
+      })
+    | undefined;
   const visa = profile.visaLogistics;
 
   // Determine primary sponsor from family if available
@@ -97,13 +106,13 @@ export function mapNormalizedToSop(profile: NormalizedStudentProfile): StudentDo
       loanProvider: fin?.bankName || "",
       bankName: fin?.bankName || "",
       accountHolderName: sponsorName || p.fullName || "",
-      availableBalance: (fin as any)?.availableBalance || "",
-      totalFundsAvailable: (fin as any)?.totalFundsAvailable || "",
+      availableBalance: fin?.availableBalance || "",
+      totalFundsAvailable: fin?.totalFundsAvailable || "",
       currency: fin?.currency || "",
-      disbursedAmount: (fin as any)?.disbursedAmount || "",
-      bankAccount: (fin as any)?.bankAccount || "",
-      statementDate: (fin as any)?.statementDate || "",
-      availableBalanceEur: (fin as any)?.availableBalanceEur || "",
+      disbursedAmount: fin?.disbursedAmount || "",
+      bankAccount: fin?.bankAccount || "",
+      statementDate: fin?.statementDate || "",
+      availableBalanceEur: fin?.availableBalanceEur || "",
     },
 
     accommodation: {

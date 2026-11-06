@@ -12,7 +12,7 @@ import type { NormalizedStudentProfile } from "@/types/normalizedStudent";
 
 test("SOP Conflict Detector: detects IELTS score discrepancy without silent overwrite", () => {
   const extractedFacts: ExtractedSopFacts = {
-    fullName: "***REMOVED***",
+    fullName: "Meera Patel",
     ieltsScore: "7.0",
     institution: "Barkatullah University",
     percentage: "72%",
@@ -25,8 +25,8 @@ test("SOP Conflict Detector: detects IELTS score discrepancy without silent over
       fetchedAt: new Date().toISOString(),
     },
     personal: {
-      fullName: "***REMOVED***",
-      firstName: "***REMOVED***",
+      fullName: "Meera Patel",
+      firstName: "Meera",
       lastName: "Patel",
     },
     academics: {
@@ -60,7 +60,7 @@ test("SOP Conflict Detector: detects IELTS score discrepancy without silent over
 
 test("SOP Conflict Detector: detects past institution and passport number discrepancies", () => {
   const extractedFacts: ExtractedSopFacts = {
-    fullName: "***REMOVED***",
+    fullName: "Meera Patel",
     passportNumber: "Z9999999",
     institution: "Delhi University",
   };
@@ -72,8 +72,8 @@ test("SOP Conflict Detector: detects past institution and passport number discre
       fetchedAt: new Date().toISOString(),
     },
     personal: {
-      fullName: "***REMOVED***",
-      firstName: "***REMOVED***",
+      fullName: "Meera Patel",
+      firstName: "Meera",
       lastName: "Patel",
       passportNumber: "A1111111",
     },
@@ -101,7 +101,7 @@ test("SOP Conflict Detector: detects past institution and passport number discre
 
 test("SOP Conflict Detector: returns empty array when facts match CRM", () => {
   const extractedFacts: ExtractedSopFacts = {
-    fullName: "***REMOVED***",
+    fullName: "Meera Patel",
     ieltsScore: "7.5",
     institution: "Barkatullah University",
     percentage: "72%",
@@ -114,8 +114,8 @@ test("SOP Conflict Detector: returns empty array when facts match CRM", () => {
       fetchedAt: new Date().toISOString(),
     },
     personal: {
-      fullName: "***REMOVED***",
-      firstName: "***REMOVED***",
+      fullName: "Meera Patel",
+      firstName: "Meera",
       lastName: "Patel",
     },
     academics: {

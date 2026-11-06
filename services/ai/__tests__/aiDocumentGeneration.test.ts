@@ -99,7 +99,7 @@ test("TEST 2: SOP does not receive visa finance/travel instructions", () => {
 test("TEST 3: LOR is written from recommender perspective", () => {
   const normalized = normalizeDocumentData({
     documentType: DOCUMENT_TYPES.LOR,
-    applicant: { fullName: "Kunal Sharma" },
+    applicant: { fullName: "Ishaan Sharma" },
     recommender: {
       fullName: "Dr. Ramesh Iyer",
       designation: "Professor & Head of Department",
@@ -262,7 +262,7 @@ test("TEST 10: Missing optional data does not cause invented facts", () => {
 test("TEST 11: LOR does not invent 'top 5%' claims without source data", () => {
   const normalizedLor = normalizeDocumentData({
     documentType: DOCUMENT_TYPES.LOR,
-    applicant: { fullName: "***REMOVED***" },
+    applicant: { fullName: "Ishaan Varmora" },
     recommender: {
       fullName: "Prof. Sanjay Sharma",
       title: "Associate Professor",

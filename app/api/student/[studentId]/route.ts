@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
 import { requireSession } from "@/lib/auth/session";
-import kaavyaSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
-import fardeeSnapshot from "@/features/document-generator/utils/crmSnapshot_***REMOVED***.json";
+import sampleStudentASnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentA.json";
+import sampleStudentBSnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentB.json";
 
 import { getSampleSnapshotById } from "@/lib/sampleStudents";
 
@@ -56,11 +56,11 @@ function getCachedSnapshot(studentId: string): CrmSnapshot | null {
   if (process.env.NODE_ENV === "production") return null;
 
   const normalized = studentId.toLowerCase();
-  if (normalized === "6a508a96af13bb33e9fc07ce") {
-    return kaavyaSnapshot as unknown as CrmSnapshot;
+  if (normalized === "5a0000000000000000000001") {
+    return sampleStudentASnapshot as unknown as CrmSnapshot;
   }
-  if (normalized === "69e600e750f7c6e4051f547e") {
-    return fardeeSnapshot as unknown as CrmSnapshot;
+  if (normalized === "5a000000000000000000001b") {
+    return sampleStudentBSnapshot as unknown as CrmSnapshot;
   }
   return null;
 }

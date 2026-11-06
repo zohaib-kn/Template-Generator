@@ -13,8 +13,8 @@ import type { NormalizedStudentProfile } from "@/types/normalizedStudent";
 test("CRM Conflict Detector: detects IELTS score discrepancy without silent overwrite", () => {
   const uploadedData: DocumentData = {
     personal: {
-      fullName: "***REMOVED***",
-      email: "***REMOVED***",
+      fullName: "Meera Patel",
+      email: "meera.patel@gmail.com",
     },
     englishCertificate: {
       examName: "IELTS",
@@ -29,10 +29,10 @@ test("CRM Conflict Detector: detects IELTS score discrepancy without silent over
       fetchedAt: new Date().toISOString(),
     },
     personal: {
-      fullName: "***REMOVED***",
-      firstName: "***REMOVED***",
+      fullName: "Meera Patel",
+      firstName: "Meera",
       lastName: "Patel",
-      email: "***REMOVED***",
+      email: "meera.patel@gmail.com",
     },
     academics: { qualifications: [] },
     workExperience: [],
@@ -59,8 +59,8 @@ test("CRM Conflict Detector: detects IELTS score discrepancy without silent over
 test("CRM Conflict Detector: detects email and phone discrepancies", () => {
   const uploadedData: DocumentData = {
     personal: {
-      fullName: "***REMOVED***",
-      email: "***REMOVED***",
+      fullName: "Meera Patel",
+      email: "new.meera@personal.com",
       phone: "+91 99999 88888",
     },
   };
@@ -72,10 +72,10 @@ test("CRM Conflict Detector: detects email and phone discrepancies", () => {
       fetchedAt: new Date().toISOString(),
     },
     personal: {
-      fullName: "***REMOVED***",
-      firstName: "***REMOVED***",
+      fullName: "Meera Patel",
+      firstName: "Meera",
       lastName: "Patel",
-      email: "***REMOVED***",
+      email: "meera.patel@gmail.com",
       phone: "+91 11111 22222",
     },
     academics: { qualifications: [] },

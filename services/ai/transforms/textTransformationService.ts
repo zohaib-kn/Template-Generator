@@ -16,7 +16,7 @@
  *    - Deterministically ensures numbers, dates, scores, and institutions are retained.
  */
 
-import { geminiService, type GeminiResult } from "../gemini/geminiClient";
+import { aiService, type AiResult } from "../openaiClient";
 
 export type TransformationMode = "HINGLISH_TO_ENGLISH" | "REWRITE_NATURAL";
 
@@ -263,8 +263,8 @@ export async function transformText(options: TransformTextOptions): Promise<Tran
       mode === "REWRITE_NATURAL" ? REWRITE_NATURAL_SYSTEM_INSTRUCTION : HINGLISH_SYSTEM_INSTRUCTION;
     const { prompt } = buildHinglishPrompt(trimmed, fieldName);
 
-    // Invoke Gemini with temperature: 0.2 for strict precision
-    const geminiRes: GeminiResult = await geminiService.generate({
+    // Invoke the AI model with temperature: 0.2 for strict precision
+    const aiRes: AiResult = await aiService.generate({
       systemInstruction,
       prompt,
       temperature: 0.2,
@@ -273,21 +273,21 @@ export async function transformText(options: TransformTextOptions): Promise<Tran
       minOutputLength: 5,
     });
 
-    if (!geminiRes.success) {
+    if (!aiRes.success) {
       return {
         success: false,
         transformedText: "",
         originalText: text,
         mode,
         error: {
-          code: geminiRes.error.code,
-          message: geminiRes.error.message,
-          statusCode: geminiRes.error.statusCode,
+          code: aiRes.error.code,
+          message: aiRes.error.message,
+          statusCode: aiRes.error.statusCode,
         },
       };
     }
 
-    const cleaned = cleanTransformedText(geminiRes.text);
+    const cleaned = cleanTransformedText(aiRes.text);
 
     // Validate facts
     const factCheck = verifyFactPreservation(trimmed, cleaned);
@@ -310,7 +310,7 @@ export async function transformText(options: TransformTextOptions): Promise<Tran
       transformedText: cleaned,
       originalText: text,
       mode,
-      modelUsed: geminiRes.model,
+      modelUsed: aiRes.model,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Text transformation failed.";

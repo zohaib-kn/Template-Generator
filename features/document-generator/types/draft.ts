@@ -9,6 +9,8 @@ import type { ApplicationTarget } from "../guidance/types";
 
 export interface ResumeDraftRecord {
   id: string;
+  /** Operator (session sub) who first saved the draft; set by the server. */
+  createdBy?: string;
   studentName: string;
   targetUniversity?: string;
   intendedCourse?: string;
@@ -21,7 +23,7 @@ export interface ResumeDraftRecord {
   importId?: string;
   dbId?: string;
   /**
-   * CRM student _id (e.g. "6a508a96af13bb33e9fc07ce").
+   * CRM student _id (e.g. "5a0000000000000000000001").
    * Optional — absent in drafts saved before Phase 0.
    * Required by the academic alignment engine to retrieve program-scoped
    * evidence server-side. Old drafts without this field remain fully

@@ -31,11 +31,11 @@ export const LOR_PRESETS: LorPreset[] = [
       institution: { ...DEFAULT_LOR_DATA.institution },
       recommender: {
         prefix: "Prof.",
-        fullName: "Sanjay Sharma",
+        fullName: "Dr. Arvind Rao",
         designation: "Associate Professor",
         role: "Capstone Project Supervisor",
         department: "Computer Science & Engineering",
-        email: "***REMOVED***",
+        email: "faculty.sample@example.edu",
         phone: "",
         signatureUrl: "/images/lor/sample_signature.png",
         stampUrl: "/images/lor/sample_stamp.png",
@@ -44,7 +44,7 @@ export const LOR_PRESETS: LorPreset[] = [
       },
       student: {
         prefix: "Mr.",
-        fullName: "***REMOVED***",
+        fullName: "Ishaan Varmora",
         department: "Department of Computer Science",
         institutionName: "Poornima Institute of Engineering and Technology",
         academicStanding: "an exceptional undergraduate researcher",
@@ -59,15 +59,15 @@ export const LOR_PRESETS: LorPreset[] = [
       },
       narrative: {
         introParagraph:
-          "It gives me immense pleasure to write this letter of recommendation for Mr. ***REMOVED*** in support of his application for graduate studies in Computer Science at your esteemed institution.",
+          "It gives me immense pleasure to write this letter of recommendation for Mr. Ishaan Varmora in support of his application for graduate studies in Computer Science at your esteemed institution.",
         academicsParagraph:
-          "I first interacted with Kunal when I taught him Design & Analysis of Algorithms in his junior year. He consistently stood out as an inquisitive and mathematically sound student, demonstrating exceptional grasp of computational complexity, graph optimization, and advanced data structures. He routinely achieved top percentile marks in both theoretical evaluations and coding assignments.",
+          "I first interacted with Ishaan when I taught him Design & Analysis of Algorithms in his junior year. He consistently stood out as an inquisitive and mathematically sound student, demonstrating exceptional grasp of computational complexity, graph optimization, and advanced data structures. He routinely achieved top percentile marks in both theoretical evaluations and coding assignments.",
         projectParagraph:
-          "Beyond regular coursework, I had the opportunity to supervise Kunal's capstone research project titled “Personalized News Aggregator with Sentiment Analysis.” He spearheaded the architectural design, integrating Python, FastAPI, and Transformers to build an automated news clustering and sentiment pipeline. Kunal exhibited rigorous debugging discipline, version control mastery, and commendable technical leadership throughout the project lifecycle.",
+          "Beyond regular coursework, I had the opportunity to supervise Ishaan's capstone research project titled “Personalized News Aggregator with Sentiment Analysis.” He spearheaded the architectural design, integrating Python, FastAPI, and Transformers to build an automated news clustering and sentiment pipeline. Ishaan exhibited rigorous debugging discipline, version control mastery, and commendable technical leadership throughout the project lifecycle.",
         qualitiesParagraph:
-          "Kunal possesses a strong research appetite, remarkable perseverance when handling ambiguous problems, and effective communication skills that make him a delight to collaborate with. He has a rare ability to bridge abstract algorithmic concepts with high-performance production code.",
+          "Ishaan possesses a strong research appetite, remarkable perseverance when handling ambiguous problems, and effective communication skills that make him a delight to collaborate with. He has a rare ability to bridge abstract algorithmic concepts with high-performance production code.",
         conclusionParagraph:
-          "I place Kunal among the top 5% of students I have supervised over the past decade and recommend him without reservation for admission to your graduate program.",
+          "I place Ishaan among the top 5% of students I have supervised over the past decade and recommend him without reservation for admission to your graduate program.",
       },
     },
   },
@@ -95,11 +95,11 @@ export const LOR_PRESETS: LorPreset[] = [
       },
       recommender: {
         prefix: "Mr.",
-        fullName: "Vikram Malhotra",
+        fullName: "Priya Desai",
         designation: "Principal Engineering Lead",
         role: "Internship Mentor & Team Lead",
         department: "Cloud Applications Division",
-        email: "***REMOVED***",
+        email: "manager.sample@example.com",
         phone: "",
         signatureUrl: "/images/lor/sample_signature.png",
         stampUrl: "/images/lor/sample_stamp.png",
@@ -108,7 +108,7 @@ export const LOR_PRESETS: LorPreset[] = [
       },
       student: {
         prefix: "Mr.",
-        fullName: "***REMOVED***",
+        fullName: "Ishaan Varmora",
         department: "Software Engineering Intern",
         institutionName: "Digiwire Technologies",
         academicStanding: "a full-time software engineering intern",
@@ -123,15 +123,15 @@ export const LOR_PRESETS: LorPreset[] = [
       },
       narrative: {
         introParagraph:
-          "I am writing this letter of recommendation with great pleasure to support Mr. ***REMOVED***'s application for admission to your graduate degree program.",
+          "I am writing this letter of recommendation with great pleasure to support Mr. Ishaan Varmora's application for admission to your graduate degree program.",
         academicsParagraph:
-          "Kunal served as a Software Engineering Intern under my direct supervision for six months. During his tenure, he demonstrated an extraordinary aptitude for modern web architecture, microservices engineering, and asynchronous message processing.",
+          "Ishaan served as a Software Engineering Intern under my direct supervision for six months. During his tenure, he demonstrated an extraordinary aptitude for modern web architecture, microservices engineering, and asynchronous message processing.",
         projectParagraph:
-          "His primary contribution was engineering a Distributed Event Monitoring Dashboard using TypeScript, Next.js, and Redis. Kunal single-handedly reduced end-to-end telemetry ingestion latency by 35% through query optimization and smart caching. His code quality was exemplary, featuring modular abstractions and comprehensive unit test coverage.",
+          "His primary contribution was engineering a Distributed Event Monitoring Dashboard using TypeScript, Next.js, and Redis. Ishaan single-handedly reduced end-to-end telemetry ingestion latency by 35% through query optimization and smart caching. His code quality was exemplary, featuring modular abstractions and comprehensive unit test coverage.",
         qualitiesParagraph:
-          "What distinguishes Kunal is his accountability, receptive attitude toward code review, and proactive ownership of sprint milestones. He communicated seamlessly with cross-functional product teams and was always eager to learn new engineering paradigms.",
+          "What distinguishes Ishaan is his accountability, receptive attitude toward code review, and proactive ownership of sprint milestones. He communicated seamlessly with cross-functional product teams and was always eager to learn new engineering paradigms.",
         conclusionParagraph:
-          "Kunal has all the qualities of a top-tier software engineer and scholar. I enthusiastically recommend him for admission to your university and wish him the best in his graduate career.",
+          "Ishaan has all the qualities of a top-tier software engineer and scholar. I enthusiastically recommend him for admission to your university and wish him the best in his graduate career.",
       },
     },
   },
