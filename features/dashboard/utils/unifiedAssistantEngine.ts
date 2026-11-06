@@ -158,6 +158,46 @@ function isInformationalQuestion(prompt: string): boolean {
   return false;
 }
 
+/** Display casing for common skills; others are capitalised, short codes with digits upper-cased (ES6). */
+const SKILL_CASING: Record<string, string> = {
+  html: "HTML", html5: "HTML5", css: "CSS", css3: "CSS3", sql: "SQL", mysql: "MySQL", postgresql: "PostgreSQL",
+  mongodb: "MongoDB", javascript: "JavaScript", typescript: "TypeScript", "node.js": "Node.js", node: "Node.js",
+  "next.js": "Next.js", "react.js": "React.js", github: "GitHub", aws: "AWS", gcp: "GCP", nlp: "NLP",
+  "power bi": "Power BI", "rest api": "REST API", graphql: "GraphQL", "c++": "C++", "c#": "C#", php: "PHP",
+  jquery: "jQuery", ui: "UI", ux: "UX", "ui/ux": "UI/UX", api: "API", json: "JSON", xml: "XML",
+};
+
+function formatSkillName(raw: string): string {
+  const cleaned = raw.trim().replace(/^[\s'"`•*-]+|[\s'"`.,;:!?]+$/g, "").replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  const lower = cleaned.toLowerCase();
+  if (SKILL_CASING[lower]) return SKILL_CASING[lower];
+  if (/^[a-z]{1,4}\d+$/i.test(cleaned)) return cleaned.toUpperCase(); // es6, ec2, s3
+  return cleaned
+    .split(" ")
+    .map((w) => (w === w.toLowerCase() ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+/**
+ * Skill names typed as a list after the word "skill(s)" or "proficient in", e.g.
+ * "add the skill in the html css ands es6" -> ["html", "css", "es6"].
+ */
+export function extractListedSkills(prompt: string): string[] {
+  const m = prompt.match(/\b(?:skills?|proficient\s+in)\b\s*(?:(?:in|of|like|as|are|is|:|-)\s+)*(.+)$/i);
+  if (!m) return [];
+  const FILLER = /^(?:the|my|a|an|in|to|also|please|section|digital|technical|key|skills?)$/i;
+  return m[1]
+    .split(/\s*(?:,|;|\/|&|\+|\band\b|\bands\b|\bnd\b)\s*/i)
+    .flatMap((part) => {
+      const words = part.trim().split(/\s+/).filter((w) => w && !FILLER.test(w));
+      // "html css" (space-separated single words) is a list too; multi-word skills need commas/"and".
+      const multiWordKnown = words.length > 1 && KNOWN_TECH_SKILLS.includes(words.join(" ").toLowerCase());
+      return multiWordKnown || words.length <= 1 ? [words.join(" ")] : words;
+    })
+    .filter((w) => w && isValidSkillNoun(w) && /[a-z0-9]/i.test(w));
+}
+
 /**
  * Intelligently matches a user prompt to a section in currentDoc.sections.
  */
@@ -1263,11 +1303,20 @@ export async function processUnifiedMessage(
     KNOWN_TECH_SKILLS.some((s) => matchSkillInText(s, pLower));
 
   if (docType === "CV" && hasSkillKeywords && !isTargetingAboutMe && !pLower.includes("worked at") && !pLower.includes("internship")) {
+    // Skills the operator listed explicitly ("add skills html, css and es6"), plus any known
+    // skill mentioned anywhere in the message; names are de-duplicated and properly cased.
     const extractedSkills: string[] = [];
-    for (const skill of KNOWN_TECH_SKILLS) {
-      if (matchSkillInText(skill, pLower)) {
-        extractedSkills.push(skill === "c++" ? "C++" : skill === "c#" ? "C#" : skill.charAt(0).toUpperCase() + skill.slice(1));
+    const seenSkills = new Set<string>();
+    const pushSkill = (raw: string) => {
+      const name = formatSkillName(raw);
+      if (name && !seenSkills.has(name.toLowerCase())) {
+        seenSkills.add(name.toLowerCase());
+        extractedSkills.push(name);
       }
+    };
+    for (const listed of extractListedSkills(p)) pushSkill(listed);
+    for (const skill of KNOWN_TECH_SKILLS) {
+      if (matchSkillInText(skill, pLower)) pushSkill(skill);
     }
 
     if (extractedSkills.length > 0) {

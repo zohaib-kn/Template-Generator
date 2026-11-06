@@ -954,6 +954,11 @@ export function DocumentStudioDashboard() {
 
   // Production-grade student identity isolation & request race condition guards
   const activeDocIdentityRef = useRef<{ docId: string; studentId: string } | null>(null);
+  /** Mirror of the document currently in the editor, read when an AI reply arrives. */
+  const editableDocRef = useRef<HydratedDocumentData | null>(null);
+  useEffect(() => {
+    editableDocRef.current = editableDocContent;
+  }, [editableDocContent]);
   const activeAiRequestRef = useRef<{ requestId: string; docId: string; studentId: string } | null>(null);
   const aiAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -3257,10 +3262,17 @@ export function DocumentStudioDashboard() {
     }
     const controller = new AbortController();
     aiAbortControllerRef.current = controller;
+    // Never leave the chat spinning: give up after 90 seconds with a clear message.
+    let timedOut = false;
+    const timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 90_000);
 
     const requestId = generateUniqueId("req");
     const targetDocId = doc.id || "";
     const targetStudentId = doc.studentId;
+    const targetDocType = doc.docType;
 
     activeAiRequestRef.current = {
       requestId,
@@ -3305,16 +3317,19 @@ export function DocumentStudioDashboard() {
       });
       const json = await res.json();
 
-      // STRICT RACE CONDITION GUARD: Discard response if operator switched documents or students
-      if (
-        !activeAiRequestRef.current ||
-        activeAiRequestRef.current.requestId !== requestId ||
-        activeDocIdentityRef.current?.docId !== targetDocId ||
-        activeDocIdentityRef.current?.studentId !== targetStudentId
-      ) {
-        console.warn("[runAiEdit] Discarded stale or mismatched AI response.");
+      // RACE GUARD: discard the reply if a newer request replaced this one, or the operator
+      // switched to another student or document type meanwhile. (Document ids are not used:
+      // documents without a stored id get a fresh random id each time, which never matches.)
+      if (!activeAiRequestRef.current || activeAiRequestRef.current.requestId !== requestId) {
+        return; // a newer request owns the spinner
+      }
+      const openDoc = editableDocRef.current;
+      if (!openDoc || openDoc.studentId !== targetStudentId || openDoc.docType !== targetDocType) {
+        console.warn("[runAiEdit] Discarded AI response for a document that is no longer open.");
+        setIsAiCooking(false);
         return;
       }
+      void targetDocId;
 
       if (!res.ok || !json.success) {
         if (fallbackKey) {
@@ -3387,9 +3402,13 @@ export function DocumentStudioDashboard() {
       };
       commitAssistantEdit(updated, feedback, changedHeadingTarget, "typed_section", diag);
     } catch (err) {
+      if (timedOut) {
+        reportFailure("⚠️ The AI took too long to respond. No changes were made — please try again, or ask for a smaller change.");
+        return;
+      }
       if (err instanceof Error && err.name === "AbortError") {
         // Request aborted due to new operator action or switch - ignore cleanly
-        setIsAiCooking(false);
+        if (activeAiRequestRef.current?.requestId === requestId) setIsAiCooking(false);
         return;
       }
       if (fallbackKey) {
@@ -3397,6 +3416,8 @@ export function DocumentStudioDashboard() {
         return;
       }
       reportFailure("⚠️ Could not reach the AI service. No changes were made.");
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   };
   // Chat message submission handler

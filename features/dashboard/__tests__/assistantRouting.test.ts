@@ -98,3 +98,17 @@ describe("Local CV edits are exact and invent nothing", () => {
     assert.notEqual(entry.endDate, "6 Months");
   });
 });
+
+describe("Skill lists typed in chat", () => {
+  it("adds every listed skill with proper casing, even with typos like 'ands'", async () => {
+    const emptyCv = { ...cv, skills: [] } as unknown as DocumentData;
+    const result = await processUnifiedMessage("add the skill in the html css ands es6", cvDoc, emptyCv, null, null);
+    assert.deepEqual((result.updatedCv?.skills ?? []).map((s) => s.name), ["HTML", "CSS", "ES6"]);
+  });
+
+  it("keeps multi-word skills together when separated by commas or '&'", async () => {
+    const emptyCv = { ...cv, skills: [] } as unknown as DocumentData;
+    const result = await processUnifiedMessage("add skills power bi, rest api & docker", cvDoc, emptyCv, null, null);
+    assert.deepEqual((result.updatedCv?.skills ?? []).map((s) => s.name), ["Power BI", "REST API", "Docker"]);
+  });
+});
