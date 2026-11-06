@@ -1021,7 +1021,13 @@ export async function processUnifiedMessage(
   }
 
   // ── 8. Ambiguous Pronoun Resolution: "Make it more professional" ────────────
-  if (/\b(?:make\s+(?:it|this)\s+(?:more\s+)?(?:professional|impactful|better)|improve\s+it|polish\s+it)\b/i.test(pLower)) {
+  // Like ChatGPT: a general or follow-up command ("make it better", "more formal", "shorter",
+  // "again") is applied straight away — to the section the operator was just working on if
+  // there is one, otherwise to the whole document. It never stops to ask "which section?".
+  const isFollowUpOrGeneral =
+    /\b(?:make\s+(?:it|this)\s+(?:more\s+|less\s+|a\s+bit\s+)?(?:professional|impactful|better|formal|casual|concise|clear|simple|simpler|shorter|longer|detailed|natural|human|confident)|improve\s+it|polish\s+it|rewrite\s+it|fix\s+it)\b/i.test(pLower) ||
+    /^(?:please\s+)?(?:(?:make\s+it\s+)?(?:shorter|longer|more\s+formal|less\s+formal|simpler|more\s+concise|more\s+detailed)|again|try\s+again|one\s+more\s+time|another\s+version|do\s+it\s+again)[.!]?$/i.test(pLower);
+  if (isFollowUpOrGeneral) {
     const validTarget = lastActiveTarget
       ? currentDoc.sections.find((s) => s.heading.toLowerCase() === lastActiveTarget.toLowerCase() ||
                                         s.heading.toLowerCase().includes(lastActiveTarget.toLowerCase()) ||
@@ -1037,7 +1043,7 @@ export async function processUnifiedMessage(
         needsAiRewrite: true,
         targetSection: validTarget,
         targetAnchor: { heading: validTarget, snippet: "" },
-        aiPrompt: `Elevate and polish ONLY section "${validTarget}" with active, professional diction. Keep all facts intact.`,
+        aiPrompt: `Apply the counsellor's instruction "${p}" to section "${validTarget}" only. Keep all facts intact.`,
         diagnostic: {
           instruction: p,
           detectedIntent: "REWRITE_SECTION",
@@ -1052,29 +1058,8 @@ export async function processUnifiedMessage(
       };
     }
 
-    // Ask clarification
-    return {
-      success: true,
-      reply: `Which section would you like to make more professional — for example, your **Why This University**, **Student Introduction**, or **Academic Background**?`,
-      actionType: "CLARIFY",
-      route: "local",
-      pendingTask: {
-        id: `clarify-${Date.now()}`,
-        action: "REWRITE_SECTION",
-        docType,
-        originalPrompt: p,
-        timestamp: Date.now(),
-      },
-      diagnostic: {
-        instruction: p,
-        detectedIntent: "CLARIFY",
-        selectedDocument: docType,
-        clarificationNeeded: true,
-        processingRoute: "local",
-        proposedOperation: "Clarification requested for ambiguous referent 'it'",
-        saveResult: "not_applicable",
-      },
-    };
+    // No section in focus: apply the instruction to the whole document.
+    return buildAiRoute(p, currentDoc);
   }
 
   // ── 9. Cross-Questioning for Missing Critical Facts ─────────────────────────

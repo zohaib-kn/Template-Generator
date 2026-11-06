@@ -112,3 +112,26 @@ describe("Skill lists typed in chat", () => {
     assert.deepEqual((result.updatedCv?.skills ?? []).map((s) => s.name), ["Power BI", "REST API", "Docker"]);
   });
 });
+
+describe("ChatGPT-style commands", () => {
+  it("applies 'make it better' to the whole document instead of asking which section", async () => {
+    const result = await processUnifiedMessage("make it better", coverLetter, cv, null, null);
+    assert.notEqual(result.actionType, "CLARIFY");
+    assert.equal(result.needsAiRewrite, true);
+    assert.equal(result.aiPrompt, "make it better");
+    assert.equal(result.targetSection, undefined);
+  });
+
+  it("applies a follow-up like 'make it shorter' to the section just edited", async () => {
+    const result = await processUnifiedMessage("make it shorter", coverLetter, cv, null, null, [], null, "Why This University");
+    assert.equal(result.needsAiRewrite, true);
+    assert.equal(result.targetSection, "Why This University");
+    assert.match(result.aiPrompt ?? "", /make it shorter/);
+  });
+
+  it("sends 'please enhance' to the AI for the whole document", async () => {
+    const result = await processUnifiedMessage("please enhance", coverLetter, cv, null, null);
+    assert.equal(result.needsAiRewrite, true);
+    assert.equal(result.targetSection, undefined);
+  });
+});

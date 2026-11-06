@@ -66,8 +66,13 @@ Rules — follow all of them:
    - Do NOT append raw bullet lists, comma dumps, or conversational instructions into "ABOUT ME". Write natural, flowing sentences.
    - Strictly leave dedicated sections like "SKILLS" or "WORK EXPERIENCE" completely untouched unless explicitly requested.
 11. DETAILED BRIEFS: When the counsellor gives a detailed writing brief (for example a prompt they would give ChatGPT, with tone, length, structure or points to cover), follow that brief fully — its tone, length and structure take priority over your default style — and you may rewrite or draft whole sections to satisfy it. Rule 1 still applies: where the brief needs a fact that is in neither the document nor the brief, write around it or insert a [MISSING: field.name] marker instead of inventing it. Mention any such gaps in "reply".
+12. WHOLE-DOCUMENT REQUESTS: When the instruction is general and names no section (e.g. "enhance", "improve my CV", "make it better", "more professional", "proofread", "fix grammar", "make it shorter"), apply it to EVERY section that contains prose or bullet text — letter paragraphs, ABOUT ME / summary, and the description bullets of work experience, projects, internships and activities. Do not stop at one section. Never change names, dates, organisations, institutions, scores, contact details, skill lists or language levels.
+13. CV ENTRY STRUCTURE: In CV sections, the first lines of each entry (job title or degree, then "Organisation [ dates ]") are structured data used by the layout. Keep those lines exactly as they are; rewrite only the description lines / bullets under them. Keep "•" bullets as bullets.
+14. FOLLOW-UPS: A short follow-up ("shorter", "more formal", "again", "another version", "simpler", "undo the tone") refers to the section(s) you changed in your previous reply in the conversation; apply it there.
+15. CONVERSATION STYLE (like ChatGPT): Write "reply" as a friendly, natural message to the counsellor. When you edited, briefly say what you improved — one short bullet per changed section if more than one — then offer ONE useful next step as a question (e.g. "Want me to make the work experience bullets more results-focused?"). When you answer a question or give advice without editing, answer fully and helpfully, as ChatGPT would. Never write boilerplate like "All other sections remain unchanged".
+16. ENHANCING MEANS REWORDING: "Enhance", "improve", "polish" and similar mean rewording what is already written so it reads better. Never add sentences that introduce new subjects, interests, passions, strengths, achievements, responsibilities or results that are not stated in the document, the verified profile, or the counsellor's message. Never append commentary lines to data sections (scores, language levels, certificates, skills lists). An empty section is only drafted when asked, or for ABOUT ME / summary, and only from verified facts. Do not add a description line to a CV entry that has none. Do not infer subjects, streams or specialisations (e.g. "science and mathematics", "commerce", "computer science") from a qualification or target course — mention them only if they are written in the document, the profile or the message.
 Respond with ONE JSON object only:
-{"reply": "<one or two sentences telling the counsellor what you changed or what you need>",
+{"reply": "<your message to the counsellor, written as described in rule 15>",
  "sections": [{"heading": "<heading>", "content": "<full section text>"}, ...],   // the COMPLETE document after your edit, in order
  "changedHeadings": ["<headings you changed, added or deleted>"]}`;
 
@@ -87,12 +92,44 @@ export function buildStudioPrompt(req: StudioEditRequest): string {
     `IMPORTANT: This document has ${req.sections.length} distinct sections. In your JSON response, you MUST return all ${req.sections.length} sections separately in the "sections" array with their original headings. Do NOT merge them into one section. Do NOT write "###" in section content.`,
     anchorNotice,
     req.profileFacts ? `Verified student profile (from the CRM; usable facts):\n${req.profileFacts}` : "",
+    cvReadOnlySections(req).length
+      ? `Read-only for this request (return unchanged and do not mention them as edited): ${cvReadOnlySections(req).join(", ")}.${ADDS_CONTENT_RE.test(req.instruction) ? "" : " Do not add new lines to CV entries; only reword existing description lines."}`
+      : "",
     history ? `Recent conversation:\n${history}` : "",
     `Current document:\n${doc}`,
     `Counsellor instruction:\n<<<\n${req.instruction}\n>>>`,
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+/** CV sections that hold structured data, and the words that mean the counsellor targets them. */
+const CV_DATA_SECTION_KEYS: Array<{ heading: string; mentions: string[] }> = [
+  { heading: "language skills", mentions: ["language", "cefr", "mother tongue"] },
+  { heading: "language certificate", mentions: ["ielts", "toefl", "pte", "certificate", "band", "trf"] },
+  { heading: "digital skills", mentions: ["skill"] },
+  { heading: "declaration", mentions: ["declaration"] },
+];
+
+/** CV sections made of entries (title, "Organisation [ dates ]", description lines). */
+const CV_ENTRY_SECTION_RE = /education|experience|internship|project|volunteer|leadership|achievement|certification/i;
+/** Instructions that legitimately add lines to a CV entry. */
+const ADDS_CONTENT_RE = /\b(add|include|insert|write|describe|draft|bullet|more\s+detail|expand|elaborate|longer)\b/i;
+
+/** CV sections the model must leave alone for this instruction (shown to it and enforced). */
+export function cvReadOnlySections(req: Pick<StudioEditRequest, "docType" | "instruction" | "sections" | "targetAnchor">): string[] {
+  if (req.docType !== "CV") return [];
+  const instructionLower = `${req.instruction} ${req.targetAnchor?.heading ?? ""}`.toLowerCase();
+  return req.sections
+    .map((s) => s.heading)
+    .filter((h) => {
+      const key = CV_DATA_SECTION_KEYS.find((k) => h.toLowerCase().includes(k.heading));
+      return key && !key.mentions.some((m) => instructionLower.includes(m));
+    });
+}
+
+function nonEmptyLineCount(text: string): number {
+  return text.split(/\r?\n/).filter((l) => l.trim()).length;
 }
 
 /** Strips "Section 3:" / "### " style prefixes a model may echo back from the prompt layout. */
@@ -214,6 +251,25 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
     }
   }
 
+  // CV data-only sections (language levels, certificates, skills lists) are structured data:
+  // unless the counsellor's instruction names them, any change the model made is undone.
+  // CV entry sections (education, work, projects…) may be reworded but not padded with
+  // extra lines unless the counsellor asked to add or expand something.
+  if (req.docType === "CV") {
+    const readOnly = new Set(cvReadOnlySections(req));
+    const mayAddLines = ADDS_CONTENT_RE.test(req.instruction);
+    for (let i = 0; i < sanitizedSections.length; i++) {
+      const heading = sanitizedSections[i].heading;
+      const original = before.get(heading);
+      if (original === undefined) continue;
+      const padded =
+        !mayAddLines &&
+        CV_ENTRY_SECTION_RE.test(heading) &&
+        nonEmptyLineCount(sanitizedSections[i].content) > nonEmptyLineCount(original);
+      if (readOnly.has(heading) || padded) sanitizedSections[i] = { ...sanitizedSections[i], content: original };
+    }
+  }
+
   const changedSections = sanitizedSections.filter((s) => before.get(s.heading) !== s.content);
   const changed = changedSections.map((s) => s.content);
   const unverifiedValues = findUnverifiedValues(changed.join("\n"), [
@@ -223,15 +279,33 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
     ...(req.history ?? []).filter((t) => t.sender === "user").map((t) => t.text),
   ]);
 
+  // Only sections whose text really changed (the model's own list can include sections it
+  // only claims to have edited, or ones restored by the guards above). Added or renamed
+  // sections reported by the model are kept.
+  const actuallyChanged = new Set(changedSections.map((s) => s.heading));
   const changedHeadings =
     Array.isArray(json.changedHeadings) && json.changedHeadings.length > 0 && !req.targetAnchor?.heading
       ? json.changedHeadings
           .filter((h): h is string => typeof h === "string")
           .map((h) => originalByKey.get(cleanHeading(h).toLowerCase()) ?? cleanHeading(h))
+          .filter((h) => actuallyChanged.has(h) || !before.has(h))
       : changedSections.map((s) => s.heading);
 
+  // Sections the model said it edited but whose edit was undone above (protected CV data or
+  // added lines): say so, so the reply never claims a change that did not happen.
+  const claimed = Array.isArray(json.changedHeadings)
+    ? json.changedHeadings
+        .filter((h): h is string => typeof h === "string")
+        .map((h) => originalByKey.get(cleanHeading(h).toLowerCase()) ?? cleanHeading(h))
+    : [];
+  const undone = claimed.filter((h) => before.has(h) && !actuallyChanged.has(h) && req.docType === "CV");
+  const baseReply = typeof json.reply === "string" && json.reply.trim() ? json.reply.trim() : "Done.";
+  const replyNote = undone.length
+    ? `\n\n(I kept **${undone.join(", ")}** exactly as it was — it holds fixed details like dates, grades or declarations. Ask me directly if you want to change it.)`
+    : "";
+
   return {
-    reply: typeof json.reply === "string" && json.reply.trim() ? json.reply.trim() : "Done.",
+    reply: baseReply + replyNote,
     sections: sanitizedSections,
     changedHeadings,
     unverifiedValues,

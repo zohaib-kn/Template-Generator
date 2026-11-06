@@ -3389,6 +3389,9 @@ export function DocumentStudioDashboard() {
           ? `\n\n⚠️ Please verify these values — they weren't in the document or your message: ${unverified.join(", ")}`
           : "");
       const changedHeadingTarget = targetAnchor?.heading || changed[0];
+      // Follow-ups ("shorter", "again") refer to what was just changed: one section, or the
+      // whole document when several sections changed.
+      setLastActiveTargetSection(changed.length === 1 ? changed[0] : null);
       const diag: AssistantDiagnostic = {
         instruction,
         detectedIntent: "REWRITE_SECTION",
