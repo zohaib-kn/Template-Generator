@@ -7823,23 +7823,23 @@ export function DocumentStudioDashboard() {
                         boxSizing: "border-box",
                       }}
                     >
-                    {/* Tiptap Caret Engine */}
-                    <TiptapEditor
-                      initialContent={tiptapHtml}
-                      editable={editorMode === "editing"}
-                      fontSize={fontSize}
-                      fontFamily={fontFamily}
-                      textColor={textColor}
-                      zoomLevel={zoomLevel}
-                      onEditorReady={(ed) => setTiptapEditor(ed)}
-                      onUpdate={(html, wordCount) => {
-                        handleTiptapUpdate(html, wordCount);
-                        if (activeAiHighlight) {
-                          handleClearAiHighlight();
-                        }
-                      }}
-                      onFormatChange={handleFormatChange}
-                    />
+                      {/* Tiptap Caret Engine */}
+                      <TiptapEditor
+                        initialContent={tiptapHtml}
+                        editable={editorMode === "editing"}
+                        fontSize={fontSize}
+                        fontFamily={fontFamily}
+                        textColor={textColor}
+                        zoomLevel={zoomLevel}
+                        onEditorReady={(ed) => setTiptapEditor(ed)}
+                        onUpdate={(html, wordCount) => {
+                          handleTiptapUpdate(html, wordCount);
+                          if (activeAiHighlight) {
+                            handleClearAiHighlight();
+                          }
+                        }}
+                        onFormatChange={handleFormatChange}
+                      />
                     </div>
                   </div>
                 </div>
