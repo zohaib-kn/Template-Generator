@@ -8,6 +8,7 @@ interface AboutSectionProps {
   title?: string;
   isInteractive?: boolean;
   onUpdate?: (value: string) => void;
+  onDeleteSection?: () => void;
 }
 
 /**
@@ -35,6 +36,7 @@ export const AboutSection = memo(function AboutSection({
   title,
   isInteractive = false,
   onUpdate,
+  onDeleteSection,
 }: AboutSectionProps) {
   if (!text || !text.trim()) return null;
 
@@ -44,7 +46,11 @@ export const AboutSection = memo(function AboutSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "ABOUT ME"} />
+        <EuropassSectionTitle
+          title={title || "ABOUT ME"}
+          isInteractive={isInteractive}
+          onDeleteSection={onDeleteSection}
+        />
       )}
       {isInteractive && onUpdate ? (
         <EditableText

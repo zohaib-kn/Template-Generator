@@ -213,6 +213,8 @@ export function useDocumentState() {
       dispatch({ type: "SET_SECTION_ORDER", payload: order }),
     resetSectionOrder: () =>
       dispatch({ type: "RESET_SECTION_ORDER" }),
+    deleteSection: (sectionKey: string) =>
+      dispatch({ type: "DELETE_SECTION", payload: sectionKey }),
 
     // --- Reset --------------------------------------------------------------
     reset: useCallback(() => dispatch({ type: "RESET" }), [dispatch]),

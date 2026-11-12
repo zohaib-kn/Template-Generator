@@ -12,6 +12,7 @@ interface SkillsSectionProps {
   onAdd?: (entry: Omit<SkillEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<SkillEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 interface FlattenedSkillItem {
@@ -27,6 +28,7 @@ export const SkillsSection = memo(function SkillsSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: SkillsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
 
@@ -83,6 +85,7 @@ export const SkillsSection = memo(function SkillsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Key Skill entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

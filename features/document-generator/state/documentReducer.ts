@@ -51,10 +51,11 @@ export type DocumentAction =
   | { type: "SET_DECLARATION"; payload: string }
   | { type: "SET_MOTHER_TONGUE"; payload: string }
   | { type: "SET_ENGLISH_CERTIFICATE"; payload: Partial<EnglishCertificate> }
-  // Section Reordering
+  // Section Reordering & Deletion
   | { type: "MOVE_SECTION"; payload: { sectionId: string; direction: "up" | "down" } }
   | { type: "SET_SECTION_ORDER"; payload: string[] }
   | { type: "RESET_SECTION_ORDER" }
+  | { type: "DELETE_SECTION"; payload: string }
   // Repeatable list sections (education, recommendations, languages, skills,
   // hobbies, volunteering, …)
   | ListAction
@@ -115,6 +116,63 @@ export function documentReducer(
 
     case "RESET_SECTION_ORDER":
       return { ...state, sectionOrder: undefined };
+
+    case "DELETE_SECTION": {
+      const rawKey = action.payload;
+      const canonicalKey =
+        rawKey === "about"
+          ? "aboutMe"
+          : rawKey === "leadership"
+          ? "leadershipActivities"
+          : rawKey;
+
+      const baseOrder = state.sectionOrder ?? DEFAULT_MOVABLE_SECTION_ORDER;
+      const nextOrder = baseOrder.filter(
+        (id) => id !== rawKey && id !== canonicalKey
+      );
+
+      const clearedPatch: Partial<DocumentData> = {
+        sectionOrder: nextOrder,
+      };
+
+      const listFields: ListKey[] = [
+        "education",
+        "internships",
+        "recommendations",
+        "languages",
+        "skills",
+        "hobbies",
+        "volunteering",
+        "academicInterests",
+        "academicProjects",
+        "achievements",
+        "leadershipActivities",
+        "certifications",
+      ];
+
+      if (canonicalKey === "aboutMe") {
+        clearedPatch.aboutMe = "";
+      } else if (canonicalKey === "declaration") {
+        clearedPatch.declaration = "";
+      } else if (canonicalKey === "englishCertificate") {
+        clearedPatch.englishCertificate = undefined;
+      } else if (canonicalKey === "languages") {
+        clearedPatch.motherTongue = "";
+        clearedPatch.languages = [];
+      } else if (listFields.includes(canonicalKey as ListKey)) {
+        (clearedPatch as Record<string, unknown>)[canonicalKey] = [];
+      } else {
+        // Custom section cleanup
+        clearedPatch.customSections = (state.customSections ?? []).filter(
+          (c) =>
+            c.id !== rawKey &&
+            `custom_${c.id}` !== rawKey &&
+            c.title.toLowerCase() !== rawKey.toLowerCase()
+        );
+      }
+
+      return { ...state, ...clearedPatch };
+    }
 
     // --- Repeatable list sections ----------------------------------------------
     case "ADD_LIST_ITEM": {

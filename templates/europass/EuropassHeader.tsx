@@ -2,6 +2,8 @@ import { memo, useState, useEffect, useRef } from "react";
 import type { PersonalDetails } from "@/types";
 import styles from "./europass.module.css";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
+import { PhotoRepositionModal } from "@/features/document-generator/components/PhotoRepositionModal";
+import { DEFAULT_PHOTO_CROP } from "@/features/document-generator/utils/photoCrop";
 
 interface EuropassHeaderProps {
   personal?: PersonalDetails;
@@ -138,6 +140,7 @@ export const EuropassHeader = memo(function EuropassHeader({
   const [hasImageError, setHasImageError] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isRepositionOpen, setIsRepositionOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -151,10 +154,14 @@ export const EuropassHeader = memo(function EuropassHeader({
     if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|avif|gif)$/i.test(file.name)) {
       return;
     }
-    const dataUrl = await resizeAndEncodeImage(file, 600);
+    const dataUrl = await resizeAndEncodeImage(file, 900);
     if (dataUrl) {
       setHasImageError(false);
-      onUpdatePersonal({ photoUrl: dataUrl });
+      onUpdatePersonal({
+        photoUrl: dataUrl,
+        photoSourceUrl: dataUrl,
+        photoCrop: DEFAULT_PHOTO_CROP,
+      });
     }
   };
 
@@ -221,7 +228,11 @@ export const EuropassHeader = memo(function EuropassHeader({
             onClick={(e) => {
               if (isInteractive && onUpdatePersonal) {
                 e.stopPropagation();
-                photoInputRef.current?.click();
+                if (personal.photoUrl && !hasImageError) {
+                  setIsRepositionOpen(true);
+                } else {
+                  photoInputRef.current?.click();
+                }
               }
             }}
             onMouseEnter={() => setIsHovered(true)}
@@ -230,7 +241,13 @@ export const EuropassHeader = memo(function EuropassHeader({
             onDragEnter={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            title={isInteractive && onUpdatePersonal ? "Click or drag & drop an image (.jpg / .png) to set profile photo" : undefined}
+            title={
+              isInteractive && onUpdatePersonal
+                ? personal.photoUrl && !hasImageError
+                  ? "Click to adjust / reposition photo, or drag & drop a new image"
+                  : "Click or drag & drop an image (.jpg / .png) to set profile photo"
+                : undefined
+            }
           >
             <div className={styles.photoInner}>
               {personal.photoUrl && !hasImageError ? (
@@ -239,6 +256,15 @@ export const EuropassHeader = memo(function EuropassHeader({
                   src={personal.photoUrl}
                   alt={displayName ? `${displayName}'s portrait` : "Profile"}
                   className={styles.profilePhoto}
+                  style={
+                    personal.photoCrop && personal.photoUrl === personal.photoSourceUrl
+                      ? {
+                          objectPosition: `${personal.photoCrop.x}% ${personal.photoCrop.y}%`,
+                          transform: `scale(${personal.photoCrop.zoom})`,
+                          transformOrigin: `${personal.photoCrop.x}% ${personal.photoCrop.y}%`,
+                        }
+                      : undefined
+                  }
                   onError={() => setHasImageError(true)}
                 />
               ) : (
@@ -265,6 +291,7 @@ export const EuropassHeader = memo(function EuropassHeader({
                     zIndex: 10,
                   }}
                   data-html2canvas-ignore="true"
+                  data-pdf-ignore="true"
                   data-no-print="true"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -272,7 +299,7 @@ export const EuropassHeader = memo(function EuropassHeader({
                     <circle cx="12" cy="13" r="4" />
                   </svg>
                   <span style={{ fontSize: "6.5pt", fontWeight: 700, marginTop: "2px", lineHeight: 1.1, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    {isDragOver ? "Drop" : personal.photoUrl && !hasImageError ? "Change" : "Upload"}
+                    {isDragOver ? "Drop" : personal.photoUrl && !hasImageError ? "Adjust" : "Upload"}
                   </span>
                 </div>
               )}
@@ -289,6 +316,29 @@ export const EuropassHeader = memo(function EuropassHeader({
               accept="image/*,.jpg,.jpeg,.png,.webp,.avif"
               style={{ display: "none" }}
               aria-label="Upload profile photo"
+            />
+          )}
+
+          {isInteractive && onUpdatePersonal && isRepositionOpen && (personal.photoSourceUrl || personal.photoUrl) && (
+            <PhotoRepositionModal
+              isOpen={isRepositionOpen}
+              sourceUrl={personal.photoSourceUrl || personal.photoUrl || ""}
+              initialCrop={personal.photoCrop ?? DEFAULT_PHOTO_CROP}
+              onSave={({ photoUrl, photoSourceUrl, photoCrop }) => {
+                setHasImageError(false);
+                onUpdatePersonal({ photoUrl, photoSourceUrl, photoCrop });
+                setIsRepositionOpen(false);
+              }}
+              onRemove={() => {
+                setHasImageError(false);
+                onUpdatePersonal({
+                  photoUrl: "",
+                  photoSourceUrl: "",
+                  photoCrop: undefined,
+                });
+                setIsRepositionOpen(false);
+              }}
+              onClose={() => setIsRepositionOpen(false)}
             />
           )}
 

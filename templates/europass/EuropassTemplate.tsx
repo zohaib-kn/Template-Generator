@@ -171,6 +171,7 @@ export function EuropassTemplate({
     addAcademicInterest,
     updateAcademicInterest,
     removeAcademicInterest,
+    deleteSection,
   } = useDocumentState();
 
   // Normalize repeatable arrays
@@ -492,6 +493,7 @@ export function EuropassTemplate({
               title={item.title}
               isInteractive={isInteractive}
               onUpdate={setAboutMe}
+              onDeleteSection={() => deleteSection("aboutMe")}
             />
           ) : null;
         case "education": {
@@ -507,6 +509,7 @@ export function EuropassTemplate({
               onAdd={addEducation}
               onUpdate={updateEducation}
               onRemove={removeEducation}
+              onDeleteSection={() => deleteSection("education")}
             />
           ) : null;
         }
@@ -566,6 +569,7 @@ export function EuropassTemplate({
               onAdd={addInternship}
               onUpdate={updateInternship}
               onRemove={removeInternship}
+              onDeleteSection={() => deleteSection("internships")}
             />
           ) : null;
         }
@@ -578,6 +582,7 @@ export function EuropassTemplate({
               onAdd={addAcademicInterest}
               onUpdate={updateAcademicInterest}
               onRemove={removeAcademicInterest}
+              onDeleteSection={() => deleteSection("academicInterests")}
             />
           ) : null;
         case "academicProjects": {
@@ -593,6 +598,7 @@ export function EuropassTemplate({
               onAdd={addAcademicProject}
               onUpdate={updateAcademicProject}
               onRemove={removeAcademicProject}
+              onDeleteSection={() => deleteSection("academicProjects")}
             />
           ) : null;
         }
@@ -609,6 +615,7 @@ export function EuropassTemplate({
               onAdd={addAchievement}
               onUpdate={updateAchievement}
               onRemove={removeAchievement}
+              onDeleteSection={() => deleteSection("achievements")}
             />
           ) : null;
         }
@@ -626,6 +633,7 @@ export function EuropassTemplate({
               onAdd={addLeadershipActivity}
               onUpdate={updateLeadershipActivity}
               onRemove={removeLeadershipActivity}
+              onDeleteSection={() => deleteSection("leadershipActivities")}
             />
           ) : null;
         }
@@ -642,6 +650,7 @@ export function EuropassTemplate({
               onAdd={addVolunteering}
               onUpdate={updateVolunteering}
               onRemove={removeVolunteering}
+              onDeleteSection={() => deleteSection("volunteering")}
             />
           ) : null;
         }
@@ -658,6 +667,7 @@ export function EuropassTemplate({
               onAdd={addCertification}
               onUpdate={updateCertification}
               onRemove={removeCertification}
+              onDeleteSection={() => deleteSection("certifications")}
             />
           ) : null;
         }
@@ -672,6 +682,7 @@ export function EuropassTemplate({
               onUpdateMotherTongue={setMotherTongue}
               onUpdateEntry={updateLanguage}
               onRemoveEntry={removeLanguage}
+              onDeleteSection={() => deleteSection("languages")}
             />
           ) : null;
         case "englishCertificate":
@@ -681,6 +692,7 @@ export function EuropassTemplate({
               title={item.title}
               isInteractive={isInteractive}
               onUpdate={setEnglishCertificate}
+              onDeleteSection={() => deleteSection("englishCertificate")}
             />
           ) : null;
         case "skills":
@@ -692,6 +704,7 @@ export function EuropassTemplate({
               onAdd={addSkill}
               onUpdate={updateSkill}
               onRemove={removeSkill}
+              onDeleteSection={() => deleteSection("skills")}
             />
           ) : null;
         case "hobbies":
@@ -703,6 +716,7 @@ export function EuropassTemplate({
               onAdd={addHobby}
               onUpdate={updateHobby}
               onRemove={removeHobby}
+              onDeleteSection={() => deleteSection("hobbies")}
             />
           ) : null;
         case "recommendations": {
@@ -718,16 +732,18 @@ export function EuropassTemplate({
               onAdd={addRecommendation}
               onUpdate={updateRecommendation}
               onRemove={removeRecommendation}
+              onDeleteSection={() => deleteSection("recommendations")}
             />
           ) : null;
         }
         case "declaration":
-          return declaration.trim().length > 0 || isInteractive ? (
+          return declaration.trim().length > 0 ? (
             <DeclarationSection
               text={declaration}
               title={item.title}
               isInteractive={isInteractive}
               onUpdate={setDeclaration}
+              onDeleteSection={() => deleteSection("declaration")}
             />
           ) : null;
         default: {
@@ -737,7 +753,11 @@ export function EuropassTemplate({
           if (customEntry && customEntry.content?.trim()) {
             return (
               <section key={item.key} className={styles.sectionWrapper}>
-                <EuropassSectionTitle title={item.title || customEntry.title.toUpperCase()} />
+                <EuropassSectionTitle
+                  title={item.title || customEntry.title.toUpperCase()}
+                  isInteractive={isInteractive}
+                  onDeleteSection={() => deleteSection(item.secKey)}
+                />
                 <div className={styles.bulletList}>
                   {customEntry.content.split("\n").filter(Boolean).map((line, idx) => {
                     const isBullet = line.startsWith("•") || line.startsWith("-");
@@ -793,6 +813,7 @@ export function EuropassTemplate({
       updateSkill,
       updateHobby,
       updateRecommendation,
+      deleteSection,
     ]
   );
 

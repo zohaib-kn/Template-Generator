@@ -14,6 +14,7 @@ interface LanguageSkillsSectionProps {
   onUpdateMotherTongue?: (value: string) => void;
   onUpdateEntry?: (id: string, patch: Partial<LanguageEntry>) => void;
   onRemoveEntry?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const LanguageSkillsSection = memo(function LanguageSkillsSection({
@@ -25,6 +26,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
   onUpdateMotherTongue,
   onUpdateEntry,
   onRemoveEntry,
+  onDeleteSection,
 }: LanguageSkillsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
 
@@ -57,6 +59,7 @@ export const LanguageSkillsSection = memo(function LanguageSkillsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Language entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

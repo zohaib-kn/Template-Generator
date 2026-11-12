@@ -8,6 +8,7 @@ interface DeclarationSectionProps {
   title?: string;
   isInteractive?: boolean;
   onUpdate?: (text: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const DeclarationSection = memo(function DeclarationSection({
@@ -15,6 +16,7 @@ export const DeclarationSection = memo(function DeclarationSection({
   title,
   isInteractive = false,
   onUpdate,
+  onDeleteSection,
 }: DeclarationSectionProps) {
   if (!text && !isInteractive) return null;
 
@@ -23,7 +25,11 @@ export const DeclarationSection = memo(function DeclarationSection({
   return (
     <section className={styles.sectionWrapper}>
       {showTitle && (
-        <EuropassSectionTitle title={title || "DECLARATION"} />
+        <EuropassSectionTitle
+          title={title || "DECLARATION"}
+          isInteractive={isInteractive}
+          onDeleteSection={onDeleteSection}
+        />
       )}
       {isInteractive && onUpdate ? (
         <EditableText

@@ -13,6 +13,7 @@ interface RecommendationsSectionProps {
   onAdd?: (entry: Omit<RecommendationEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<RecommendationEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 function renderContactLine(line: string) {
@@ -70,6 +71,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: RecommendationsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -85,6 +87,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Recommendation entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

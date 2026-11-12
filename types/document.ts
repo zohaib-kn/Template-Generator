@@ -27,6 +27,15 @@ export type DocumentStatus = "draft" | "complete" | "archived";
  * The personal / contact information block that appears at the top of the
  * first page. All fields are optional so the form can be partially saved.
  */
+export interface PhotoCrop {
+  /** Normalized pan offset X in percent (-50 to 50). Default 0 (centered). */
+  x: number;
+  /** Normalized pan offset Y in percent (-50 to 50). Default 0 (centered). */
+  y: number;
+  /** Zoom scale multiplier (1 to 2.5). Default 1. */
+  zoom: number;
+}
+
 export interface PersonalDetails {
   /** Full name of the document subject. */
   fullName?: string;
@@ -44,6 +53,10 @@ export interface PersonalDetails {
    * Asset upload is handled separately by the Assets domain.
    */
   photoUrl?: string;
+  /** Original uncropped photo URL/data-URI preserved for non-destructive repositioning. */
+  photoSourceUrl?: string;
+  /** Saved non-destructive photo framing (pan & zoom). */
+  photoCrop?: PhotoCrop;
   /** Link to student's portfolio, website, or projects. */
   portfolioUrl?: string;
   /** Link to student's LinkedIn profile. */

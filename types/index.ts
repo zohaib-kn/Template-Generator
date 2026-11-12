@@ -12,6 +12,7 @@
 export type {
   DocumentId,
   DocumentStatus,
+  PhotoCrop,
   PersonalDetails,
   EducationEntry,
   InternshipEntry,

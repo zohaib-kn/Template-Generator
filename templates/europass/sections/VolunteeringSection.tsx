@@ -13,6 +13,7 @@ interface VolunteeringSectionProps {
   onAdd?: (entry: Omit<VolunteeringEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<VolunteeringEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -41,6 +42,7 @@ export const VolunteeringSection = memo(function VolunteeringSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: VolunteeringSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -59,6 +61,7 @@ export const VolunteeringSection = memo(function VolunteeringSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Volunteering entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

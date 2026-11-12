@@ -9,6 +9,7 @@ interface EnglishCertificateSectionProps {
   title?: string;
   isInteractive?: boolean;
   onUpdate?: (patch: Partial<EnglishCertificate>) => void;
+  onDeleteSection?: () => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -33,6 +34,7 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
   title,
   isInteractive = false,
   onUpdate,
+  onDeleteSection,
 }: EnglishCertificateSectionProps) {
   if (
     !cert ||
@@ -72,7 +74,13 @@ export const EnglishCertificateSection = memo(function EnglishCertificateSection
 
   return (
     <section className={styles.sectionWrapper}>
-      {showTitle && <EuropassSectionTitle title={sectionHeading} />}
+      {showTitle && (
+        <EuropassSectionTitle
+          title={sectionHeading}
+          isInteractive={isInteractive}
+          onDeleteSection={onDeleteSection}
+        />
+      )}
 
       {subtitle && (
         <div className={styles.certificateSubtitle}>

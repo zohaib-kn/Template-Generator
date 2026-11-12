@@ -12,6 +12,7 @@ interface LeadershipSectionProps {
   onAdd?: (entry: Omit<LeadershipActivity, "id">) => void;
   onUpdate?: (id: string, patch: Partial<LeadershipActivity>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const LeadershipSection = memo(function LeadershipSection({
@@ -21,6 +22,7 @@ export const LeadershipSection = memo(function LeadershipSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: LeadershipSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -39,6 +41,7 @@ export const LeadershipSection = memo(function LeadershipSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Leadership & Extracurricular entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

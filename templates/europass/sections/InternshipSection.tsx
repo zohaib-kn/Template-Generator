@@ -14,6 +14,7 @@ interface InternshipSectionProps {
   onAdd?: (entry: Omit<InternshipEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<InternshipEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -34,6 +35,7 @@ export const InternshipSection = memo(function InternshipSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: InternshipSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
 
@@ -58,6 +60,7 @@ export const InternshipSection = memo(function InternshipSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Professional Experience entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

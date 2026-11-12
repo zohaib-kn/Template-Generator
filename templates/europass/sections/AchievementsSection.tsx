@@ -12,6 +12,7 @@ interface AchievementsSectionProps {
   onAdd?: (entry: Omit<Achievement, "id">) => void;
   onUpdate?: (id: string, patch: Partial<Achievement>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const AchievementsSection = memo(function AchievementsSection({
@@ -21,6 +22,7 @@ export const AchievementsSection = memo(function AchievementsSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: AchievementsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -39,6 +41,7 @@ export const AchievementsSection = memo(function AchievementsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Achievement entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

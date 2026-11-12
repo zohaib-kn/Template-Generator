@@ -13,6 +13,7 @@ interface CertificationsSectionProps {
   onAdd?: (entry: Omit<Certification, "id">) => void;
   onUpdate?: (id: string, patch: Partial<Certification>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const CertificationsSection = memo(function CertificationsSection({
@@ -22,6 +23,7 @@ export const CertificationsSection = memo(function CertificationsSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: CertificationsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
 
@@ -40,6 +42,7 @@ export const CertificationsSection = memo(function CertificationsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Certification entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

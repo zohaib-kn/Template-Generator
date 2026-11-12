@@ -45,7 +45,7 @@ import {
   SAMPLE_STUDENTS,
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
-import { syncSectionsToCvData, syncCvDataToSections } from "../utils/documentStudioSync";
+import { syncSectionsToCvData, syncCvDataToSections, headingToSectionId } from "../utils/documentStudioSync";
 import { parseDateRange } from "@/features/document-generator/utils/dateRange";
 import { processCvChatInstruction, isValidSkillNoun } from "../utils/cvChatIntentEngine";
 import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
@@ -1291,7 +1291,11 @@ export function DocumentStudioDashboard() {
   // Dispatches live in-place edits from the interactive Europass canvas into cvDocumentData & sections
   const handleEuropassDispatch = useCallback(
     (action: DocumentAction) => {
-      if (action.type === "SET_SECTION_ORDER" || action.type === "RESET_SECTION_ORDER") {
+      if (
+        action.type === "SET_SECTION_ORDER" ||
+        action.type === "RESET_SECTION_ORDER" ||
+        action.type === "DELETE_SECTION"
+      ) {
         if (editableDocContent) {
           setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
         }
@@ -1309,6 +1313,8 @@ export function DocumentStudioDashboard() {
           message:
             action.type === "RESET_SECTION_ORDER"
               ? "↺ Section order reset to default"
+              : action.type === "DELETE_SECTION"
+              ? "✓ Section deleted"
               : "✓ Section order updated",
           type: "success",
         });
@@ -1327,7 +1333,36 @@ export function DocumentStudioDashboard() {
         // Keep editableDocContent.sections and recent history synchronized
         setEditableDocContent((prevDoc) => {
           if (!prevDoc) return prevDoc;
-          const syncedSections = syncCvDataToSections(nextCv, prevDoc.sections);
+          let baseSections = prevDoc.sections;
+          if (action.type === "DELETE_SECTION") {
+            const rawKey = action.payload;
+            const canonicalKey =
+              rawKey === "about"
+                ? "aboutMe"
+                : rawKey === "leadership"
+                ? "leadershipActivities"
+                : rawKey;
+            const removedCustom = (base.customSections ?? []).find(
+              (c) =>
+                c.id === rawKey ||
+                `custom_${c.id}` === rawKey ||
+                c.title.toLowerCase() === rawKey.toLowerCase()
+            );
+            baseSections = prevDoc.sections.filter((sec) => {
+              const secId = sec.heading ? headingToSectionId(sec.heading) : null;
+              if (secId && (secId === canonicalKey || secId === rawKey)) {
+                return false;
+              }
+              if (
+                removedCustom &&
+                sec.heading?.toLowerCase() === removedCustom.title.toLowerCase()
+              ) {
+                return false;
+              }
+              return true;
+            });
+          }
+          const syncedSections = syncCvDataToSections(nextCv, baseSections);
           const updatedDoc: HydratedDocumentData = {
             ...prevDoc,
             sections: syncedSections,
@@ -1768,7 +1803,7 @@ export function DocumentStudioDashboard() {
         if (crmCv && crmCv.personal) {
           let changed = false;
           const updatedPersonal = { ...cvDocumentData.personal };
-          if (crmCv.personal.photoUrl && updatedPersonal.photoUrl !== crmCv.personal.photoUrl) {
+          if (!updatedPersonal.photoUrl && !updatedPersonal.photoCrop && !updatedPersonal.photoSourceUrl && crmCv.personal.photoUrl) {
             updatedPersonal.photoUrl = crmCv.personal.photoUrl;
             changed = true;
           }
@@ -5135,12 +5170,12 @@ export function DocumentStudioDashboard() {
     const activeDoc: HydratedDocumentData =
       safeDoc.docType === "COVER_LETTER" && Array.isArray(safeDoc.sections)
         ? {
-            ...safeDoc,
-            sections: safeDoc.sections.map((sec) => ({
-              ...sec,
-              content: cleanCoverLetterText(sec.content),
-            })),
-          }
+          ...safeDoc,
+          sections: safeDoc.sections.map((sec) => ({
+            ...sec,
+            content: cleanCoverLetterText(sec.content),
+          })),
+        }
         : safeDoc;
     setActiveDocument(activeDoc);
     setEditableDocContent(JSON.parse(JSON.stringify(safeDoc)));

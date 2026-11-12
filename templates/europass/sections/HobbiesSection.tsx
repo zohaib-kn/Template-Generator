@@ -12,6 +12,7 @@ interface HobbiesSectionProps {
   onAdd?: (entry: Omit<HobbyEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<HobbyEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 interface FlattenedHobbyItem {
@@ -28,6 +29,7 @@ export const HobbiesSection = memo(function HobbiesSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: HobbiesSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -84,6 +86,7 @@ export const HobbiesSection = memo(function HobbiesSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Hobby / Interest"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

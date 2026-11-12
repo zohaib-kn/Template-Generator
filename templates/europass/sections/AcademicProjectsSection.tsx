@@ -13,6 +13,7 @@ interface AcademicProjectsSectionProps {
   onAdd?: (entry: Omit<AcademicProject, "id">) => void;
   onUpdate?: (id: string, patch: Partial<AcademicProject>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 export const AcademicProjectsSection = memo(function AcademicProjectsSection({
@@ -22,6 +23,7 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: AcademicProjectsSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
   
@@ -40,6 +42,7 @@ export const AcademicProjectsSection = memo(function AcademicProjectsSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Project entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 

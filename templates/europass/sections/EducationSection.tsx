@@ -15,6 +15,7 @@ interface EducationSectionProps {
   onAdd?: (entry: Omit<EducationEntry, "id">) => void;
   onUpdate?: (id: string, patch: Partial<EducationEntry>) => void;
   onRemove?: (id: string) => void;
+  onDeleteSection?: () => void;
 }
 
 function formatDateDMY(iso?: string): string {
@@ -317,6 +318,7 @@ export const EducationSection = memo(function EducationSection({
   onAdd,
   onUpdate,
   onRemove,
+  onDeleteSection,
 }: EducationSectionProps) {
   const [isAdding, setIsAdding] = useState(false);
 
@@ -343,6 +345,7 @@ export const EducationSection = memo(function EducationSection({
           isInteractive={isInteractive}
           onAddEntry={onAdd ? () => setIsAdding(true) : undefined}
           addLabel="Add Education & Training entry"
+          onDeleteSection={onDeleteSection}
         />
       )}
 
