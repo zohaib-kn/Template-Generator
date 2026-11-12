@@ -26,6 +26,7 @@ export function sanitizeAddressValue(raw: string): string {
 import { DEFAULT_MOVABLE_SECTION_ORDER, type DocumentData } from "@/types/document";
 import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
 import { sortEducationEntries } from "@/features/document-generator/utils/educationSequence";
+import { parseDateRange } from "@/features/document-generator/utils/dateRange";
 
 const EUROPASS_STUDIO_DEFAULT_ORDER: string[] = [
   "aboutMe",
@@ -141,13 +142,16 @@ export function syncSectionsToCvData(
         const descLines = lines.slice(2);
         const bullets = parseDescriptionToBullets(descLines.join("\n"));
         const cleanDesc = bullets.filter(Boolean).map((b) => `• ${stripLeadingMarkers(b)}`).join("\n");
+        const { startDate, endDate } = datesMatch
+          ? parseDateRange(datesMatch[1])
+          : { startDate: "", endDate: "" };
         return {
           id: `intern-${idx}`,
           role: roleLine,
           company: compName || "Company",
           location: locName || undefined,
-          startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
-          endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
+          startDate,
+          endDate,
           description: cleanDesc,
         };
       })
@@ -187,12 +191,15 @@ export function syncSectionsToCvData(
             p &&
             !/^(?:location|address|city|website|final\s*grade|score)\s*:\s*/i.test(p)
         );
+      const { startDate, endDate } = datesMatch
+        ? parseDateRange(datesMatch[1])
+        : { startDate: "", endDate: "" };
       return {
         id: `edu-${idx}`,
         qualification: qual,
         institution: instName,
-        startDate: datesMatch ? datesMatch[1].split(/[–—\-]|to/i)[0]?.trim() || "" : "",
-        endDate: datesMatch ? datesMatch[1].split(/[–—\-]|to/i)[1]?.trim() || "" : "",
+        startDate,
+        endDate,
         finalGrade: gradeMatch ? gradeMatch[1].trim() : undefined,
         address: locMatch ? locMatch[1].trim() : undefined,
         website: webMatch ? webMatch[1].trim() : undefined,
@@ -498,12 +505,15 @@ export function syncSectionsToCvData(
       const datesMatch = orgLine.match(/\[\s*([^\]]+)\s*\]/);
       const orgName = orgLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
       const descLines = lines.slice(2);
+      const { startDate, endDate } = datesMatch
+        ? parseDateRange(datesMatch[1])
+        : { startDate: "", endDate: "" };
       return {
         id: `vol-${idx}`,
         role: roleLine,
         organization: orgName || undefined,
-        startDate: datesMatch ? datesMatch[1].split(/[–-]/)[0]?.trim() || "" : "",
-        endDate: datesMatch ? datesMatch[1].split(/[–-]/)[1]?.trim() || "" : "",
+        startDate,
+        endDate,
         description: descLines.join("\n") || undefined,
       };
     });

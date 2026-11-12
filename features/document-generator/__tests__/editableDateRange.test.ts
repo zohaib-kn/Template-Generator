@@ -7,6 +7,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { parseDateRange, formatDateDMY } from "../components/inline/EditableDateRange";
+import { syncSectionsToCvData } from "../../dashboard/utils/documentStudioSync";
+import type { DocumentData } from "@/types/document";
 
 describe("EditableDateRange — parseDateRange", () => {
   it("parses en-dash separated date ranges cleanly", () => {
@@ -98,5 +100,69 @@ describe("EditableDateRange — formatDateDMY", () => {
   it("preserves non-standard text such as 'Present' or '2024'", () => {
     assert.strictEqual(formatDateDMY("Present"), "Present");
     assert.strictEqual(formatDateDMY("2024"), "2024");
+  });
+});
+
+describe("parseDateRange & syncSectionsToCvData — ISO YYYY-MM-DD preservation", () => {
+  it("preserves full ISO start and end dates without splitting on internal hyphens", () => {
+    assert.deepStrictEqual(parseDateRange("2024-04-01 – 2025-04-30"), {
+      startDate: "2024-04-01",
+      endDate: "2025-04-30",
+    });
+    assert.deepStrictEqual(parseDateRange("2024-04-01-2025-04-30"), {
+      startDate: "2024-04-01",
+      endDate: "2025-04-30",
+    });
+    assert.deepStrictEqual(parseDateRange("2025-04-01 – "), {
+      startDate: "2025-04-01",
+      endDate: "",
+    });
+    assert.deepStrictEqual(parseDateRange("2025-04-01"), {
+      startDate: "2025-04-01",
+      endDate: "",
+    });
+  });
+
+  it("syncs Education, Work Experience, and Volunteering ISO dates accurately", () => {
+    const baseCv: DocumentData = {
+      personal: { fullName: "Test Student", email: "test@example.com" },
+    };
+
+    const synced = syncSectionsToCvData(
+      [
+        {
+          heading: "EDUCATION AND TRAINING",
+          content: [
+            "Grade 12th",
+            "Gaurs International School [ 2024-04-01 – 2025-04-30 ]",
+            "Address: Noida, India | Final grade: 88.40%/100",
+          ].join("\n"),
+        },
+        {
+          heading: "WORK EXPERIENCE",
+          content: [
+            "Junior Analyst",
+            "Acme Corp [ 2025-06-01 – 2025-09-15 ]",
+            "• Assisted with reporting",
+          ].join("\n"),
+        },
+        {
+          heading: "VOLUNTEERING",
+          content: [
+            "Volunteer",
+            "City Shelter [ 2023-01-10 – 2023-12-20 ]",
+            "Coordinated weekend drives",
+          ].join("\n"),
+        },
+      ],
+      baseCv
+    );
+
+    assert.deepStrictEqual(synced.education?.[0]?.startDate, "2024-04-01");
+    assert.deepStrictEqual(synced.education?.[0]?.endDate, "2025-04-30");
+    assert.deepStrictEqual(synced.internships?.[0]?.startDate, "2025-06-01");
+    assert.deepStrictEqual(synced.internships?.[0]?.endDate, "2025-09-15");
+    assert.deepStrictEqual(synced.volunteering?.[0]?.startDate, "2023-01-10");
+    assert.deepStrictEqual(synced.volunteering?.[0]?.endDate, "2023-12-20");
   });
 });

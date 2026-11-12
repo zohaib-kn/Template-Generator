@@ -46,6 +46,7 @@ import {
 } from "@/lib/sampleStudents";
 import type { DocumentData } from "@/types";
 import { syncSectionsToCvData, syncCvDataToSections } from "../utils/documentStudioSync";
+import { parseDateRange } from "@/features/document-generator/utils/dateRange";
 import { processCvChatInstruction, isValidSkillNoun } from "../utils/cvChatIntentEngine";
 import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
 import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
@@ -3917,13 +3918,14 @@ export function DocumentStudioDashboard() {
           formattedContent = desc ? `${role}\n${compLine}\n${desc}` : `${role}\n${compLine}`;
           summaryText = `${role} at ${comp}${loc ? ` (${loc})` : ""} [${dates}]`;
 
+          const { startDate: internStart, endDate: internEnd } = parseDateRange(dates);
           const newInternEntry = {
             id: `intern-${Date.now()}`,
             role,
             company: comp,
             location: loc || undefined,
-            startDate: dates.split(/[–-]|to/i)[0]?.trim() || "",
-            endDate: dates.split(/[–-]|to/i)[1]?.trim() || "",
+            startDate: internStart,
+            endDate: internEnd,
             description: desc,
           };
           const existingInterns = (updatedCv.internships || []).filter((e) => e.role || e.company);
@@ -3967,12 +3969,15 @@ export function DocumentStudioDashboard() {
           formattedContent = [qual, instLine, gradeLine].filter(Boolean).join("\n");
           summaryText = `${qual} at ${inst}${dates ? ` (${dates})` : ""}`;
 
+          const { startDate: eduStart, endDate: eduEnd } = dates
+            ? parseDateRange(dates)
+            : { startDate: "", endDate: "" };
           const newEdu = {
             id: `edu-${Date.now()}`,
             qualification: qual,
             institution: inst,
-            startDate: dates ? dates.split(/[–-]|to/i)[0]?.trim() || "" : "",
-            endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
+            startDate: eduStart,
+            endDate: eduEnd,
             finalGrade: grade || undefined,
           };
           const existingEdu = (updatedCv.education || []).filter((e) => e.qualification || e.institution);
@@ -4006,12 +4011,15 @@ export function DocumentStudioDashboard() {
           formattedContent = `${course}\n${provLine}`;
           summaryText = `${course} (${provider})`;
 
+          const { startDate: trainStart, endDate: trainEnd } = dates
+            ? parseDateRange(dates)
+            : { startDate: "", endDate: "" };
           const newTrainEdu = {
             id: `train-${Date.now()}`,
             qualification: course,
             institution: provider,
-            startDate: dates ? dates.split(/[–-]|to/i)[0]?.trim() || "" : "",
-            endDate: dates ? dates.split(/[–-]|to/i)[1]?.trim() || "" : "",
+            startDate: trainStart,
+            endDate: trainEnd,
           };
           const existingEdu = (updatedCv.education || []).filter((e) => e.qualification || e.institution);
           updatedCv.education = [...existingEdu, newTrainEdu];
@@ -4203,12 +4211,15 @@ export function DocumentStudioDashboard() {
           formattedContent = [role, orgLine, desc].filter(Boolean).join("\n");
           summaryText = `${role}${org ? ` at ${org}` : ""}`;
 
+          const { startDate: volStart, endDate: volEnd } = duration
+            ? parseDateRange(duration)
+            : { startDate: "", endDate: "" };
           const newVol = {
             id: `vol-${Date.now()}`,
             role,
             organization: org || undefined,
-            startDate: duration ? duration.split(/[–-]|to/i)[0]?.trim() || "" : "",
-            endDate: duration ? duration.split(/[–-]|to/i)[1]?.trim() || "" : "",
+            startDate: volStart,
+            endDate: volEnd,
             description: desc || undefined,
           };
           const existingVol = updatedCv.volunteering || [];
