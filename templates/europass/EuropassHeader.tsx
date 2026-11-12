@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import type { PersonalDetails } from "@/types";
 import styles from "./europass.module.css";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
@@ -91,12 +91,105 @@ function cleanDisplayName(name: string): string {
   return result;
 }
 
+function resizeAndEncodeImage(file: File, maxDim = 600): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") return resolve("");
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+      if (!src) return resolve("");
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        } else {
+          resolve(src);
+        }
+      };
+      img.onerror = () => resolve(src);
+      img.src = src;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 export const EuropassHeader = memo(function EuropassHeader({
   personal,
   isInteractive = false,
   onUpdatePersonal,
 }: EuropassHeaderProps) {
+  const [hasImageError, setHasImageError] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setHasImageError(false);
+  }, [personal?.photoUrl]);
+
   if (!personal) return null;
+
+  const processSelectedFile = async (file: File) => {
+    if (!file || !onUpdatePersonal) return;
+    if (!file.type.startsWith("image/") && !/\.(jpe?g|png|webp|avif|gif)$/i.test(file.name)) {
+      return;
+    }
+    const dataUrl = await resizeAndEncodeImage(file, 600);
+    if (dataUrl) {
+      setHasImageError(false);
+      onUpdatePersonal({ photoUrl: dataUrl });
+    }
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+    e.target.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isInteractive || !onUpdatePersonal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!isInteractive || !onUpdatePersonal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!isInteractive || !onUpdatePersonal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
+    }
+  };
 
   const rawName = personal.fullName || "";
   const displayName = cleanDisplayName(rawName) || rawName;
@@ -119,22 +212,85 @@ export const EuropassHeader = memo(function EuropassHeader({
         <div className={styles.headerBody}>
 
           {/* ── Profile Photo with silver ring frame ─── */}
-          <div className={styles.photoWrapper}>
+          <div
+            className={styles.photoWrapper}
+            style={{
+              cursor: isInteractive && onUpdatePersonal ? "pointer" : "default",
+              boxShadow: isDragOver ? "0 0 0 3px #096491" : undefined,
+            }}
+            onClick={(e) => {
+              if (isInteractive && onUpdatePersonal) {
+                e.stopPropagation();
+                photoInputRef.current?.click();
+              }
+            }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            title={isInteractive && onUpdatePersonal ? "Click or drag & drop an image (.jpg / .png) to set profile photo" : undefined}
+          >
             <div className={styles.photoInner}>
-              {personal.photoUrl ? (
+              {personal.photoUrl && !hasImageError ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={personal.photoUrl}
                   alt={displayName ? `${displayName}'s portrait` : "Profile"}
                   className={styles.profilePhoto}
+                  onError={() => setHasImageError(true)}
                 />
               ) : (
                 <span className={styles.photoPlaceholder} aria-hidden="true">
                   👤
                 </span>
               )}
+
+              {/* Interactive Hover / Drag Overlay */}
+              {isInteractive && onUpdatePersonal && (isHovered || isDragOver) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(15, 23, 42, 0.65)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    textAlign: "center",
+                    padding: "4px",
+                    zIndex: 10,
+                  }}
+                  data-html2canvas-ignore="true"
+                  data-no-print="true"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span style={{ fontSize: "6.5pt", fontWeight: 700, marginTop: "2px", lineHeight: 1.1, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    {isDragOver ? "Drop" : personal.photoUrl && !hasImageError ? "Change" : "Upload"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Hidden File Input placed outside photoWrapper to avoid recursive bubbling */}
+          {isInteractive && onUpdatePersonal && (
+            <input
+              type="file"
+              ref={photoInputRef}
+              onChange={handlePhotoUpload}
+              onClick={(e) => e.stopPropagation()}
+              accept="image/*,.jpg,.jpeg,.png,.webp,.avif"
+              style={{ display: "none" }}
+              aria-label="Upload profile photo"
+            />
+          )}
 
           {/* ── Identity Block: Name + Personal Details ─── */}
           <div className={styles.identityBlock}>

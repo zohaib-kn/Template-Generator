@@ -21,6 +21,10 @@ interface EditableTextProps {
   href?: string;
   /** Link target (e.g. "_blank") */
   target?: string;
+  /** When true alongside multiline, pressing Enter confirms and exits edit mode instead of inserting a newline */
+  submitOnEnter?: boolean;
+  /** Notifies parent when inline editing begins or ends */
+  onEditingChange?: (editing: boolean) => void;
 }
 
 /**
@@ -44,6 +48,8 @@ export function EditableText({
   as: Tag = "span",
   href,
   target,
+  submitOnEnter = false,
+  onEditingChange,
 }: EditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [localValue, setLocalValue] = useState(value);
@@ -67,8 +73,13 @@ export function EditableText({
       // localValue is only read while editing — seed it from the latest prop here
       setLocalValue(value);
       setIsEditing(true);
+      onEditingChange?.(true);
     },
+<<<<<<< HEAD
     [isInteractive, value]
+=======
+    [isInteractive, onEditingChange]
+>>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes)
   );
 
   const handleChange = useCallback(
@@ -81,10 +92,11 @@ export function EditableText({
   );
 
   const handleBlur = useCallback(() => {
-    setIsEditing(false);
-    // Flush final value on blur (already dispatched on every keystroke)
+    // Flush final value before closing edit state
     onChange(localValue);
-  }, [localValue, onChange]);
+    setIsEditing(false);
+    onEditingChange?.(false);
+  }, [localValue, onChange, onEditingChange]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -92,16 +104,18 @@ export function EditableText({
       if (e.key === "Escape") {
         setLocalValue(value);
         setIsEditing(false);
+        onEditingChange?.(false);
         return;
       }
-      // Enter confirms for single-line inputs (textarea allows Enter for newline)
-      if (e.key === "Enter" && !multiline) {
+      // Enter confirms for single-line inputs or multiline inputs configured with submitOnEnter
+      if (e.key === "Enter" && (!multiline || submitOnEnter)) {
         e.preventDefault();
-        setIsEditing(false);
         onChange(localValue);
+        setIsEditing(false);
+        onEditingChange?.(false);
       }
     },
-    [localValue, multiline, onChange, value]
+    [localValue, multiline, submitOnEnter, onChange, onEditingChange, value]
   );
 
   // ── Non-interactive / PDF mode ──────────────────────────────────────────

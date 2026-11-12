@@ -4,9 +4,11 @@
  * Fast, 100% deterministic text extraction for resume documents.
  * Extracts contact information, links, dates, and splits text into
  * sections matching the 16 Resume Builder sections without using AI.
+ *
+ * Unknown headings are captured as customSections — never discarded.
  */
 
-import type { DocumentData, PersonalDetails, SkillEntry, LanguageEntry } from "@/types";
+import type { DocumentData, PersonalDetails, SkillEntry, LanguageEntry, CustomSectionEntry } from "@/types";
 import { generateId } from "@/lib/generateId";
 
 const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b/g;
@@ -78,10 +80,17 @@ export interface SectionChunk {
   lines: string[];
 }
 
+/** A content block whose heading was not matched by SECTION_PATTERNS. */
+export interface UnknownSectionChunk {
+  heading: string;
+  lines: string[];
+}
+
 export interface DeterministicParseResult {
   personal: PersonalDetails;
   sectionChunks: SectionChunk[];
   unmappedLines: string[];
+  unknownSectionChunks: UnknownSectionChunk[];
   candidateData: DocumentData;
 }
 
@@ -128,32 +137,76 @@ export function parseDocumentDeterministically(rawText: string): DeterministicPa
     }
   }
 
-  // 2. Segment lines by section headings
+  /**
+   * Heuristic: a line that looks like a section heading is typically:
+   * - ALL CAPS, or Title Case
+   * - Short (< 60 chars)
+   * - Not containing sentence-ending punctuation mid-line
+   * - Stands alone on a line (which we cannot know in flat text, but we approximate)
+   */
+  function looksLikeUnknownHeading(line: string): boolean {
+    if (line.length < 3 || line.length > 60) return false;
+    // Contains digits mixed with text (dates) → not a heading
+    if (/\d{4}/.test(line)) return false;
+    // Sentence that ends with punctuation → body text
+    if (/[.?!,;]$/.test(line)) return false;
+    // All uppercase → strong heading signal
+    if (line === line.toUpperCase() && /[A-Z]/.test(line)) return true;
+    // Title Case (first letter of each word capitalised, no lowercase-only words > 3 chars)
+    const words = line.split(/\s+/);
+    if (words.length <= 5 && words.every((w) => !w || /^[A-Z]/.test(w) || w.length <= 3)) return true;
+    return false;
+  }
+
+  // 2. Segment lines by section headings (known + unknown)
   const sectionChunks: SectionChunk[] = [];
-  let currentChunk: SectionChunk | null = null;
+  const unknownSectionChunks: UnknownSectionChunk[] = [];
+  let currentKnownChunk: SectionChunk | null = null;
+  let currentUnknownChunk: UnknownSectionChunk | null = null;
 
   for (const line of allLines) {
     const matched = SECTION_PATTERNS.find((pattern) => pattern.regex.test(line));
 
     if (matched) {
-      if (currentChunk) {
-        sectionChunks.push(currentChunk);
-      }
-      currentChunk = {
+      // Close any open chunks
+      if (currentKnownChunk) sectionChunks.push(currentKnownChunk);
+      if (currentUnknownChunk) unknownSectionChunks.push(currentUnknownChunk);
+      currentUnknownChunk = null;
+      currentKnownChunk = {
         key: matched.key,
         heading: line,
         lines: [],
       };
-    } else if (currentChunk) {
-      currentChunk.lines.push(line);
+    } else if (!currentKnownChunk && !currentUnknownChunk && looksLikeUnknownHeading(line)) {
+      // Potential unknown section heading before any known section
+      if (currentUnknownChunk) unknownSectionChunks.push(currentUnknownChunk);
+      currentUnknownChunk = { heading: line, lines: [] };
+    } else if (currentKnownChunk) {
+      // Check if this line might be starting an unknown section within known content
+      if (!SECTION_PATTERNS.find((p) => p.regex.test(line)) && looksLikeUnknownHeading(line) && currentKnownChunk.lines.length > 0) {
+        // Could be an unknown sub-section — treat as new unknown chunk
+        sectionChunks.push(currentKnownChunk);
+        currentKnownChunk = null;
+        if (currentUnknownChunk) unknownSectionChunks.push(currentUnknownChunk);
+        currentUnknownChunk = { heading: line, lines: [] };
+      } else {
+        currentKnownChunk.lines.push(line);
+      }
+    } else if (currentUnknownChunk) {
+      if (looksLikeUnknownHeading(line) && currentUnknownChunk.lines.length > 0) {
+        // New unknown section heading
+        unknownSectionChunks.push(currentUnknownChunk);
+        currentUnknownChunk = { heading: line, lines: [] };
+      } else {
+        currentUnknownChunk.lines.push(line);
+      }
     } else {
       unmappedLines.push(line);
     }
   }
 
-  if (currentChunk) {
-    sectionChunks.push(currentChunk);
-  }
+  if (currentKnownChunk) sectionChunks.push(currentKnownChunk);
+  if (currentUnknownChunk) unknownSectionChunks.push(currentUnknownChunk);
 
   // 3. Build candidate initial DocumentData for straightforward sections
   const candidateData: DocumentData = {
@@ -165,6 +218,18 @@ export function parseDocumentDeterministically(rawText: string): DeterministicPa
       candidateData.aboutMe = chunk.lines.join(" ");
     } else if (chunk.key === "declaration") {
       candidateData.declaration = chunk.lines.join(" ");
+    } else if (chunk.key === "hobbies") {
+      const hobbyNames: string[] = [];
+      for (const line of chunk.lines) {
+        const parts = line.split(/[,•|·;]/).map((s) => s.trim()).filter(Boolean);
+        hobbyNames.push(...parts);
+      }
+      if (hobbyNames.length > 0) {
+        candidateData.hobbies = hobbyNames.map((name) => ({
+          id: generateId(),
+          name,
+        }));
+      }
     } else if (chunk.key === "skills") {
       const skillNames: string[] = [];
       for (const line of chunk.lines) {
@@ -196,9 +261,19 @@ export function parseDocumentDeterministically(rawText: string): DeterministicPa
     }
   }
 
+  // 4. Preserve unknown sections as customSections — never discard content
+  if (unknownSectionChunks.length > 0) {
+    candidateData.customSections = unknownSectionChunks.map((us) => ({
+      id: generateId(),
+      title: us.heading,
+      content: us.lines.join("\n"),
+    }));
+  }
+
   return {
     personal,
     sectionChunks,
+    unknownSectionChunks,
     unmappedLines,
     candidateData,
   };

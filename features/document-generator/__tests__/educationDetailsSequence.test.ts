@@ -11,7 +11,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getInstitutionWebsite } from "../utils/institutionWebsites";
-import { getOrderedEducationParts } from "../utils/educationSequence";
+import { getOrderedEducationParts, sortEducationEntries } from "../utils/educationSequence";
+import { syncSectionsToCvData, syncCvDataToSections } from "@/features/dashboard/utils/documentStudioSync";
+import { createEmptyDocumentData } from "../utils/documentDefaults";
 import { mapNormalizedToResume } from "@/services/normalization/mapNormalizedToResume";
 import type { NormalizedStudentProfile } from "@/types/normalizedStudent";
 import type { EducationEntry } from "@/types";
@@ -75,30 +77,32 @@ describe("Education and Training sequence: Address -> Website URL -> Final grade
     const edu = student.education ?? [];
     assert.strictEqual(edu.length, 2);
 
-    // Verify Entry 1
+    // Verify Entry 1 (reverse-chronological / highest level first: Grade 12th)
     const entry1 = edu[0];
+    assert.strictEqual(entry1.qualification, "Grade 12th");
     assert.ok(entry1.description);
     const parts1 = entry1.description.split(" | ");
 
     // Sequence check: Address first, Website second, Final grade third
     assert.strictEqual(parts1[0], "Address: Ghaziabad, India");
     assert.strictEqual(parts1[1], "Website: https://www.kdbpublicschool.com");
-    assert.strictEqual(parts1[2], "Final grade: 93.80%/100");
-    assert.strictEqual(parts1[3], "Subjects: Artificial Intelligence, English, Hindi, Mathematics, Science, Social Science");
+    assert.strictEqual(parts1[2], "Final grade: 75.60%/100");
+    assert.strictEqual(parts1[3], "Subjects: Computer Science, English, Chemistry, Physics, Mathematics");
     assert.strictEqual(parts1[4], "Language of instruction: English");
 
     // Also check direct properties
     assert.strictEqual(entry1.address, "Ghaziabad, India");
     assert.strictEqual(entry1.website, "https://www.kdbpublicschool.com");
-    assert.strictEqual(entry1.finalGrade, "93.80%/100");
+    assert.strictEqual(entry1.finalGrade, "75.60%/100");
 
-    // Verify Entry 2
+    // Verify Entry 2 (Grade 10th below Grade 12th)
     const entry2 = edu[1];
+    assert.strictEqual(entry2.qualification, "Grade 10th");
     assert.ok(entry2.description);
     const parts2 = entry2.description.split(" | ");
     assert.strictEqual(parts2[0], "Address: Ghaziabad, India");
     assert.strictEqual(parts2[1], "Website: https://www.kdbpublicschool.com");
-    assert.strictEqual(parts2[2], "Final grade: 75.60%/100");
+    assert.strictEqual(parts2[2], "Final grade: 93.80%/100");
   });
 
   it("TEST 3: getOrderedEducationParts re-sequences legacy description to Address -> Website -> Final grade", () => {
@@ -180,5 +184,73 @@ describe("Education and Training sequence: Address -> Website URL -> Final grade
     assert.strictEqual(ordered[0], "Address: Faizabad, India");
     assert.strictEqual(ordered[1], "Website: https://tinytots.edu.in");
     assert.strictEqual(ordered[2], "Final grade: 77.60%/100");
+  });
+
+  it("TEST 7: pasted full street address updates cleanly and round-trips through studio sync without reverting or duplicating", () => {
+    const pastedAddress = "Starr Pavilion, 520 E 70th St #607, New York, NY 10065, United States";
+    const baseCv = createEmptyDocumentData();
+    baseCv.education = [
+      {
+        id: "edu-1",
+        qualification: "Grade 10th",
+        institution: "K.d.b. Public School",
+        startDate: "2022",
+        endDate: "04",
+        address: pastedAddress,
+        website: "https://www.kdbpublicschool.com",
+        finalGrade: "93.80%/100",
+        description: `Address: ${pastedAddress} | Website: https://www.kdbpublicschool.com | Final grade: 93.80%/100 | Subjects: Mathematics, Science`,
+      },
+    ];
+
+    const parts = getOrderedEducationParts(baseCv.education[0]);
+    assert.strictEqual(parts[0], `Address: ${pastedAddress}`);
+    assert.strictEqual(parts[1], "Website: https://www.kdbpublicschool.com");
+    assert.strictEqual(parts[2], "Final grade: 93.80%/100");
+    assert.strictEqual(parts[3], "Subjects: Mathematics, Science");
+
+    const sections = syncCvDataToSections(baseCv, [
+      { heading: "EDUCATION AND TRAINING", content: "" },
+    ]);
+    assert.ok(sections[0].content.includes(`Location: ${pastedAddress}`));
+    assert.strictEqual(
+      sections[0].content.match(/Starr Pavilion/g)?.length,
+      1,
+      "Address must not be duplicated in synced section content"
+    );
+    assert.ok(sections[0].content.includes("Subjects: Mathematics, Science"));
+
+    const roundTripped = syncSectionsToCvData(sections, baseCv);
+    assert.strictEqual(roundTripped.education?.[0]?.address, pastedAddress);
+    assert.strictEqual(roundTripped.education?.[0]?.website, "https://www.kdbpublicschool.com");
+    assert.strictEqual(roundTripped.education?.[0]?.finalGrade, "93.80%/100");
+    assert.strictEqual(roundTripped.education?.[0]?.description, "Subjects: Mathematics, Science");
+  });
+
+  it("TEST 8: sortEducationEntries places Grade 12th before Grade 10th while keeping edited fields intact", () => {
+    const sorted = sortEducationEntries([
+      {
+        id: "edu-0",
+        qualification: "Grade 10th",
+        institution: "K.d.b. Public School",
+        startDate: "2022-04",
+        address: "1468 Madison Ave, New York, NY 10029, United States",
+        finalGrade: "93.80%/100",
+      },
+      {
+        id: "edu-1",
+        qualification: "Grade 12th",
+        institution: "K.d.b. Public School",
+        startDate: "2024-04",
+        address: "Ghaziabad, India",
+        finalGrade: "75.60%/100",
+      },
+    ]);
+
+    assert.strictEqual(sorted[0].qualification, "Grade 12th");
+    assert.strictEqual(sorted[0].id, "edu-1");
+    assert.strictEqual(sorted[1].qualification, "Grade 10th");
+    assert.strictEqual(sorted[1].id, "edu-0");
+    assert.strictEqual(sorted[1].address, "1468 Madison Ave, New York, NY 10029, United States");
   });
 });

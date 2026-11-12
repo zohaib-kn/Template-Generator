@@ -19,6 +19,7 @@ import type {
 import type { ApplicationTarget, DestinationCountry } from "@/features/document-generator/guidance/types";
 import type { NormalizedStudentProfile, NormalizedQualification, NormalizedWorkExperience } from "@/types/normalizedStudent";
 import { getInstitutionWebsite } from "@/features/document-generator/utils/institutionWebsites";
+import { sortEducationEntries } from "@/features/document-generator/utils/educationSequence";
 import { synthesizeEuropassAboutMe } from "./synthesizeEuropassAboutMe";
 import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
 
@@ -210,7 +211,9 @@ export interface ResumeProjectionResult {
 export function mapNormalizedToResume(profile: NormalizedStudentProfile): ResumeProjectionResult {
   const p = profile.personal;
 
-  const education: EducationEntry[] = (profile.academics?.qualifications ?? []).map((q, i) => mapEduEntry(q, i));
+  const education: EducationEntry[] = sortEducationEntries(
+    (profile.academics?.qualifications ?? []).map((q, i) => mapEduEntry(q, i))
+  );
   const internships: InternshipEntry[] = (profile.workExperience ?? []).map((w, i) => mapWorkEntry(w, i));
   const achievements: Achievement[] = (profile.academics?.achievements ?? []).map((a, i) => ({
     id: a.id || `ach-${i}`,

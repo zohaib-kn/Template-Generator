@@ -49,6 +49,8 @@ import { syncSectionsToCvData, syncCvDataToSections } from "../utils/documentStu
 import { processCvChatInstruction, isValidSkillNoun } from "../utils/cvChatIntentEngine";
 import { DocumentContext } from "@/features/document-generator/state/DocumentContext";
 import { documentReducer, type DocumentAction } from "@/features/document-generator/state/documentReducer";
+import { ResumeImportModal } from "@/features/document-generator/components/ResumeImportModal";
+import { RearrangeSectionsModal } from "@/features/document-generator/components/RearrangeSectionsModal";
 import { docSectionsToHtml } from "../utils/docSectionsToHtml";
 import { parseLanguageSkillsInput } from "../utils/languageSkillsParser";
 import {
@@ -858,6 +860,8 @@ export function DocumentStudioDashboard() {
 
   // Modal State (2 clean dropdowns: student first, then doc type)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCvImportModalOpen, setIsCvImportModalOpen] = useState(false);
+  const [currentDocSnapshot, setCurrentDocSnapshot] = useState<CrmSnapshot | null>(null);
   const [lockedStudentId, setLockedStudentId] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -1170,6 +1174,7 @@ export function DocumentStudioDashboard() {
     loadStudentSnapshot(editableDocContent.studentId).then((snapshot) => {
       if (!isMounted) return;
       if (snapshot) {
+        setCurrentDocSnapshot(snapshot);
         try {
           const normalized = mapCrmToNormalizedStudent(snapshot);
           const sop = mapNormalizedToSop(normalized);
@@ -1285,6 +1290,29 @@ export function DocumentStudioDashboard() {
   // Dispatches live in-place edits from the interactive Europass canvas into cvDocumentData & sections
   const handleEuropassDispatch = useCallback(
     (action: DocumentAction) => {
+      if (action.type === "SET_SECTION_ORDER" || action.type === "RESET_SECTION_ORDER") {
+        if (editableDocContent) {
+          setDocHistory((prev) => [...prev, JSON.parse(JSON.stringify(editableDocContent))]);
+        }
+        const snapshotCv =
+          cvDocumentData ||
+          getEuropassData(
+            editableDocContent?.studentId || "",
+            editableDocContent?.studentName || "",
+            selectedStudentData
+          );
+        setCvHistory((prev) => [...prev, JSON.parse(JSON.stringify(snapshotCv))]);
+        setCvRedoHistory([]);
+        setRedoHistory([]);
+        setAiToast({
+          message:
+            action.type === "RESET_SECTION_ORDER"
+              ? "↺ Section order reset to default"
+              : "✓ Section order updated",
+          type: "success",
+        });
+      }
+
       setCvDocumentData((prevCv) => {
         const base =
           prevCv ||
@@ -1314,7 +1342,7 @@ export function DocumentStudioDashboard() {
         return nextCv;
       });
     },
-    [editableDocContent?.studentId, editableDocContent?.studentName, selectedStudentData, syncDocumentToRecent]
+    [editableDocContent, cvDocumentData, selectedStudentData, syncDocumentToRecent]
   );
 
   // Delete document from Recent Documents & localStorage
@@ -5138,6 +5166,133 @@ export function DocumentStudioDashboard() {
     selectStudent(safeDoc.studentId);
   };
 
+  // Handle confirmed imported CV payload in Template Studio or Home Dashboard
+  const handleCvImportApplied = useCallback(
+    (importedData: DocumentData) => {
+      // Retain existing valid photo if imported payload didn't extract one
+      const existingPhotoUrl =
+        cvDocumentData?.personal?.photoUrl ||
+        (() => {
+          const snap = selectedStudentData || currentDocSnapshot;
+          if (!snap) return undefined;
+          try {
+            return mapNormalizedToResume(mapCrmToNormalizedStudent(snap)).student?.personal?.photoUrl;
+          } catch {
+            return undefined;
+          }
+        })();
+
+      const finalImportedData: DocumentData = {
+        ...importedData,
+        personal: {
+          ...importedData.personal,
+          photoUrl: importedData.personal?.photoUrl || existingPhotoUrl,
+        },
+      };
+
+      const studentName =
+        finalImportedData.personal?.fullName?.trim() ||
+        editableDocContent?.studentName ||
+        selectedStudentName ||
+        "Candidate";
+
+      // Case A: A document is already active in Template Studio
+      if (editableDocContent) {
+        handleEuropassDispatch({ type: "LOAD_STUDENT", payload: finalImportedData });
+        setCvDocumentData(finalImportedData);
+        setCvViewMode("europass");
+
+        setEditableDocContent((prevDoc) => {
+          if (!prevDoc) return prevDoc;
+          const syncedSections = syncCvDataToSections(finalImportedData, prevDoc.sections);
+          const updatedDoc: HydratedDocumentData = {
+            ...prevDoc,
+            studentName,
+            title: `${studentName} – Europass Academic CV`,
+            sections: syncedSections,
+            wordCount: syncedSections.reduce(
+              (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+              0
+            ),
+          };
+          syncDocumentToRecent(updatedDoc, "Imported just now");
+          return updatedDoc;
+        });
+      } else {
+        // Case B: Imported from the Home Page (no active document open yet)
+        const studentId =
+          selectedStudentData?.student?._id ||
+          selectedStudentId ||
+          generateUniqueId("student");
+
+        const baseSections = [
+          { heading: "ABOUT ME", content: "" },
+          { heading: "EDUCATION AND TRAINING", content: "" },
+          { heading: "WORK EXPERIENCE", content: "" },
+          { heading: "LANGUAGE SKILLS", content: "" },
+          { heading: "ENGLISH LANGUAGE CERTIFICATE", content: "" },
+          { heading: "SKILLS", content: "" },
+          { heading: "CERTIFICATIONS", content: "" },
+          { heading: "HOBBIES AND INTERESTS", content: "" },
+          {
+            heading: "DECLARATION",
+            content: "I hereby declare that the above furnished details are true to the best of my knowledge and belief.",
+          },
+        ];
+
+        const syncedSections = syncCvDataToSections(finalImportedData, baseSections);
+
+        const importedDoc: HydratedDocumentData = {
+          id: generateDocumentId(studentId, "CV"),
+          title: `${studentName} – Europass Academic CV`,
+          docType: "CV",
+          docTypeName: "Academic CV / Resume",
+          studentName,
+          studentId,
+          updatedAt: "Just now",
+          targetUniversity: "Global University",
+          targetCourse: "Master's Program",
+          targetCountry: "Europe",
+          wordCount: syncedSections.reduce(
+            (acc, s) => acc + (s.content ? s.content.trim().split(/\s+/).filter(Boolean).length : 0),
+            0
+          ),
+          route: `/sop-generator?student=${studentId}&template=europass-standard-v1`,
+          sections: syncedSections,
+        };
+
+        syncDocumentToRecent(importedDoc, "Imported just now");
+        handleOpenDocument(importedDoc);
+        setCvDocumentData(finalImportedData);
+        handleEuropassDispatch({ type: "LOAD_STUDENT", payload: finalImportedData });
+        setCvViewMode("europass");
+      }
+
+      setIsCvImportModalOpen(false);
+      setAiToast({ message: "✓ Imported CV loaded into Template Studio!", type: "success" });
+
+      const newMsg: ChatMessage = {
+        id: generateUniqueId("msg"),
+        sender: "assistant",
+        text: `I've imported your existing CV for **${studentName}**. All extracted sections, qualifications, and work experiences are loaded into the editor. You can now edit any section, rearrange them, ask me to refine them, or export your Europass CV!`,
+        timestamp: getFormattedTimestamp(),
+        actionType: "general",
+      };
+      setChatMessages((prev) => [...prev, newMsg]);
+    },
+    [
+      handleEuropassDispatch,
+      cvDocumentData?.personal?.photoUrl,
+      selectedStudentData,
+      selectedStudentId,
+      selectedStudentName,
+      currentDocSnapshot,
+      editableDocContent,
+      syncDocumentToRecent,
+      handleOpenDocument,
+    ]
+  );
+
   // Cooking Countdown & In-Front Document Generator
   const handleGenerateDocument = async () => {
     if (!modalStudentId) return;
@@ -5298,6 +5453,20 @@ export function DocumentStudioDashboard() {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
+            id="home-cv-import-nav-btn"
+            onClick={() => setIsCvImportModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition shrink-0"
+            title="Import existing CV from PDF or DOCX"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span className="hidden xs:inline sm:inline">Import CV</span>
+          </button>
+          <button
+            type="button"
             onClick={() => handleOpenModal()}
             className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition shrink-0"
           >
@@ -5335,8 +5504,8 @@ export function DocumentStudioDashboard() {
             </div>
           </div>
 
-          {/* Cards Row: Blank Document + The 4 Core Templates */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5 sm:gap-4.5">
+          {/* Cards Row: Blank Document + The 4 Core Templates + Import Existing CV */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5 sm:gap-4.5">
             {/* ── Card 1: Blank Document ── */}
             <div className="flex flex-col h-full justify-between">
               <button
@@ -5419,6 +5588,40 @@ export function DocumentStudioDashboard() {
                   Letter of Recommendation
                 </span>
                 <span className="text-[11px] text-slate-500 block truncate mt-0.5">Faculty & Employer</span>
+              </div>
+            </div>
+
+            {/* ── Card 6: Import Existing CV ── */}
+            <div className="flex flex-col h-full justify-between">
+              <button
+                type="button"
+                id="home-cv-import-card-btn"
+                onClick={() => setIsCvImportModalOpen(true)}
+                className="w-full bg-white border border-dashed border-indigo-300 hover:border-indigo-600 rounded-xl p-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer group text-left shadow-2xs aspect-[1/1.3] relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white"
+                title="Upload and import existing CV (PDF / DOCX)"
+              >
+                <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wider bg-indigo-600 text-white shadow-2xs">
+                  NEW
+                </div>
+                <div className="w-11 h-11 rounded-full bg-indigo-50 group-hover:bg-indigo-100 border border-indigo-200/80 flex items-center justify-center text-indigo-600 mb-2 transition">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                </div>
+                <span className="text-xs font-bold text-slate-800 text-center group-hover:text-indigo-600 transition">
+                  Upload PDF / DOCX
+                </span>
+                <span className="text-[10px] text-slate-400 text-center mt-0.5">
+                  Europass Auto-Fill
+                </span>
+              </button>
+              <div className="pt-2 px-0.5">
+                <span className="text-xs sm:text-[13px] font-semibold text-slate-900 block truncate leading-tight">
+                  Import Existing CV
+                </span>
+                <span className="text-[11px] text-indigo-600 font-medium block truncate mt-0.5">Auto-parse resume</span>
               </div>
             </div>
           </div>
@@ -6039,13 +6242,33 @@ export function DocumentStudioDashboard() {
         </div>
       )}
 
+      {/* ── Resume Import Modal (PDF / DOCX) for Home Dashboard & Studio ── */}
+      <ResumeImportModal
+        isOpen={isCvImportModalOpen}
+        onClose={() => setIsCvImportModalOpen(false)}
+        onImportApplied={handleCvImportApplied}
+        onSaveCurrentDraft={() => {
+          if (editableDocContent) {
+            syncDocumentToRecent(editableDocContent, "Saved draft before import");
+            setAiToast({ message: "✓ Current draft saved", type: "info" });
+          }
+        }}
+        hasUnsavedChanges={Boolean(editableDocContent && editableDocContent.sections.length > 0)}
+        crmSnapshot={selectedStudentData || currentDocSnapshot}
+        applicationTarget={{
+          universityName: editableDocContent?.targetUniversity,
+          intendedCourse: editableDocContent?.targetCourse,
+          destinationCountry: editableDocContent?.targetCountry as any,
+        }}
+      />
+
       {/* ── 6. In-Front Live Document Presentation (Canva Docs Replicated Studio) ── */}
       {activeDocument && editableDocContent && (
         <div className="fixed inset-0 z-50 bg-[#F8FAFC] flex flex-col overflow-hidden animate-in fade-in duration-200 text-slate-800 font-sans">
           {/* ── Top Unified Studio Midnight Slate Header Bar ───────────────────── */}
-          <header className="bg-[#0F172A] border-b border-slate-800 text-white px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between shrink-0 shadow-sm select-none z-50 gap-1.5 sm:gap-2.5 overflow-visible relative no-print">
+          <header className="bg-[#0F172A] border-b border-slate-800 text-white px-2.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between shrink-0 shadow-sm select-none z-50 gap-1.5 sm:gap-2.5 overflow-visible relative no-print">
             {/* Left Header Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
               {/* Home Navigation Button */}
               <button
                 type="button"
@@ -6149,7 +6372,7 @@ export function DocumentStudioDashboard() {
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                     </svg>
-                    <span className="hidden sm:inline">Editing Mode</span>
+                    <span className="hidden lg:inline">Editing Mode</span>
                   </>
                 ) : (
                   <>
@@ -6157,7 +6380,7 @@ export function DocumentStudioDashboard() {
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
-                    <span className="hidden sm:inline">Preview Mode</span>
+                    <span className="hidden lg:inline">Preview Mode</span>
                   </>
                 )}
               </button>
@@ -6206,7 +6429,7 @@ export function DocumentStudioDashboard() {
             </div>
 
             {/* Right Header Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 justify-end shrink">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 justify-end">
               {/* Document Title (Live Editable) */}
               <div className="flex items-center min-w-0 flex-1 justify-end">
                 <input
@@ -6217,7 +6440,7 @@ export function DocumentStudioDashboard() {
                     setEditableDocContent(updated);
                     syncDocumentToRecent(updated, "Edited just now");
                   }}
-                  className="bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-800 border border-slate-700/60 focus:border-indigo-500 text-xs font-semibold text-white placeholder-slate-400 px-2 sm:px-3 py-1.5 rounded-lg outline-none w-20 xs:w-28 sm:w-44 md:w-64 max-w-[260px] sm:max-w-[360px] truncate text-right cursor-pointer transition shrink"
+                  className="bg-slate-800/80 hover:bg-slate-800 focus:bg-slate-800 border border-slate-700/60 focus:border-indigo-500 text-xs font-semibold text-white placeholder-slate-400 px-2 sm:px-3 py-1.5 rounded-lg outline-none w-20 sm:w-28 md:w-44 lg:w-60 max-w-[260px] sm:max-w-[360px] min-w-0 truncate text-right cursor-pointer transition"
                   title="Click to rename document"
                 />
               </div>
@@ -6340,7 +6563,7 @@ export function DocumentStudioDashboard() {
             {/* Mobile backdrop for left sidebar */}
             {!isSidebarCollapsed && (
               <div
-                className="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs z-30 md:hidden"
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs z-40 md:hidden"
                 onClick={() => setIsSidebarCollapsed(true)}
               />
             )}
@@ -6349,7 +6572,7 @@ export function DocumentStudioDashboard() {
             <aside
               className={`bg-white border-r border-slate-200/90 h-full flex flex-col p-4 select-none overflow-hidden transition-all duration-200 ease-in-out no-print ${isSidebarCollapsed
                 ? "hidden"
-                : "fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[380px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[380px] md:min-w-[380px] md:max-w-[380px] lg:w-[390px] lg:min-w-[390px] lg:max-w-[390px] md:shadow-none shrink-0"
+                : "fixed inset-y-0 left-0 z-50 w-[88vw] max-w-[360px] shadow-2xl flex md:relative md:inset-auto md:z-auto md:w-[320px] md:min-w-[320px] md:max-w-[320px] lg:w-[360px] lg:min-w-[360px] lg:max-w-[360px] xl:w-[390px] xl:min-w-[390px] xl:max-w-[390px] md:shadow-none shrink-0"
                 }`}
             >
               {/* ── 1. Top Assistant Header ── */}
@@ -6673,10 +6896,10 @@ export function DocumentStudioDashboard() {
             </aside>
 
             {/* ── Main Canvas Area & Floating Toolbar ─────────────────────────── */}
-            <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 flex flex-col items-center bg-[#F8FAFC] relative w-full">
+            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-6 flex flex-col items-center bg-[#F8FAFC] relative w-full">
               {/* Floating Toolbar with 100% Dynamic Controls (Excluded from Resume/CV interface) */}
               {editableDocContent && (
-                <div className="sticky top-2.5 z-40 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-fit mx-auto rounded-full bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)] border border-slate-200/90 px-3 sm:px-4 py-1.5 flex items-center gap-1.5 sm:gap-2 select-none mb-3.5 shrink-0 no-print justify-center">
+                <div className="sticky top-2.5 z-20 w-full max-w-full lg:w-fit mx-auto rounded-2xl lg:rounded-full bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)] border border-slate-200/90 px-2.5 sm:px-4 py-1.5 flex flex-wrap lg:flex-nowrap items-center gap-1.5 sm:gap-2 select-none mb-3.5 shrink-0 no-print justify-center">
                   {/* Chatbot Image Trigger Button (replaces AI Tools) */}
                   {isSidebarCollapsed && (
                     <>
@@ -6766,6 +6989,27 @@ export function DocumentStudioDashboard() {
                     <span>Ask AI Refine</span>
                   </button>
                   <div className="h-4 w-px bg-slate-200 shrink-0" />
+
+                  {/* Import CV Pill Button (CV Mode) */}
+                  {editableDocContent.docType === "CV" && (
+                    <>
+                      <button
+                        type="button"
+                        id="studio-cv-import-pill-btn"
+                        onClick={() => setIsCvImportModalOpen(true)}
+                        className="h-7.5 flex items-center gap-1.5 px-3 rounded-full bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-semibold cursor-pointer transition shrink-0 whitespace-nowrap border border-slate-200/90 shadow-2xs"
+                        title="Upload and import existing CV (PDF / DOCX)"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-indigo-600">
+                          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                          <polyline points="16 16 12 12 8 16" />
+                          <line x1="12" y1="12" x2="12" y2="21" />
+                        </svg>
+                        <span>Import CV</span>
+                      </button>
+                      <div className="h-4 w-px bg-slate-200 shrink-0" />
+                    </>
+                  )}
 
                   {/* Heading Dropdown (H1 ▾) */}
                   <div className="relative shrink-0" ref={headingMenuRef}>
@@ -7142,8 +7386,8 @@ export function DocumentStudioDashboard() {
 
               {/* ── Document Section Manager & Customization Strip ── */}
               {editableDocContent?.docType !== "COVER_LETTER" && editableDocContent?.sections && editableDocContent.sections.length > 0 && (
-                <div className="w-full max-w-[210mm] mx-auto mb-3 px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 min-h-[30px]">
+                <div className="w-full max-w-[210mm] mx-auto mb-3 px-3 sm:px-3.5 py-1.5 bg-white border border-slate-200/90 rounded-xl text-xs no-print transition-all duration-150 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 min-h-[30px]">
                     {/* Collapsed/Expand Toggle and Summary */}
                     <div className="flex items-center gap-2 min-w-0">
                       <button
@@ -7194,8 +7438,26 @@ export function DocumentStudioDashboard() {
                       )}
                     </div>
 
-                    {/* Right side: Rearrange & + Add Section */}
+                    {/* Right side: Import CV, Rearrange & + Add Section */}
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      {/* Import Existing CV Button (when in CV mode) */}
+                      {editableDocContent.docType === "CV" && (
+                        <button
+                          type="button"
+                          id="studio-cv-import-btn"
+                          onClick={() => setIsCvImportModalOpen(true)}
+                          className="h-7.5 inline-flex items-center gap-1.5 px-2.5 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200/90 font-medium rounded-lg text-xs transition cursor-pointer shadow-2xs select-none"
+                          title="Import existing CV from PDF or DOCX"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="text-indigo-600">
+                            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                            <polyline points="16 16 12 12 8 16" />
+                            <line x1="12" y1="12" x2="12" y2="21" />
+                          </svg>
+                          <span>Import CV</span>
+                        </button>
+                      )}
+
                       {/* Rearrange Sections Button */}
                       <button
                         type="button"
@@ -7314,8 +7576,32 @@ export function DocumentStudioDashboard() {
                 </div>
               )}
 
-              {/* ── Rearrange Sections Modal ── */}
-              {isRearrangeModalOpen && editableDocContent && (
+              {/* ── Rearrange Sections Modal (CV uses Drag-and-Drop RearrangeSectionsModal; SOP/LOR/Cover Letter uses section list) ── */}
+              {isRearrangeModalOpen && editableDocContent && editableDocContent.docType === "CV" && (() => {
+                const activeCvForRearrange =
+                  cvDocumentData ||
+                  getEuropassData(
+                    editableDocContent.studentId,
+                    editableDocContent.studentName,
+                    selectedStudentData
+                  );
+                return (
+                  <DocumentContext.Provider
+                    value={{
+                      data: activeCvForRearrange,
+                      dispatch: handleEuropassDispatch,
+                    }}
+                  >
+                    <RearrangeSectionsModal
+                      isOpen={isRearrangeModalOpen}
+                      onClose={() => setIsRearrangeModalOpen(false)}
+                      data={activeCvForRearrange}
+                    />
+                  </DocumentContext.Provider>
+                );
+              })()}
+
+              {isRearrangeModalOpen && editableDocContent && editableDocContent.docType !== "CV" && (
                 <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
                   <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
                     {/* Modal Header */}
@@ -7323,7 +7609,7 @@ export function DocumentStudioDashboard() {
                       <div>
                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                           <span>⇅</span>
-                          <span>Rearrange {editableDocContent.docType === "CV" ? "CV" : "Document"} Sections</span>
+                          <span>Rearrange Document Sections</span>
                         </h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">
                           Use the arrows to reorder sections. The layout updates instantly.
@@ -7391,40 +7677,7 @@ export function DocumentStudioDashboard() {
                     </div>
 
                     {/* Modal Footer */}
-                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!editableDocContent) return;
-                          if (editableDocContent.docType === "CV") {
-                            const sample = getEuropassData(editableDocContent.studentId, editableDocContent.studentName, selectedStudentData);
-                            const defaultOrder = [
-                              "about",
-                              "education",
-                              "work",
-                              "languages",
-                              "english",
-                              "skills",
-                              "certification",
-                              "hobbi",
-                              "declaration",
-                            ];
-                            const sorted = [...editableDocContent.sections].sort((a, b) => {
-                              const idxA = defaultOrder.findIndex((k) => a.heading.toLowerCase().includes(k));
-                              const idxB = defaultOrder.findIndex((k) => b.heading.toLowerCase().includes(k));
-                              return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
-                            });
-                            const updated = { ...editableDocContent, sections: sorted };
-                            setEditableDocContent(updated);
-                            setActiveDocument(updated);
-                            setCvDocumentData(syncSectionsToCvData(sorted, sample));
-                            syncDocumentToRecent(updated, "Edited just now");
-                          }
-                        }}
-                        className="text-xs text-slate-500 hover:text-slate-800 underline transition cursor-pointer"
-                      >
-                        Reset to Default
-                      </button>
+                    <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end">
                       <button
                         type="button"
                         onClick={() => setIsRearrangeModalOpen(false)}
@@ -7483,10 +7736,11 @@ export function DocumentStudioDashboard() {
               {editableDocContent.docType === "CV" && cvViewMode === "europass" ? (
                 <div
                   data-document-studio-canvas="true"
-                  className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar"
+                  className="w-full max-w-full overflow-x-auto touch-pan-x pb-12 no-scrollbar"
                 >
                   <div
                     style={{
+<<<<<<< HEAD
                       transform: `scale(${zoomLevel / 100})`,
                       transformOrigin: "top center",
                       fontFamily,
@@ -7495,56 +7749,80 @@ export function DocumentStudioDashboard() {
                       "--europass-font-size-base": `${fontSize}pt`,
                       "--europass-text-dark": textColor,
                     } as React.CSSProperties}
+=======
+                      width: `calc(210mm * ${zoomLevel / 100})`,
+                      margin: "0 auto",
+                    }}
+>>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes)
                   >
-                    {(() => {
-                      const activeCvForRender =
-                        cvDocumentData ||
-                        getEuropassData(
-                          editableDocContent.studentId,
-                          editableDocContent.studentName,
-                          selectedStudentData
+                    <div
+                      style={{
+                        width: "210mm",
+                        transform: `scale(${zoomLevel / 100})`,
+                        transformOrigin: "top left",
+                        fontFamily,
+                        color: textColor,
+                        ["--europass-font-family" as any]: fontFamily,
+                        ["--europass-font-size-base" as any]: `${fontSize}pt`,
+                        ["--europass-text-dark" as any]: textColor,
+                      }}
+                    >
+                      {(() => {
+                        const activeCvForRender =
+                          cvDocumentData ||
+                          getEuropassData(
+                            editableDocContent.studentId,
+                            editableDocContent.studentName,
+                            selectedStudentData
+                          );
+                        return (
+                          <DocumentContext.Provider
+                            value={{
+                              data: activeCvForRender,
+                              dispatch: handleEuropassDispatch,
+                            }}
+                          >
+                            <EuropassTemplate
+                              data={activeCvForRender}
+                              isInteractive={editorMode === "editing"}
+                              activeSectionId={activeAiCvSectionKey || undefined}
+                            />
+                          </DocumentContext.Provider>
                         );
-                      return (
-                        <DocumentContext.Provider
-                          value={{
-                            data: activeCvForRender,
-                            dispatch: handleEuropassDispatch,
-                          }}
-                        >
-                          <EuropassTemplate
-                            data={activeCvForRender}
-                            isInteractive={editorMode === "editing"}
-                            activeSectionId={activeAiCvSectionKey || undefined}
-                          />
-                        </DocumentContext.Provider>
-                      );
-                    })()}
+                      })()}
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="w-full max-w-full overflow-x-auto touch-pan-x flex flex-col items-center pb-12 no-scrollbar">
-                  {/* Subtle A4 Format & Calibration Indicator Bar */}
-                  <div className="w-[210mm] min-w-[210mm] flex items-center justify-between px-2 mb-2 text-xs text-slate-400 no-print select-none">
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                      <span>A4 Standard Format · 210mm × 297mm</span>
-                    </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
-                      Master Template Margins: 11.5mm · Calibri 8pt
-                    </span>
-                  </div>
-
+                <div className="w-full max-w-full overflow-x-auto touch-pan-x pb-12 no-scrollbar">
                   <div
-                    className={`bg-white a4-paper-sheet rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
-                      ? "border border-indigo-400/80 ring-3 ring-indigo-500/15 shadow-[0_10px_35px_rgba(15,23,42,0.08)]"
-                      : "border border-slate-200/90 shadow-[0_8px_28px_rgba(15,23,42,0.06)]"
-                      }`}
                     style={{
-                      transform: `scale(${zoomLevel / 100})`,
-                      transformOrigin: "top center",
-                      boxSizing: "border-box",
+                      width: `calc(210mm * ${zoomLevel / 100})`,
+                      margin: "0 auto",
                     }}
                   >
+                    {/* Subtle A4 Format & Calibration Indicator Bar */}
+                    <div className="w-full flex flex-wrap items-center justify-between gap-2 px-2 mb-2 text-xs text-slate-400 no-print select-none">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                        <span>A4 Standard Format · 210mm × 297mm</span>
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-500">
+                        Master Template Margins: 11.5mm · Calibri 8pt
+                      </span>
+                    </div>
+
+                    <div
+                      className={`bg-white a4-paper-sheet rounded-xs w-[210mm] min-w-[210mm] min-h-[297mm] px-[11.5mm] py-[11.5mm] text-[#111111] transition-all duration-150 relative ${editorMode === "editing"
+                        ? "border border-indigo-400/80 ring-3 ring-indigo-500/15 shadow-[0_10px_35px_rgba(15,23,42,0.08)]"
+                        : "border border-slate-200/90 shadow-[0_8px_28px_rgba(15,23,42,0.06)]"
+                        }`}
+                      style={{
+                        transform: `scale(${zoomLevel / 100})`,
+                        transformOrigin: "top left",
+                        boxSizing: "border-box",
+                      }}
+                    >
                     {/* Tiptap Caret Engine */}
                     <TiptapEditor
                       initialContent={tiptapHtml}
@@ -7562,6 +7840,7 @@ export function DocumentStudioDashboard() {
                       }}
                       onFormatChange={handleFormatChange}
                     />
+                    </div>
                   </div>
                 </div>
               )}
@@ -7752,8 +8031,8 @@ export function DocumentStudioDashboard() {
             </div>
           )}
 
-          {/* ── Bottom Status Bar (Fully Responsive on Mobile) ────────────────── */}
-          <footer className="bg-white border-t border-slate-200 px-3 sm:px-6 py-2 flex items-center justify-between text-xs text-slate-600 select-none shrink-0 z-20 gap-3 no-print">
+          {/* ── Bottom Status Bar (Fully Responsive on Mobile & Half-Screen) ──── */}
+          <footer className="bg-white border-t border-slate-200 px-2.5 sm:px-6 py-2 flex items-center justify-between text-xs text-slate-600 select-none shrink-0 z-20 gap-2 sm:gap-3 overflow-x-auto no-scrollbar no-print">
             {/* Left Controls: Notes, Outline, Timer */}
             <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
               <button
@@ -7805,33 +8084,38 @@ export function DocumentStudioDashboard() {
             </div>
 
             {/* Right Controls: Dynamic Zoom Slider, Dynamic A4 Page Counter, Fullscreen */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* Dynamic Zoom Slider (shown on tablet and desktop) */}
-              <div className="hidden md:flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              {/* Dynamic Zoom Slider (always visible including half-screen) */}
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
-                  onClick={() => setZoomLevel((z) => Math.max(75, z - 5))}
+                  onClick={() => setZoomLevel((z) => Math.max(50, z - 5))}
                   className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer font-bold text-xs"
+                  title="Zoom out"
+                  aria-label="Zoom out"
                 >
                   -
                 </button>
                 <input
                   type="range"
-                  min="75"
+                  min="50"
                   max="150"
                   step="5"
                   value={zoomLevel}
                   onChange={(e) => setZoomLevel(Number(e.target.value))}
-                  className="w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  className="w-14 sm:w-24 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  aria-label="Document zoom percentage"
                 />
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(150, z + 5))}
                   className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 cursor-pointer font-bold text-xs"
+                  title="Zoom in"
+                  aria-label="Zoom in"
                 >
                   +
                 </button>
-                <span className="w-10 text-right font-medium text-slate-600 text-xs">{zoomLevel}%</span>
+                <span className="w-8 sm:w-10 text-right font-medium text-slate-600 text-[11px] sm:text-xs tabular-nums">{zoomLevel}%</span>
               </div>
 
               {/* Dynamic A4 Page Count based on actual word count */}

@@ -10,7 +10,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import type { DocumentData } from "@/types";
 import type { ResumeImportResult } from "../types/import";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
@@ -51,6 +51,15 @@ export function ResumeImportModal({
   const [processingStep, setProcessingStep] = useState<string>("Reading document...");
   const [importResult, setImportResult] = useState<ResumeImportResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setStage(hasUnsavedChanges ? "unsaved_check" : "upload");
+      setProcessingStep("Reading document...");
+      setImportResult(null);
+      setErrorMessage(null);
+    }
+  }, [isOpen, hasUnsavedChanges]);
 
   if (!isOpen) return null;
 
@@ -147,10 +156,10 @@ export function ResumeImportModal({
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      Import Existing Resume
+                      Import Existing CV
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Upload a PDF or DOCX resume to load into Template Generator
+                      Upload your existing resume and we&apos;ll organize its content into editable sections.
                     </p>
                   </div>
                   <button

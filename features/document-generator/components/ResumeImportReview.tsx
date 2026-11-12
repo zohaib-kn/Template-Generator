@@ -13,7 +13,7 @@
 
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import type { DocumentData, EducationEntry, InternshipEntry } from "@/types";
 import type {
   ResumeImportResult,
@@ -41,8 +41,14 @@ export function ResumeImportReview({
     internships: [...(importResult.data.internships || [])],
     academicProjects: [...(importResult.data.academicProjects || [])],
     certifications: [...(importResult.data.certifications || [])],
+    achievements: [...(importResult.data.achievements || [])],
+    leadershipActivities: [...(importResult.data.leadershipActivities || [])],
+    volunteering: [...(importResult.data.volunteering || [])],
     skills: [...(importResult.data.skills || [])],
     languages: [...(importResult.data.languages || [])],
+    hobbies: [...(importResult.data.hobbies || [])],
+    customSections: [...(importResult.data.customSections || [])],
+    sectionOrder: importResult.data.sectionOrder ? [...importResult.data.sectionOrder] : undefined,
   }));
 
   const [crmConflicts, setCrmConflicts] = useState<CrmConflictItem[]>(
@@ -51,7 +57,12 @@ export function ResumeImportReview({
 
   const [cropOpen, setCropOpen] = useState(false);
   const [cropImg, setCropImg] = useState<HTMLImageElement | null>(null);
+  const [reviewPhotoError, setReviewPhotoError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setReviewPhotoError(false);
+  }, [data.personal?.photoUrl]);
 
   function handleOpenCropModal() {
     if (!data.personal?.photoUrl) return;
@@ -347,27 +358,27 @@ export function ResumeImportReview({
               </div>
             )}
 
-            {/* Detected Sections Summary Grid */}
+            {/* Detected Sections Summary Grid — driven by sectionsSummary from the import engine */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700">
-                <span>Resume Section</span>
-                <span>Detected Content</span>
-                <span>Action</span>
+                <span>Import detected {importResult.sectionsSummary.filter((s) => s.status === "DETECTED" || s.status === "CONFLICT").length} sections</span>
+                <span className="font-normal text-slate-500">Source: {importResult.fileName}</span>
               </div>
               <div className="divide-y divide-slate-100 text-xs">
-                {/* Personal Details */}
+                {/* Personal Details — always shown */}
                 <div className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
                   <div className="flex items-center gap-2">
                     <span className="text-emerald-600 font-bold">✓</span>
                     <span className="font-semibold text-slate-800">Personal Details</span>
                   </div>
                   <div className="flex items-center gap-2.5 max-w-sm">
-                    {data.personal?.photoUrl && (
+                    {data.personal?.photoUrl && !reviewPhotoError && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={data.personal.photoUrl}
                         alt="Profile"
                         className="w-6 h-6 rounded-full object-cover border border-slate-300 flex-shrink-0"
+                        onError={() => setReviewPhotoError(true)}
                       />
                     )}
                     <span className="text-slate-600 truncate">
@@ -386,131 +397,71 @@ export function ResumeImportReview({
                   </button>
                 </div>
 
-                {/* Education */}
-                <div className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
-                  <div className="flex items-center gap-2">
-                    {(data.education || []).length > 0 ? (
-                      <span className="text-emerald-600 font-bold">✓</span>
-                    ) : (
-                      <span className="text-slate-300">○</span>
-                    )}
-                    <span className="font-semibold text-slate-800">Education & Training</span>
-                  </div>
-                  <span className="text-slate-600">
-                    {(data.education || []).length} qualifications detected
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleAddEducation}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
-                    >
-                      + Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSection("education");
-                        setActiveTab("sections");
-                      }}
-                      className="text-[#096491] hover:underline font-medium cursor-pointer"
-                    >
-                      Review
-                    </button>
-                  </div>
-                </div>
+                {/* Dynamic section rows from sectionsSummary */}
+                {importResult.sectionsSummary
+                  .filter((s) => s.sectionKey !== "personal")
+                  .map((section) => {
+                    const isDetected = section.status === "DETECTED" || section.status === "CONFLICT";
+                    const isCustom = section.title.startsWith("Custom:");
+                    const displayTitle = isCustom
+                      ? section.title.replace(/^Custom:\s*/, "")
+                      : section.title;
 
-                {/* Internships & Work Experience */}
-                <div className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
-                  <div className="flex items-center gap-2">
-                    {(data.internships || []).length > 0 ? (
-                      <span className="text-emerald-600 font-bold">✓</span>
-                    ) : (
-                      <span className="text-slate-300">○</span>
-                    )}
-                    <span className="font-semibold text-slate-800">Internships & Work Experience</span>
-                  </div>
-                  <span className="text-slate-600">
-                    {(data.internships || []).length} experiences detected
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleAddInternship}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
-                    >
-                      + Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSection("internships");
-                        setActiveTab("sections");
-                      }}
-                      className="text-[#096491] hover:underline font-medium cursor-pointer"
-                    >
-                      Review
-                    </button>
-                  </div>
-                </div>
-
-                {/* Skills */}
-                <div className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
-                  <div className="flex items-center gap-2">
-                    {(data.skills || []).length > 0 ? (
-                      <span className="text-emerald-600 font-bold">✓</span>
-                    ) : (
-                      <span className="text-slate-300">○</span>
-                    )}
-                    <span className="font-semibold text-slate-800">Skills</span>
-                  </div>
-                  <span className="text-slate-600">
-                    {(data.skills || []).length} skills detected
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleAddSkill}
-                      className="text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
-                    >
-                      + Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSection("skills");
-                        setActiveTab("sections");
-                      }}
-                      className="text-[#096491] hover:underline font-medium cursor-pointer"
-                    >
-                      Review
-                    </button>
-                  </div>
-                </div>
-
-                {/* Certifications */}
-                <div className="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
-                  <div className="flex items-center gap-2">
-                    {(data.certifications || []).length > 0 ? (
-                      <span className="text-emerald-600 font-bold">✓</span>
-                    ) : (
-                      <span className="text-slate-300">○</span>
-                    )}
-                    <span className="font-semibold text-slate-800">Certifications</span>
-                  </div>
-                  <span className="text-slate-500 italic">
-                    {(data.certifications || []).length > 0
-                      ? `${(data.certifications || []).length} detected`
-                      : "Not found in resume"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAddCertification}
-                    className="text-[#096491] hover:underline font-medium cursor-pointer"
-                  >
-                    + Add Certification
-                  </button>
-                </div>
+                    return (
+                      <div
+                        key={`${section.sectionKey}-${section.title}`}
+                        className="px-4 py-3 flex items-center justify-between hover:bg-slate-50"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isDetected ? (
+                            <span className="text-emerald-600 font-bold">✓</span>
+                          ) : (
+                            <span className="text-slate-300">○</span>
+                          )}
+                          <span className={`font-semibold ${isDetected ? "text-slate-800" : "text-slate-400"}`}>
+                            {displayTitle}
+                          </span>
+                          {isCustom && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 ml-1">
+                              Custom
+                            </span>
+                          )}
+                          {section.status === "CONFLICT" && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 ml-1">
+                              Conflict
+                            </span>
+                          )}
+                        </div>
+                        <span className={`${isDetected ? "text-slate-600" : "text-slate-400 italic"}`}>
+                          {isDetected
+                            ? section.itemCount > 1
+                              ? `${section.itemCount} entries detected`
+                              : "Detected"
+                            : "Not found in resume"}
+                        </span>
+                        {isDetected && !isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSection(section.sectionKey as string);
+                              setActiveTab("sections");
+                            }}
+                            className="text-[#096491] hover:underline font-medium cursor-pointer"
+                          >
+                            Review
+                          </button>
+                        )}
+                        {isCustom && (
+                          <span className="text-[11px] text-slate-400 italic">
+                            Preserved as-is
+                          </span>
+                        )}
+                        {!isDetected && !isCustom && (
+                          <span className="text-slate-300 text-[11px]">—</span>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           </div>
@@ -638,6 +589,47 @@ export function ResumeImportReview({
               >
                 Skills ({(data.skills || []).length})
               </button>
+              {(data.languages || []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setEditingSection("languages")}
+                  className={`w-full text-left px-3 py-2 rounded-lg font-medium cursor-pointer ${
+                    editingSection === "languages"
+                      ? "bg-white shadow-2xs text-slate-900 border border-slate-200"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Languages ({(data.languages || []).length})
+                </button>
+              )}
+              {(data.hobbies || []).length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setEditingSection("hobbies")}
+                  className={`w-full text-left px-3 py-2 rounded-lg font-medium cursor-pointer ${
+                    editingSection === "hobbies"
+                      ? "bg-white shadow-2xs text-slate-900 border border-slate-200"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Hobbies ({(data.hobbies || []).length})
+                </button>
+              )}
+              {(data.customSections || []).map((cs) => (
+                <button
+                  key={cs.id}
+                  type="button"
+                  onClick={() => setEditingSection(`custom_${cs.id}`)}
+                  className={`w-full text-left px-3 py-2 rounded-lg font-medium cursor-pointer ${
+                    editingSection === `custom_${cs.id}`
+                      ? "bg-white shadow-2xs text-slate-900 border border-slate-200"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-violet-600 mr-1">Custom</span>
+                  {cs.title}
+                </button>
+              ))}
             </div>
 
             {/* Section Fields Editor Area */}
@@ -649,12 +641,13 @@ export function ResumeImportReview({
                   {/* Photo Management Card */}
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="w-12 h-12 rounded-full bg-white border border-slate-300 overflow-hidden flex items-center justify-center flex-shrink-0">
-                      {data.personal?.photoUrl ? (
+                      {data.personal?.photoUrl && !reviewPhotoError ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={data.personal.photoUrl}
                           alt="Profile Preview"
                           className="w-full h-full object-cover"
+                          onError={() => setReviewPhotoError(true)}
                         />
                       ) : (
                         <span className="text-lg opacity-60">👤</span>
@@ -920,6 +913,159 @@ export function ResumeImportReview({
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* Languages Editor */}
+              {editingSection === "languages" && (
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-900">Language Skills</h4>
+                  {(data.languages || []).map((lang, idx) => (
+                    <div key={lang.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-700">Language #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setData((p) => ({
+                              ...p,
+                              languages: (p.languages || []).filter((l) => l.id !== lang.id),
+                            }))
+                          }
+                          className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                        >
+                          ✕ Remove
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Language"
+                          value={lang.language || ""}
+                          onChange={(e) => {
+                            const updated = [...(data.languages || [])];
+                            updated[idx] = { ...updated[idx], language: e.target.value };
+                            setData((p) => ({ ...p, languages: updated }));
+                          }}
+                          className="w-full border border-slate-300 rounded px-2 py-1 bg-white"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Level (e.g. Native, B2)"
+                          value={lang.level || ""}
+                          onChange={(e) => {
+                            const updated = [...(data.languages || [])];
+                            updated[idx] = { ...updated[idx], level: e.target.value };
+                            setData((p) => ({ ...p, languages: updated }));
+                          }}
+                          className="w-full border border-slate-300 rounded px-2 py-1 bg-white"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {(data.languages || []).length === 0 && (
+                    <p className="text-slate-400 italic text-center py-4">No languages detected.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Hobbies Editor */}
+              {editingSection === "hobbies" && (
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-900">Hobbies & Interests</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {(data.hobbies || []).map((hobby, idx) => (
+                      <div
+                        key={hobby.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg"
+                      >
+                        <input
+                          type="text"
+                          value={hobby.name || ""}
+                          onChange={(e) => {
+                            const updated = [...(data.hobbies || [])];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setData((p) => ({ ...p, hobbies: updated }));
+                          }}
+                          className="w-24 bg-transparent focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setData((p) => ({
+                              ...p,
+                              hobbies: (p.hobbies || []).filter((h) => h.id !== hobby.id),
+                            }))
+                          }
+                          className="text-slate-400 hover:text-rose-500 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {(data.hobbies || []).length === 0 && (
+                    <p className="text-slate-400 italic text-center py-4">No hobbies detected.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Custom Section Editors */}
+              {(data.customSections || []).map((cs) =>
+                editingSection === `custom_${cs.id}` ? (
+                  <div key={cs.id} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">Custom Section</span>
+                      <h4 className="font-bold text-slate-900">{cs.title}</h4>
+                    </div>
+                    <p className="text-[10px] text-slate-500 bg-violet-50 border border-violet-100 rounded-lg px-3 py-2">
+                      This section heading was not recognised as a standard resume section and has been preserved verbatim. It will appear in the Resume Builder as a custom section.
+                    </p>
+                    <div>
+                      <label className="text-slate-600 block mb-1">Section Heading</label>
+                      <input
+                        type="text"
+                        value={cs.title}
+                        onChange={(e) =>
+                          setData((p) => ({
+                            ...p,
+                            customSections: (p.customSections || []).map((s) =>
+                              s.id === cs.id ? { ...s, title: e.target.value } : s
+                            ),
+                          }))
+                        }
+                        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 focus:border-[#096491]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-600 block mb-1">Content (verbatim from imported CV)</label>
+                      <textarea
+                        rows={8}
+                        value={cs.content}
+                        onChange={(e) =>
+                          setData((p) => ({
+                            ...p,
+                            customSections: (p.customSections || []).map((s) =>
+                              s.id === cs.id ? { ...s, content: e.target.value } : s
+                            ),
+                          }))
+                        }
+                        className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 focus:border-[#096491] font-mono text-xs resize-y"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setData((p) => ({
+                          ...p,
+                          customSections: (p.customSections || []).filter((s) => s.id !== cs.id),
+                        }))
+                      }
+                      className="text-xs text-rose-600 hover:underline cursor-pointer"
+                    >
+                      ✕ Remove this custom section
+                    </button>
+                  </div>
+                ) : null
               )}
             </div>
           </div>

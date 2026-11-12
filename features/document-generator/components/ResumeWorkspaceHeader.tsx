@@ -413,27 +413,27 @@ export function ResumeWorkspaceHeader({
                   type="button"
                   id="resume-import-btn"
                   onClick={onOpenImport}
-                  className="h-8 px-3 rounded-lg border border-slate-200/90 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  className="h-8 px-3 rounded-lg border border-slate-200/90 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 text-xs font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                   title="Import existing resume (PDF / DOCX)"
                 >
                   <UploadCloudIcon className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Import Resume</span>
+                  <span>Import CV</span>
                 </button>
               )}
             </div>
           )}
 
-          {/* Optional import shortcut for wide screens when student is active */}
+          {/* Import CV Action: Always visible next to student controls */}
           {isStudentLoaded && onOpenImport && (
             <button
               type="button"
               id="resume-import-btn-loaded"
               onClick={onOpenImport}
-              className="hidden 2xl:flex h-8 px-2.5 rounded-lg border border-slate-200/90 text-slate-600 bg-white hover:bg-slate-50 text-xs font-medium transition-colors shadow-2xs cursor-pointer items-center gap-1.5 flex-shrink-0"
+              className="h-8 px-2.5 sm:px-3 rounded-lg border border-slate-200/90 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 text-xs font-medium transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5 flex-shrink-0"
               title="Import existing resume (PDF / DOCX)"
             >
               <UploadCloudIcon className="w-3.5 h-3.5 text-slate-500" />
-              <span>Import</span>
+              <span>Import CV</span>
             </button>
           )}
         </div>

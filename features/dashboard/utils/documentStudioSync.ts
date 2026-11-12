@@ -23,8 +23,50 @@ export function sanitizeAddressValue(raw: string): string {
   return clean;
 }
 
-import type { DocumentData } from "@/types/document";
+import { DEFAULT_MOVABLE_SECTION_ORDER, type DocumentData } from "@/types/document";
 import { parseDescriptionToBullets, stripLeadingMarkers } from "@/templates/europass/utils/descriptionParser";
+import { sortEducationEntries } from "@/features/document-generator/utils/educationSequence";
+
+const EUROPASS_STUDIO_DEFAULT_ORDER: string[] = [
+  "aboutMe",
+  "education",
+  "languages",
+  "englishCertificate",
+  "hobbies",
+  "internships",
+  "academicProjects",
+  "achievements",
+  "certifications",
+  "skills",
+  "leadershipActivities",
+  "volunteering",
+  "academicInterests",
+  "recommendations",
+  "declaration",
+];
+
+/**
+ * Maps a flat studio section heading to its canonical DocumentData sectionId.
+ */
+export function headingToSectionId(heading: string): string | null {
+  const h = heading.toLowerCase();
+  if (h.includes("about me") || h.includes("about")) return "aboutMe";
+  if (h.includes("education") || h.includes("training")) return "education";
+  if (h.includes("work") || h.includes("internship") || h.includes("employment")) return "internships";
+  if (h.includes("english") || h.includes("ielts") || h.includes("toefl")) return "englishCertificate";
+  if (h.includes("language")) return "languages";
+  if (h.includes("digital") || h.includes("skill")) return "skills";
+  if (h.includes("certification") || h.includes("certificate")) return "certifications";
+  if (h.includes("academic interest") || (h.includes("interest") && !h.includes("hobb"))) return "academicInterests";
+  if (h.includes("hobbi") || h.includes("interest")) return "hobbies";
+  if (h.includes("project")) return "academicProjects";
+  if (h.includes("achievement") || h.includes("award")) return "achievements";
+  if (h.includes("leadership") || h.includes("responsibilit") || h.includes("extracurricular")) return "leadershipActivities";
+  if (h.includes("volunteer") || h.includes("community")) return "volunteering";
+  if (h.includes("recommendation") || h.includes("referee")) return "recommendations";
+  if (h.includes("declaration") || h.includes("compliance") || h.includes("genuine")) return "declaration";
+  return null;
+}
 
 /**
  * Synchronizes sections edited in the Caret Editor back into the structured DocumentData model.
@@ -134,9 +176,17 @@ export function syncSectionsToCvData(
       const datesMatch = instLine.match(/\[\s*([^\]]+)\s*\]/);
       const instName = instLine.replace(/\[\s*[^\]]+\s*\]/, "").trim();
       const metaLine = lines.slice(2).join(" | ");
-      const gradeMatch = metaLine.match(/Final grade:\s*([^|]+)/i);
-      const locMatch = metaLine.match(/Location:\s*([^|]+)/i);
+      const gradeMatch = metaLine.match(/(?:Final grade|Score):\s*([^|]+)/i);
+      const locMatch = metaLine.match(/(?:Location|Address|City):\s*([^|]+)/i);
       const webMatch = metaLine.match(/Website:\s*([^|]+)/i);
+      const otherParts = metaLine
+        .split("|")
+        .map((p) => p.trim())
+        .filter(
+          (p) =>
+            p &&
+            !/^(?:location|address|city|website|final\s*grade|score)\s*:\s*/i.test(p)
+        );
       return {
         id: `edu-${idx}`,
         qualification: qual,
@@ -146,6 +196,7 @@ export function syncSectionsToCvData(
         finalGrade: gradeMatch ? gradeMatch[1].trim() : undefined,
         address: locMatch ? locMatch[1].trim() : undefined,
         website: webMatch ? webMatch[1].trim() : undefined,
+        description: otherParts.length > 0 ? otherParts.join(" | ") : undefined,
       };
     });
   } else if (eduSec && !eduSec.content.trim()) {
@@ -481,26 +532,6 @@ export function syncSectionsToCvData(
   }
 
   // 17. Map dynamic section order from sections array for Europass template
-  const headingToSectionId = (heading: string): string | null => {
-    const h = heading.toLowerCase();
-    if (h.includes("about me") || h.includes("about")) return "aboutMe";
-    if (h.includes("education") || h.includes("training")) return "education";
-    if (h.includes("work") || h.includes("internship") || h.includes("employment")) return "internships";
-    if (h.includes("english") || h.includes("ielts") || h.includes("toefl")) return "englishCertificate";
-    if (h.includes("language")) return "languages";
-    if (h.includes("digital") || h.includes("skill")) return "skills";
-    if (h.includes("certification") || h.includes("certificate")) return "certifications";
-    if (h.includes("academic interest") || (h.includes("interest") && !h.includes("hobb"))) return "academicInterests";
-    if (h.includes("hobbi") || h.includes("interest")) return "hobbies";
-    if (h.includes("project")) return "academicProjects";
-    if (h.includes("achievement") || h.includes("award")) return "achievements";
-    if (h.includes("leadership") || h.includes("responsibilit") || h.includes("extracurricular")) return "leadershipActivities";
-    if (h.includes("volunteer") || h.includes("community")) return "volunteering";
-    if (h.includes("recommendation") || h.includes("referee")) return "recommendations";
-    if (h.includes("declaration") || h.includes("compliance") || h.includes("genuine")) return "declaration";
-    return null;
-  };
-
   const detectedOrder: string[] = [];
   for (const sec of sections) {
     if (sec.heading) {
@@ -532,23 +563,7 @@ export function syncSectionsToCvData(
 
   const existingOrder = baseCv.sectionOrder && baseCv.sectionOrder.length > 0
     ? baseCv.sectionOrder
-    : [
-      "aboutMe",
-      "education",
-      "languages",
-      "englishCertificate",
-      "hobbies",
-      "internships",
-      "academicProjects",
-      "achievements",
-      "certifications",
-      "skills",
-      "leadershipActivities",
-      "volunteering",
-      "academicInterests",
-      "recommendations",
-      "declaration",
-    ];
+    : EUROPASS_STUDIO_DEFAULT_ORDER;
   const mergedOrder = [...detectedOrder];
   for (const id of existingOrder) {
     if (!mergedOrder.includes(id) && !removedSectionIds.has(id)) {
@@ -619,7 +634,9 @@ export function syncCvDataToSections(
       s.heading?.toLowerCase().includes("training")
   );
   if (cv.education !== undefined && eduIdx >= 0) {
-    const validEdu = (cv.education || []).filter((e) => e.qualification || e.institution);
+    const validEdu = sortEducationEntries(
+      (cv.education || []).filter((e) => e.qualification || e.institution)
+    );
     sections[eduIdx].content = validEdu
       .map((edu) => {
         const lines = [
@@ -634,7 +651,20 @@ export function syncCvDataToSections(
           .filter(Boolean)
           .join(" | ");
         if (meta) lines.push(meta);
-        if (edu.description) lines.push(edu.description);
+        if (edu.description) {
+          const extraDesc = edu.description
+            .split("|")
+            .map((p) => p.trim())
+            .filter((p) => {
+              if (!p) return false;
+              if (edu.address !== undefined && /^(?:address|city|location)\s*:\s*/i.test(p)) return false;
+              if (edu.website !== undefined && /^(?:website\s*:|https?:\/\/|www\.)/i.test(p)) return false;
+              if (edu.finalGrade !== undefined && /^(?:final\s*grade|score)\s*:\s*/i.test(p)) return false;
+              return true;
+            })
+            .join(" | ");
+          if (extraDesc) lines.push(extraDesc);
+        }
         return lines.join("\n");
       })
       .join("\n\n");
@@ -753,6 +783,39 @@ export function syncCvDataToSections(
         });
       }
     }
+  }
+
+  // 15. Reorder flat studio sections to stay in lockstep with cv.sectionOrder
+  if (cv.sectionOrder && cv.sectionOrder.length > 0) {
+    const isGenericDefault =
+      cv.sectionOrder.length === DEFAULT_MOVABLE_SECTION_ORDER.length &&
+      cv.sectionOrder.every((id, idx) => id === DEFAULT_MOVABLE_SECTION_ORDER[idx]);
+
+    const targetOrder = isGenericDefault ? EUROPASS_STUDIO_DEFAULT_ORDER : cv.sectionOrder;
+    const orderIndexMap = new Map<string, number>();
+    targetOrder.forEach((id, idx) => {
+      orderIndexMap.set(id, idx);
+      if (id === "aboutMe") orderIndexMap.set("about", idx);
+      if (id === "about") orderIndexMap.set("aboutMe", idx);
+    });
+
+    const declOrderIdx = orderIndexMap.get("declaration") ?? targetOrder.length;
+
+    return [...sections]
+      .map((sec, originalIdx) => {
+        const secId = sec.heading ? headingToSectionId(sec.heading) : null;
+        const mappedIdx = secId !== null ? orderIndexMap.get(secId) : undefined;
+        return {
+          sec,
+          originalIdx,
+          sortIdx: mappedIdx !== undefined ? mappedIdx : declOrderIdx - 0.5,
+        };
+      })
+      .sort((a, b) => {
+        if (a.sortIdx !== b.sortIdx) return a.sortIdx - b.sortIdx;
+        return a.originalIdx - b.originalIdx;
+      })
+      .map((item) => item.sec);
   }
 
   return sections;

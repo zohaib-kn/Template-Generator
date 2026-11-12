@@ -16,6 +16,7 @@ import { EuropassHeader } from "./EuropassHeader";
 import { EuropassSectionTitle } from "./EuropassSectionTitle";
 import { AboutSection } from "./sections/AboutSection";
 import { EducationSection } from "./sections/EducationSection";
+import { sortEducationEntries } from "@/features/document-generator/utils/educationSequence";
 import { InternshipSection } from "./sections/InternshipSection";
 import { AcademicInterestsSection } from "./sections/AcademicInterestsSection";
 import { AcademicProjectsSection } from "./sections/AcademicProjectsSection";
@@ -174,7 +175,10 @@ export function EuropassTemplate({
 
   // Normalize repeatable arrays
   const educationEntries = useMemo(
-    () => (data.education ?? []).filter((e) => e.institution || e.qualification),
+    () =>
+      sortEducationEntries(
+        (data.education ?? []).filter((e) => e.institution || e.qualification)
+      ),
     [data.education]
   );
   const internshipEntries = useMemo(

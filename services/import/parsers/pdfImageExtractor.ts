@@ -51,33 +51,59 @@ function makePngChunk(type: string, data: Buffer): Buffer {
 }
 
 /**
+ * Converts DeviceCMYK pixel data (4 channels in PDF) into standard 3-channel RGB.
+ */
+function convertCmykToRgb(raw: Uint8ClampedArray, width: number, height: number): Uint8ClampedArray {
+  const pixelCount = width * height;
+  const rgb = new Uint8ClampedArray(pixelCount * 3);
+  for (let i = 0, j = 0; i < pixelCount * 4 && j < rgb.length; i += 4, j += 3) {
+    const c = (raw[i] || 0) / 255;
+    const m = (raw[i + 1] || 0) / 255;
+    const y = (raw[i + 2] || 0) / 255;
+    const k = (raw[i + 3] || 0) / 255;
+    rgb[j] = Math.round(255 * (1 - c) * (1 - k));
+    rgb[j + 1] = Math.round(255 * (1 - m) * (1 - k));
+    rgb[j + 2] = Math.round(255 * (1 - y) * (1 - k));
+  }
+  return rgb;
+}
+
+/**
  * Encodes raw pixel data into a standard PNG buffer using Node's built-in zlib.
  */
 export function rawPixelsToPng(
-  raw: Uint8ClampedArray,
+  rawInput: Uint8ClampedArray,
   width: number,
   height: number,
   channels: 1 | 3 | 4
 ): Buffer {
+  let raw = rawInput;
+  let actualChannels: 1 | 3 = channels === 4 ? 3 : channels;
+
+  // In PDF, 4-channel image streams are DeviceCMYK. Convert CMYK to standard RGB.
+  if (channels === 4) {
+    raw = convertCmykToRgb(rawInput, width, height);
+  }
+
   const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const ihdrData = Buffer.alloc(13);
   ihdrData.writeUInt32BE(width, 0);
   ihdrData.writeUInt32BE(height, 4);
   ihdrData[8] = 8; // 8 bits per channel
-  ihdrData[9] = channels === 4 ? 6 : channels === 3 ? 2 : 0; // RGBA=6, RGB=2, Grayscale=0
+  ihdrData[9] = actualChannels === 3 ? 2 : 0; // RGB=2, Grayscale=0
   ihdrData[10] = 0; // Deflate compression
   ihdrData[11] = 0; // Default filter
   ihdrData[12] = 0; // No interlace
   const ihdrChunk = makePngChunk("IHDR", ihdrData);
 
-  const rowSize = width * channels;
+  const rowSize = width * actualChannels;
   const scanlines = Buffer.alloc(height * (rowSize + 1));
   for (let y = 0; y < height; y++) {
     scanlines[y * (rowSize + 1)] = 0; // Filter type: None (0)
-    Buffer.from(raw.buffer, raw.byteOffset + y * rowSize, rowSize).copy(
-      scanlines,
-      y * (rowSize + 1) + 1
-    );
+    const rowStart = y * rowSize;
+    const rowEnd = Math.min(rowStart + rowSize, raw.length);
+    const rowSlice = raw.subarray(rowStart, rowEnd);
+    Buffer.from(rowSlice).copy(scanlines, y * (rowSize + 1) + 1);
   }
 
   const idatChunk = makePngChunk("IDAT", zlib.deflateSync(scanlines));

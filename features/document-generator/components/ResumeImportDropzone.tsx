@@ -95,10 +95,14 @@ export function ResumeImportDropzone({ onFileSelect, disabled = false }: ResumeI
 
         <div>
           <p className="text-sm font-semibold text-slate-800">
-            Click to upload or drag & drop
+            Drop PDF or DOCX here
           </p>
           <p className="text-xs text-slate-500 mt-1">
+<<<<<<< HEAD
             Upload your candidate&apos;s existing resume in PDF or DOCX format
+=======
+            or <span className="text-[#096491] font-medium underline">Choose File</span> from your computer
+>>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes)
           </p>
         </div>
 
@@ -113,6 +117,10 @@ export function ResumeImportDropzone({ onFileSelect, disabled = false }: ResumeI
             · Max 8 MB
           </span>
         </div>
+
+        <p className="text-[11px] text-slate-500 italic border-t border-slate-200/60 pt-2 px-4 max-w-sm">
+          Your original content will be preserved. Nothing will be rewritten automatically.
+        </p>
       </div>
 
       {errorMessage && (

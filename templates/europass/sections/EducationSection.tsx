@@ -28,37 +28,72 @@ function formatDateDMY(iso?: string): string {
   return iso;
 }
 
-function removeWebsiteFromDescription(desc?: string): string {
+const ADDRESS_PART_PATTERN = /^(?:address|city|location)\s*:\s*/i;
+const WEBSITE_PART_PATTERN = /^(?:website\s*:|https?:\/\/|www\.)/i;
+const GRADE_PART_PATTERN = /^(?:final\s*grade|score)\s*:\s*/i;
+
+function removePartFromDescription(desc: string | undefined, pattern: RegExp): string {
   if (!desc) return "";
   return desc
     .split("|")
     .map((p) => p.trim())
-    .filter((p) => p && !/^website\s*:\s*/i.test(p))
+    .filter((p) => p && !pattern.test(p))
     .join(" | ");
 }
 
-function updateWebsiteInDescription(desc: string | undefined, newUrl: string): string {
-  const clean = removeWebsiteFromDescription(desc);
-  const trimmed = newUrl.trim();
+function updatePartInDescription(
+  desc: string | undefined,
+  pattern: RegExp,
+  label: string,
+  newValue: string,
+  prepend = false
+): string {
+  const clean = removePartFromDescription(desc, pattern);
+  const trimmed = newValue.trim();
   if (!trimmed) return clean;
-  return clean ? `${clean} | Website: ${trimmed}` : `Website: ${trimmed}`;
+  const formatted = `${label}: ${trimmed}`;
+  if (!clean) return formatted;
+  return prepend ? `${formatted} | ${clean}` : `${clean} | ${formatted}`;
 }
 
-function renderEducationDetails(
-  entry: EducationEntry,
+interface EducationDetailsLineProps {
+  entry: EducationEntry;
+  isInteractive?: boolean;
+  onUpdate?: (id: string, patch: Partial<EducationEntry>) => void;
+}
+
+function EducationDetailsLine({
+  entry,
   isInteractive = false,
-  onUpdate?: (id: string, patch: Partial<EducationEntry>) => void
-) {
-  const parts = getOrderedEducationParts(entry);
-  const hasWebsite = parts.some((p) => /^website\s*:\s*/i.test(p.trim()));
+  onUpdate,
+}: EducationDetailsLineProps) {
+  const [editingField, setEditingField] = useState<"website" | "finalGrade" | null>(null);
+
+  const orderedParts = getOrderedEducationParts(entry);
+  const hasAddress = orderedParts.some((p) => /^address\s*:\s*/i.test(p.trim()));
+  const hasWebsite = orderedParts.some((p) => /^website\s*:\s*/i.test(p.trim()));
+  const hasFinalGrade = orderedParts.some((p) => /^final\s*grade\s*:\s*/i.test(p.trim()));
+
+  // Keep the Address slot always present in interactive mode, and keep active optional fields mounted while cleared
+  const parts = [...orderedParts];
+  if (isInteractive && onUpdate && !hasAddress) {
+    parts.unshift("Address: ");
+  }
+  if (editingField === "website" && !hasWebsite) {
+    const addrIdx = parts.findIndex((p) => /^address\s*:\s*/i.test(p.trim()));
+    parts.splice(addrIdx >= 0 ? addrIdx + 1 : 0, 0, "Website: ");
+  } else if (editingField === "finalGrade" && !hasFinalGrade) {
+    parts.push("Final grade: ");
+  }
 
   if (parts.length === 0 && (!isInteractive || !onUpdate)) return null;
 
   const handleRemoveWebsite = () => {
     if (!onUpdate) return;
+    setEditingField((prev) => (prev === "website" ? null : prev));
     onUpdate(entry.id, {
       website: "",
-      description: removeWebsiteFromDescription(entry.description),
+      description: removePartFromDescription(entry.description, WEBSITE_PART_PATTERN),
     });
   };
 
@@ -67,7 +102,7 @@ function renderEducationDetails(
     const initialUrl = "https://";
     onUpdate(entry.id, {
       website: initialUrl,
-      description: updateWebsiteInDescription(entry.description, initialUrl),
+      description: updatePartInDescription(entry.description, WEBSITE_PART_PATTERN, "Website", initialUrl),
     });
   };
 
@@ -75,18 +110,62 @@ function renderEducationDetails(
     <div className={styles.educationDetails}>
       {parts.map((part, pIdx) => {
         const trimmed = part.trim();
+        const addressMatch = trimmed.match(/^Address:\s*(.*)$/i);
         const websiteMatch = trimmed.match(/^Website:\s*(.*)$/i);
+        const gradeMatch = trimmed.match(/^Final\s*grade:\s*(.*)$/i);
+
+        if (addressMatch) {
+          const rawAddress = addressMatch[1].trim();
+          if (!rawAddress && (!isInteractive || !onUpdate)) {
+            return null;
+          }
+
+          return (
+            <span key="address">
+              {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
+              <span>Address: </span>
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={rawAddress}
+                  multiline
+                  submitOnEnter
+                  onChange={(newVal) => {
+                    const cleanAddress = newVal
+                      .replace(/^(?:address|city|location)\s*:\s*/i, "")
+                      .replace(/[\r\n]+/g, ", ")
+                      .replace(/\|/g, ",")
+                      .trim();
+                    onUpdate(entry.id, {
+                      address: cleanAddress,
+                      description: updatePartInDescription(
+                        entry.description,
+                        ADDRESS_PART_PATTERN,
+                        "Address",
+                        cleanAddress,
+                        true
+                      ),
+                    });
+                  }}
+                  isInteractive={isInteractive}
+                  placeholder="Street, City, Country"
+                />
+              ) : (
+                rawAddress
+              )}
+            </span>
+          );
+        }
 
         if (websiteMatch) {
           const rawUrl = websiteMatch[1].trim();
           const href = normalizePdfUrl(rawUrl);
 
-          if (!rawUrl && !isInteractive) {
+          if (!rawUrl && (!isInteractive || editingField !== "website")) {
             return null;
           }
 
           return (
-            <span key={pIdx} className={styles.websiteItemWrapper}>
+            <span key="website" className={styles.websiteItemWrapper}>
               {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
               <span>Website: </span>
               {isInteractive && onUpdate ? (
@@ -94,15 +173,19 @@ function renderEducationDetails(
                   <EditableText
                     value={rawUrl}
                     href={href}
+                    onEditingChange={(editing) =>
+                      setEditingField(editing ? "website" : null)
+                    }
                     onChange={(newUrl) => {
                       const trimmedUrl = newUrl.trim();
-                      if (!trimmedUrl) {
-                        handleRemoveWebsite();
-                        return;
-                      }
                       onUpdate(entry.id, {
                         website: trimmedUrl,
-                        description: updateWebsiteInDescription(entry.description, trimmedUrl),
+                        description: updatePartInDescription(
+                          entry.description,
+                          WEBSITE_PART_PATTERN,
+                          "Website",
+                          trimmedUrl
+                        ),
                       });
                     }}
                     isInteractive={isInteractive}
@@ -140,8 +223,49 @@ function renderEducationDetails(
           );
         }
 
+        if (gradeMatch) {
+          const rawGrade = gradeMatch[1].trim();
+          if (!rawGrade && (!isInteractive || editingField !== "finalGrade")) {
+            return null;
+          }
+
+          return (
+            <span key="finalGrade">
+              {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
+              <span>Final grade: </span>
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={rawGrade}
+                  onEditingChange={(editing) =>
+                    setEditingField(editing ? "finalGrade" : null)
+                  }
+                  onChange={(newGrade) => {
+                    const cleanGrade = newGrade
+                      .replace(/^(?:final\s*grade|score)\s*:\s*/i, "")
+                      .replace(/\|/g, ",")
+                      .trim();
+                    onUpdate(entry.id, {
+                      finalGrade: cleanGrade,
+                      description: updatePartInDescription(
+                        entry.description,
+                        GRADE_PART_PATTERN,
+                        "Final grade",
+                        cleanGrade
+                      ),
+                    });
+                  }}
+                  isInteractive={isInteractive}
+                  placeholder="95/100"
+                />
+              ) : (
+                rawGrade
+              )}
+            </span>
+          );
+        }
+
         return (
-          <span key={pIdx}>
+          <span key={`other-${pIdx}`}>
             {pIdx > 0 && <span className={styles.pipeDivider}> | </span>}
             {isInteractive && onUpdate ? (
               <EditableText
@@ -284,7 +408,11 @@ export const EducationSection = memo(function EducationSection({
               </div>
             )}
 
-            {renderEducationDetails(entry, isInteractive, onUpdate)}
+            <EducationDetailsLine
+              entry={entry}
+              isInteractive={isInteractive}
+              onUpdate={onUpdate}
+            />
           </div>
         );
       })}

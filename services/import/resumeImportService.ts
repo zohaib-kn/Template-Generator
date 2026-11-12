@@ -67,12 +67,22 @@ export function computeSectionsSummary(data: DocumentData): DetectedSectionSumma
     { key: "declaration", title: "Declaration", count: isDeclarationFilled ? 1 : 0, isFilled: isDeclarationFilled },
   ];
 
-  return entries.map((entry) => ({
+  const standardSummary = entries.map((entry) => ({
     sectionKey: entry.key,
     title: entry.title,
     itemCount: entry.count,
-    status: entry.isFilled ? "DETECTED" : "NOT_FOUND",
+    status: (entry.isFilled ? "DETECTED" : "NOT_FOUND") as DetectedSectionSummary["status"],
   }));
+
+  // Add custom sections to the summary with DETECTED status
+  const customSectionEntries: DetectedSectionSummary[] = (data.customSections ?? []).map((cs) => ({
+    sectionKey: "customSections" as keyof DocumentData,
+    title: `Custom: ${cs.title}`,
+    itemCount: 1,
+    status: "DETECTED" as const,
+  }));
+
+  return [...standardSummary, ...customSectionEntries];
 }
 
 export async function processResumeUpload(
@@ -128,9 +138,9 @@ export async function processResumeUpload(
       personal: {
         ...(embeddedDocumentData.personal || {}),
         photoUrl:
+          crmProfile?.personal?.photoUrl ||
           extractedPhotoUrl ||
-          embeddedDocumentData.personal?.photoUrl ||
-          crmProfile?.personal?.photoUrl,
+          embeddedDocumentData.personal?.photoUrl,
       },
     };
   } else {
@@ -149,9 +159,9 @@ export async function processResumeUpload(
         email: deterministic.personal.email || aiResult.data.personal?.email,
         phone: deterministic.personal.phone || aiResult.data.personal?.phone,
         photoUrl:
+          crmProfile?.personal?.photoUrl ||
           extractedPhotoUrl ||
-          aiResult.data.personal?.photoUrl ||
-          crmProfile?.personal?.photoUrl,
+          aiResult.data.personal?.photoUrl,
       },
       aboutMe: aiResult.data.aboutMe || deterministic.candidateData.aboutMe,
       education:
@@ -175,8 +185,25 @@ export async function processResumeUpload(
         aiResult.data.skills && aiResult.data.skills.length > 0
           ? aiResult.data.skills
           : deterministic.candidateData.skills,
+      hobbies:
+        aiResult.data.hobbies && aiResult.data.hobbies.length > 0
+          ? aiResult.data.hobbies
+          : deterministic.candidateData.hobbies,
+      motherTongue:
+        aiResult.data.motherTongue || deterministic.candidateData.motherTongue,
       englishCertificate: aiResult.data.englishCertificate,
-      declaration: deterministic.candidateData.declaration,
+      declaration:
+        aiResult.data.declaration || deterministic.candidateData.declaration,
+      // Preserve unknown sections as custom sections — never discard content.
+      // Prefer AI-detected customSections; fall back to deterministic unknown section chunks.
+      customSections:
+        aiResult.data.customSections && aiResult.data.customSections.length > 0
+          ? aiResult.data.customSections
+          : deterministic.candidateData.customSections && deterministic.candidateData.customSections.length > 0
+          ? deterministic.candidateData.customSections
+          : undefined,
+      // Preserve original document section order
+      sectionOrder: aiResult.data.sectionOrder,
     };
     ambiguousItems = aiResult.ambiguousItems;
     unmappedSnippets = deterministic.unmappedLines.slice(0, 10);
