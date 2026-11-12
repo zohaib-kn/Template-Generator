@@ -7740,20 +7740,9 @@ export function DocumentStudioDashboard() {
                 >
                   <div
                     style={{
-<<<<<<< HEAD
-                      transform: `scale(${zoomLevel / 100})`,
-                      transformOrigin: "top center",
-                      fontFamily,
-                      color: textColor,
-                      "--europass-font-family": fontFamily,
-                      "--europass-font-size-base": `${fontSize}pt`,
-                      "--europass-text-dark": textColor,
-                    } as React.CSSProperties}
-=======
                       width: `calc(210mm * ${zoomLevel / 100})`,
                       margin: "0 auto",
                     }}
->>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes)
                   >
                     <div
                       style={{
@@ -7762,10 +7751,10 @@ export function DocumentStudioDashboard() {
                         transformOrigin: "top left",
                         fontFamily,
                         color: textColor,
-                        ["--europass-font-family" as any]: fontFamily,
-                        ["--europass-font-size-base" as any]: `${fontSize}pt`,
-                        ["--europass-text-dark" as any]: textColor,
-                      }}
+                        "--europass-font-family": fontFamily,
+                        "--europass-font-size-base": `${fontSize}pt`,
+                        "--europass-text-dark": textColor,
+                      } as React.CSSProperties}
                     >
                       {(() => {
                         const activeCvForRender =

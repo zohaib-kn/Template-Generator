@@ -75,11 +75,7 @@ export function EditableText({
       setIsEditing(true);
       onEditingChange?.(true);
     },
-<<<<<<< HEAD
-    [isInteractive, value]
-=======
-    [isInteractive, onEditingChange]
->>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes)
+    [isInteractive, value, onEditingChange]
   );
 
   const handleChange = useCallback(

@@ -12,13 +12,8 @@
  * - Never modifies, rewrites, or embellishes applicant wording.
  */
 
-<<<<<<< HEAD:services/import/normalizers/aiResumeClassifier.ts
 import { aiService } from "@/services/ai/openaiClient";
-import type { DocumentData } from "@/types";
-=======
-import { geminiService } from "@/services/ai/gemini/geminiClient";
 import type { DocumentData, CustomSectionEntry } from "@/types";
->>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes):services/import/normalizers/geminiResumeClassifier.ts
 import type { AmbiguousItem } from "@/features/document-generator/types/import";
 import { generateId } from "@/lib/generateId";
 
@@ -228,9 +223,6 @@ function parseJsonClean(text: string): Record<string, unknown> | null {
   }
 }
 
-<<<<<<< HEAD:services/import/normalizers/aiResumeClassifier.ts
-export async function classifyResumeWithAi(
-=======
 /**
  * Builds the imported sectionOrder from the AI response.
  * Converts "customSection:<Title>" keys into the customSections id-based format
@@ -261,8 +253,7 @@ function buildSectionOrder(
   return result.length > 0 ? result : undefined;
 }
 
-export async function classifyResumeWithGemini(
->>>>>>> 0f0cc8a (address chnages , UI changes , rearranginf order changes):services/import/normalizers/geminiResumeClassifier.ts
+export async function classifyResumeWithAi(
   rawText: string,
   maxRetries = 2
 ): Promise<AiClassificationResult> {
