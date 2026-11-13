@@ -10,6 +10,7 @@
 
 import type { EducationEntry } from "@/types";
 import { getInstitutionWebsite } from "./institutionWebsites";
+import { cleanWebsiteUrl } from "./linkUtils";
 
 export function getOrderedEducationParts(entry: EducationEntry): string[] {
   let address = entry.address?.trim();
@@ -58,7 +59,10 @@ export function getOrderedEducationParts(entry: EducationEntry): string[] {
 
   // 2. Website URL (clickable)
   if (website) {
-    parts.push(website.startsWith("Website:") ? website : `Website: ${website}`);
+    const cleanWeb = cleanWebsiteUrl(website);
+    if (cleanWeb) {
+      parts.push(cleanWeb.startsWith("Website:") ? cleanWeb : `Website: ${cleanWeb}`);
+    }
   }
 
   // 3. Final grade

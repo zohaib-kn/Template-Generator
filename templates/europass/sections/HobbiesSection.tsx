@@ -37,6 +37,16 @@ export const HobbiesSection = memo(function HobbiesSection({
 
   const showTitle = title === undefined ? true : Boolean(title);
 
+  const isSectionHeading = (text: string) => {
+    const norm = text.toLowerCase().replace(/[^a-z]/g, "");
+    return (
+      norm === "hobbiesandinterests" ||
+      norm === "hobbiesinterests" ||
+      norm === "hobbies" ||
+      norm === "interests"
+    );
+  };
+
   // Flatten any entries that contain comma, semicolon, newline, or bullet separated hobbies
   const visibleHobbies: FlattenedHobbyItem[] = [];
   entries.forEach((hobby, entryIdx) => {
@@ -45,7 +55,7 @@ export const HobbiesSection = memo(function HobbiesSection({
     const parts = hobby.name
       .split(/[\n,;•·]+/g)
       .map((item) => item.replace(/^[•*\-\s]+/, "").trim())
-      .filter((item) => item.length > 0);
+      .filter((item) => item.length > 0 && !isSectionHeading(item));
 
     if (parts.length > 1) {
       parts.forEach((p, partIdx) => {
@@ -79,7 +89,7 @@ export const HobbiesSection = memo(function HobbiesSection({
   if (displayList.length === 0) return null;
 
   return (
-    <section className={styles.sectionWrapper}>
+    <section className={`${styles.sectionWrapper} ${!showTitle ? styles.sectionContinuation : ""}`.trim()}>
       {showTitle && (
         <EuropassSectionTitle
           title={title || "HOBBIES AND INTERESTS"}

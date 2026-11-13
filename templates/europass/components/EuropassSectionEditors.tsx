@@ -16,6 +16,7 @@ import type {
   HobbyEntry,
 } from "@/types";
 import styles from "../europass.module.css";
+import { cleanWebsiteUrl } from "@/features/document-generator/utils/linkUtils";
 
 // ── Shared UI Primitives ───────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ export function EducationInlineForm({
       startDate: startDate.trim(),
       endDate: endDate.trim(),
       address: address.trim(),
-      website: website.trim(),
+      website: cleanWebsiteUrl(website),
       finalGrade: finalGrade.trim(),
       description: description.trim(),
     });

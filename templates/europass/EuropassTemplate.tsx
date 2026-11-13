@@ -67,9 +67,20 @@ function getElementHeightWithMargins(el: HTMLElement): number {
 function getSplittableEntryHeight(el: HTMLElement): number {
   const section = (el.firstElementChild as HTMLElement) || el;
   const entryChild = (section.firstElementChild as HTMLElement) || section;
+  const elStyle = window.getComputedStyle(el);
+  const secStyle = window.getComputedStyle(section);
   const childStyle = window.getComputedStyle(entryChild);
+
+  const elMarginBottom = parseFloat(elStyle.marginBottom) || 0;
+  const secMarginBottom = parseFloat(secStyle.marginBottom) || 0;
   const childMarginBottom = parseFloat(childStyle.marginBottom) || 0;
-  return Math.max(el.offsetHeight, section.offsetHeight, entryChild.offsetHeight + childMarginBottom);
+
+  const maxMargin = Math.max(elMarginBottom, secMarginBottom, childMarginBottom);
+  return Math.max(
+    el.offsetHeight + elMarginBottom,
+    section.offsetHeight + secMarginBottom,
+    entryChild.offsetHeight + maxMargin
+  );
 }
 
 function arePagesEqual(
@@ -227,8 +238,81 @@ export function EuropassTemplate({
       ),
     [motherTongue, languages]
   );
-  const skills = useMemo(() => data.skills ?? [], [data.skills]);
-  const hobbies = useMemo(() => data.hobbies ?? [], [data.hobbies]);
+  const isSkillSectionHeading = (text: string) => {
+    const norm = text.toLowerCase().replace(/[^a-z]/g, "");
+    return (
+      norm === "skills" ||
+      norm === "keyskills" ||
+      norm === "technicalskills" ||
+      norm === "softskills"
+    );
+  };
+
+  const isHobbySectionHeading = (text: string) => {
+    const norm = text.toLowerCase().replace(/[^a-z]/g, "");
+    return (
+      norm === "hobbiesandinterests" ||
+      norm === "hobbiesinterests" ||
+      norm === "hobbies" ||
+      norm === "interests"
+    );
+  };
+
+  const skillEntries = useMemo(() => {
+    const raw = data.skills ?? [];
+    const flattened: Array<{ id: string; name: string }> = [];
+    raw.forEach((skill, entryIdx) => {
+      if (!skill.name || !skill.name.trim()) return;
+      const parts = skill.name
+        .split(/[\n\r/•]+/g)
+        .map((p) => p.replace(/^[•*\-\s/]+/, "").trim())
+        .filter((p) => p.length > 0 && !isSkillSectionHeading(p));
+
+      if (parts.length > 1) {
+        parts.forEach((p, pIdx) => {
+          flattened.push({
+            id: `${skill.id || entryIdx}-${pIdx}`,
+            name: p,
+          });
+        });
+      } else if (parts.length === 1) {
+        flattened.push({
+          id: skill.id || `skill-${entryIdx}`,
+          name: parts[0],
+        });
+      }
+    });
+    return flattened;
+  }, [data.skills]);
+
+  const hobbyEntries = useMemo(() => {
+    const raw = data.hobbies ?? [];
+    const flattened: Array<{ id: string; name: string; description?: string }> = [];
+    raw.forEach((hobby, entryIdx) => {
+      if (!hobby.name || !hobby.name.trim()) return;
+      const parts = hobby.name
+        .split(/[\n,;•·]+/g)
+        .map((p) => p.replace(/^[•*\-\s]+/, "").trim())
+        .filter((p) => p.length > 0 && !isHobbySectionHeading(p));
+
+      if (parts.length > 1) {
+        parts.forEach((p, pIdx) => {
+          flattened.push({
+            id: `${hobby.id || entryIdx}-${pIdx}`,
+            name: p,
+            description: hobby.description?.trim(),
+          });
+        });
+      } else if (parts.length === 1) {
+        flattened.push({
+          id: hobby.id || `hobby-${entryIdx}`,
+          name: parts[0],
+          description: hobby.description?.trim(),
+        });
+      }
+    });
+    return flattened;
+  }, [data.hobbies]);
   const recommendations = useMemo(() => data.recommendations ?? [], [data.recommendations]);
   const declaration = data.declaration ?? "";
   const englishCertificate = useMemo(() => data.englishCertificate ?? null, [data.englishCertificate]);
@@ -363,13 +447,23 @@ export function EuropassTemplate({
           }
           break;
         case "skills":
-          if (skills && skills.length > 0) {
-            allItems.push({ key: "skills", secKey: "skills", title: "SKILLS" });
+          if (skillEntries.length > 0) {
+            allItems.push({
+              key: "skills_all",
+              secKey: "skills",
+              startIndex: 0,
+              endIndex: skillEntries.length,
+            });
           }
           break;
         case "hobbies":
-          if (hobbies && hobbies.length > 0) {
-            allItems.push({ key: "hobbies", secKey: "hobbies", title: "HOBBIES AND INTERESTS" });
+          if (hobbyEntries.length > 0) {
+            allItems.push({
+              key: "hobbies_all",
+              secKey: "hobbies",
+              startIndex: 0,
+              endIndex: hobbyEntries.length,
+            });
           }
           break;
         case "recommendations":
@@ -424,9 +518,9 @@ export function EuropassTemplate({
         case "certifications":
           return 38 + certificationEntries.length * 45;
         case "skills":
-          return 50;
+          return 38 + skillEntries.length * 24;
         case "hobbies":
-          return 90;
+          return 38 + hobbyEntries.length * 24;
         case "recommendations":
           return 38 + recommendations.length * 150;
         default:
@@ -456,8 +550,8 @@ export function EuropassTemplate({
     languages,
     englishCertificate,
     hasEnglishCert,
-    skills,
-    hobbies,
+    skillEntries.length,
+    hobbyEntries.length,
     recommendations,
     declaration,
     educationEntries.length,
@@ -695,10 +789,14 @@ export function EuropassTemplate({
               onDeleteSection={() => deleteSection("englishCertificate")}
             />
           ) : null;
-        case "skills":
-          return skills.length > 0 ? (
+        case "skills": {
+          const slice = skillEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? skillEntries.length
+          );
+          return slice.length > 0 ? (
             <SkillsSection
-              entries={skills}
+              entries={slice}
               title={item.title}
               isInteractive={isInteractive}
               onAdd={addSkill}
@@ -707,10 +805,15 @@ export function EuropassTemplate({
               onDeleteSection={() => deleteSection("skills")}
             />
           ) : null;
-        case "hobbies":
-          return hobbies.length > 0 ? (
+        }
+        case "hobbies": {
+          const slice = hobbyEntries.slice(
+            item.startIndex ?? 0,
+            item.endIndex ?? hobbyEntries.length
+          );
+          return slice.length > 0 ? (
             <HobbiesSection
-              entries={hobbies}
+              entries={slice}
               title={item.title}
               isInteractive={isInteractive}
               onAdd={addHobby}
@@ -719,6 +822,7 @@ export function EuropassTemplate({
               onDeleteSection={() => deleteSection("hobbies")}
             />
           ) : null;
+        }
         case "recommendations": {
           const slice = recommendations.slice(
             item.startIndex ?? 0,
@@ -794,8 +898,8 @@ export function EuropassTemplate({
       motherTongue,
       hasLanguages,
       languages,
-      skills,
-      hobbies,
+      skillEntries,
+      hobbyEntries,
       recommendations,
       setAboutMe,
       setDeclaration,
@@ -821,12 +925,11 @@ export function EuropassTemplate({
     if (!measureRef.current) return;
     const container = measureRef.current;
 
-    // A4 height is 297mm. Measured padding is 7.3mm top + 11.2mm bottom = 18.5mm.
-    // Usable height inside padding: 278.5mm (~1052.6px at 96 DPI).
-    // Reserve 28px safety buffer (~7.4mm) to account for sub-pixel text rendering,
-    // interactive focus borders, and avoid clipping near the bottom page decoration.
+    // A4 height is 297mm. Padding is 10mm top + 12mm bottom = 22mm.
+    // Usable height inside padding: 275mm (~1039.4px at 96 DPI).
+    // Reserve safety buffer to account for sub-pixel text rendering and avoid clipping.
     const PAGE_SAFETY_BUFFER = 12;
-    const A4_USABLE_HEIGHT_PX = 278.5 * (96 / 25.4) - PAGE_SAFETY_BUFFER;
+    const A4_USABLE_HEIGHT_PX = 275 * (96 / 25.4) - PAGE_SAFETY_BUFFER;
     const pageContentEl = container.querySelector(
       "[data-measure-page]"
     ) as HTMLElement | null;
@@ -1302,13 +1405,13 @@ export function EuropassTemplate({
           }
           break;
         case "skills":
-          if (skills && skills.length > 0) {
-            placeAtomic("skills", "SKILLS");
+          if (skillEntries.length > 0) {
+            placeSplittable("skills", "SKILLS", skillEntries);
           }
           break;
         case "hobbies":
-          if (hobbies && hobbies.length > 0) {
-            placeAtomic("hobbies", "HOBBIES AND INTERESTS");
+          if (hobbyEntries.length > 0) {
+            placeSplittable("hobbies", "HOBBIES AND INTERESTS", hobbyEntries);
           }
           break;
         case "recommendations":
@@ -1345,8 +1448,8 @@ export function EuropassTemplate({
     languages,
     englishCertificate,
     hasEnglishCert,
-    skills,
-    hobbies,
+    skillEntries,
+    hobbyEntries,
     recommendations,
     declaration,
     educationEntries,
@@ -1384,11 +1487,11 @@ export function EuropassTemplate({
       >
         <div
           className={styles.pageContent}
-          style={{ height: "auto", minHeight: "auto", padding: "7.3mm 8.9mm 11.2mm 9.2mm", boxSizing: "border-box" }}
+          style={{ height: "auto", minHeight: "auto", padding: "10mm 10mm 12mm 10mm", boxSizing: "border-box" }}
         >
           <div
             data-measure-page
-            style={{ height: "278.5mm", boxSizing: "border-box" }}
+            style={{ height: "275mm", boxSizing: "border-box" }}
           />
           <div data-measure="header">
             <EuropassHeader personal={data.personal} />
@@ -1413,16 +1516,6 @@ export function EuropassTemplate({
           {hasEnglishCert && englishCertificate && (
             <div data-measure="englishCertificate">
               <EnglishCertificateSection cert={englishCertificate} />
-            </div>
-          )}
-          {data.skills && (
-            <div data-measure="skills">
-              <SkillsSection entries={data.skills} />
-            </div>
-          )}
-          {data.hobbies && (
-            <div data-measure="hobbies">
-              <HobbiesSection entries={data.hobbies} />
             </div>
           )}
           {data.declaration && (
@@ -1529,6 +1622,38 @@ export function EuropassTemplate({
           {recommendations.map((e, idx) => (
             <div key={e.id || idx} data-measure-entry="recommendations" data-index={idx}>
               <RecommendationsSection entries={[e]} title="" />
+            </div>
+          ))}
+
+          {/* Skills */}
+          <div data-measure-title="skills" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="SKILLS" />
+          </div>
+          {skillEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="skills" data-index={idx}>
+              <div
+                className={styles.skillsBulletItem}
+                style={{ marginBottom: "1.2mm" }}
+              >
+                <span className={styles.skillsBulletDot} aria-hidden="true">•</span>
+                <span className={styles.bulletText}>{e.name}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* Hobbies */}
+          <div data-measure-title="hobbies" className={styles.sectionWrapper}>
+            <EuropassSectionTitle title="HOBBIES AND INTERESTS" />
+          </div>
+          {hobbyEntries.map((e, idx) => (
+            <div key={e.id} data-measure-entry="hobbies" data-index={idx}>
+              <div
+                className={styles.hobbiesBulletItem}
+                style={{ marginBottom: "1.6mm" }}
+              >
+                <span className={styles.hobbiesBulletDot} aria-hidden="true">•</span>
+                <span className={styles.bulletText}>{e.name}</span>
+              </div>
             </div>
           ))}
         </div>

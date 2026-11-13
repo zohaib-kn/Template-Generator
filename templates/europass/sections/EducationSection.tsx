@@ -5,7 +5,7 @@ import { EuropassSectionTitle } from "../EuropassSectionTitle";
 import { getOrderedEducationParts } from "@/features/document-generator/utils/educationSequence";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { EditableDateRange } from "@/features/document-generator/components/inline/EditableDateRange";
-import { normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
+import { cleanWebsiteUrl, normalizePdfUrl } from "@/features/document-generator/utils/linkUtils";
 import { EducationInlineForm } from "../components/EuropassSectionEditors";
 
 interface EducationSectionProps {
@@ -100,10 +100,10 @@ function EducationDetailsLine({
 
   const handleAddWebsite = () => {
     if (!onUpdate) return;
-    const initialUrl = "https://";
+    setEditingField("website");
     onUpdate(entry.id, {
-      website: initialUrl,
-      description: updatePartInDescription(entry.description, WEBSITE_PART_PATTERN, "Website", initialUrl),
+      website: "",
+      description: updatePartInDescription(entry.description, WEBSITE_PART_PATTERN, "Website", ""),
     });
   };
 
@@ -158,7 +158,7 @@ function EducationDetailsLine({
         }
 
         if (websiteMatch) {
-          const rawUrl = websiteMatch[1].trim();
+          const rawUrl = cleanWebsiteUrl(websiteMatch[1]);
           const href = normalizePdfUrl(rawUrl);
 
           if (!rawUrl && (!isInteractive || editingField !== "website")) {
@@ -178,20 +178,20 @@ function EducationDetailsLine({
                       setEditingField(editing ? "website" : null)
                     }
                     onChange={(newUrl) => {
-                      const trimmedUrl = newUrl.trim();
+                      const cleanUrl = cleanWebsiteUrl(newUrl);
                       onUpdate(entry.id, {
-                        website: trimmedUrl,
+                        website: cleanUrl,
                         description: updatePartInDescription(
                           entry.description,
                           WEBSITE_PART_PATTERN,
                           "Website",
-                          trimmedUrl
+                          cleanUrl
                         ),
                       });
                     }}
                     isInteractive={isInteractive}
                     className={styles.blueLink}
-                    placeholder="https://..."
+                    placeholder="e.g. school.edu or https://..."
                   />
                   <button
                     type="button"

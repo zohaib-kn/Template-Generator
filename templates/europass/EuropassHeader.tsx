@@ -4,6 +4,7 @@ import styles from "./europass.module.css";
 import { EditableText } from "@/features/document-generator/components/inline/EditableText";
 import { PhotoRepositionModal } from "@/features/document-generator/components/PhotoRepositionModal";
 import { DEFAULT_PHOTO_CROP } from "@/features/document-generator/utils/photoCrop";
+import { cleanWebsiteUrl } from "@/features/document-generator/utils/linkUtils";
 
 interface EuropassHeaderProps {
   personal?: PersonalDetails;
@@ -45,10 +46,10 @@ function formatDateDMY(iso?: string): string {
 
 function formatUrl(url?: string): string | undefined {
   if (!url) return undefined;
-  const trimmed = url.trim();
-  if (!trimmed) return undefined;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
+  const cleaned = cleanWebsiteUrl(url);
+  if (!cleaned) return undefined;
+  if (/^https?:\/\//i.test(cleaned)) return cleaned;
+  return `https://${cleaned}`;
 }
 
 function formatAddress(address?: string): string {

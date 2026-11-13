@@ -505,6 +505,10 @@
   margin-bottom: 0;
 }
 
+.sectionWrapper.sectionContinuation {
+  margin-top: 0.8mm;
+}
+
 .pageContent>.sectionWrapper:first-child,
 .pageContent>div:first-child>.sectionWrapper,
 .pageContent>div:first-child .sectionWrapper {
