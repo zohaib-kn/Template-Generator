@@ -97,6 +97,35 @@ export function isMetadataOrScaffoldingSection(title: string, content: string): 
   return false;
 }
 
+export function deduplicateSentencesAcrossParagraphs(paragraphs: string[]): string[] {
+  const seenSentences = new Set<string>();
+  const cleanedParagraphs: string[] = [];
+
+  for (const p of paragraphs) {
+    if (!p || !p.trim()) continue;
+    const sentences = p.split(/(?<=[.!?])\s+/);
+    const kept: string[] = [];
+    for (const s of sentences) {
+      const trimmed = s.trim();
+      if (!trimmed) continue;
+      const norm = trimmed.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (norm.length > 25 && seenSentences.has(norm)) {
+        continue;
+      }
+      if (norm.length > 25) {
+        seenSentences.add(norm);
+      }
+      kept.push(trimmed);
+    }
+    const joined = kept.join(" ").trim();
+    if (joined) {
+      cleanedParagraphs.push(joined);
+    }
+  }
+
+  return cleanedParagraphs;
+}
+
 export function buildCoverLetterLayout(sections: ExportSection[]): CoverLetterLayout {
   let effectiveSections = sections;
   if (sections.length === 1 && sections[0]?.content && (sections[0].content.includes("###") || sections[0].content.includes("Subject:"))) {
@@ -120,17 +149,61 @@ export function buildCoverLetterLayout(sections: ExportSection[]): CoverLetterLa
 
   const get = (...slots: Slot[]) => slots.flatMap((slot) => bySlot.get(slot) ?? []).join(" ");
 
-  const paragraphs = [
-    get("intro", "academics"),
+  const introList = bySlot.get("intro") ?? [];
+  const academicsList = bySlot.get("academics") ?? [];
+  let firstParagraph = "";
+  if (introList.length > 0 && academicsList.length > 0) {
+    const introText = introList.join(" ").trim();
+    const acadText = academicsList.join(" ").trim();
+    const introClean = introText.replace(/\*\*/g, "").toLowerCase().replace(/\s+/g, " ").slice(0, 30);
+    const acadClean = acadText.replace(/\*\*/g, "").toLowerCase().replace(/\s+/g, " ");
+    if (introClean.length > 10 && acadClean.includes(introClean)) {
+      firstParagraph = acadText;
+    } else {
+      firstParagraph = `${introText} ${acadText}`.trim();
+    }
+  } else {
+    firstParagraph = [...introList, ...academicsList].join(" ").trim();
+  }
+
+  const futureList = bySlot.get("futurePlan") ?? [];
+  const careerList = bySlot.get("careerPlan") ?? [];
+  const returnList = bySlot.get("returnIntent") ?? [];
+
+  let plansParagraph = "";
+  const futureText = futureList.join(" ").trim();
+  const careerText = careerList.join(" ").trim();
+  const returnText = returnList.join(" ").trim();
+
+  // If futurePlan is already a comprehensive synthesis of academic plans, career progression, and return intent,
+  // do not re-append redundant legacy career/return sections that would create duplicate sentences.
+  const futureHasReturn = /\b(?:return(?:ing)?|home\s+country|back\s+to\s+(?:india|my\s+home))\b/i.test(futureText);
+  const futureHasCareer = /\b(?:career|entry-level|profession(?:al)?|workplace|responsibilit(?:y|ies))\b/i.test(futureText);
+
+  if (futureText.length > 250 && futureHasReturn && futureHasCareer) {
+    plansParagraph = futureText;
+  } else if (futureText.length > 200 && futureHasCareer) {
+    plansParagraph = futureText;
+    if (returnText && !futureHasReturn) {
+      plansParagraph = `${futureText} ${returnText}`.trim();
+    }
+  } else {
+    plansParagraph = [futureText, careerText, returnText].filter(Boolean).join(" ").trim();
+  }
+
+  const rawParagraphs = [
+    firstParagraph,
     get("whyCourse"),
     get("whyUniversity"),
     get("whyCountry"),
-    get("futurePlan", "careerPlan", "returnIntent"),
+    plansParagraph,
     get("finance"),
     get("accommodation", "insurance", "travel"),
     ...unclassified,
     get("closing"),
   ].filter(Boolean);
+
+  const paragraphs = deduplicateSentencesAcrossParagraphs(rawParagraphs);
 
   return {
     recipient: get("recipient"),

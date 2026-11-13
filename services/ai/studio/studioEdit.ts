@@ -218,7 +218,7 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   const before = new Map(req.sections.map((s) => [s.heading, s.content]));
 
   // Clean unwanted address pollution from ABOUT ME for CV documents
-  const sanitizedSections = sections.map((sec) => {
+  let sanitizedSections = sections.map((sec) => {
     if (req.docType === "CV" && sec.heading.toLowerCase().includes("about me")) {
       const cleanContent = sec.content
         .replace(/(?:\r?\n|\s+)(?:Home\s+Address|Address)\s*[:\-]\s*[^\n.]+(?:\.)?/gi, "")
@@ -229,25 +229,85 @@ export function parseStudioResponse(raw: string, req: StudioEditRequest): Studio
   });
 
   // Strict Single-Section Enforcement:
-  // If targetAnchor heading is specified, revert any changes to OTHER sections back to original
+  // If targetAnchor heading is specified, ensure ONLY that section is modified in-place,
+  // sanitize it against hallucinations/duplicates, and guarantee all OTHER sections remain untouched.
   if (req.targetAnchor?.heading) {
     const targetNorm = cleanHeading(req.targetAnchor.heading).toLowerCase();
-    const hasTargetMatch = sanitizedSections.some((s) => {
+    const targetOriginal = req.sections.find((s) => {
       const norm = cleanHeading(s.heading).toLowerCase();
       return norm === targetNorm || norm.includes(targetNorm) || targetNorm.includes(norm);
     });
 
-    if (hasTargetMatch) {
-      for (let i = 0; i < sanitizedSections.length; i++) {
-        const secNorm = cleanHeading(sanitizedSections[i].heading).toLowerCase();
-        const isTarget = secNorm === targetNorm || secNorm.includes(targetNorm) || targetNorm.includes(secNorm);
-        if (!isTarget) {
-          const orig = req.sections.find((s) => cleanHeading(s.heading).toLowerCase() === secNorm);
-          if (orig) {
-            sanitizedSections[i] = { ...orig };
+    if (targetOriginal) {
+      const targetProduced = sanitizedSections.find((s) => {
+        const norm = cleanHeading(s.heading).toLowerCase();
+        return norm === targetNorm || norm.includes(targetNorm) || targetNorm.includes(norm);
+      });
+
+      let updatedContent = targetProduced?.content || targetOriginal.content;
+
+      // 1. Clean markdown headers and echoed titles
+      updatedContent = updatedContent
+        .replace(new RegExp(`^\\s*#{1,6}\\s*${cleanHeading(targetOriginal.heading)}\\s*\\n?`, "i"), "")
+        .replace(/^#+\s+[^\n]+\n?/, "")
+        .replace(/^\*\*[^*]+:\*\*\s*\n?/, "")
+        .trim();
+
+      // 2. Strip conversational preambles
+      updatedContent = updatedContent
+        .replace(/^(?:(?:Here\s+(?:is|are)|Below\s+is|Certainly!?|Sure!?)[^\n]*?(?:rewritten|humanized|revised|updated|version|draft|section)[^\n]*?:?\s*)+/i, "")
+        .trim();
+
+      // 3. Strip conversational sign-offs
+      updatedContent = updatedContent
+        .replace(/(?:\n+(?:I\s+hope\s+this\s+helps|Let\s+me\s+know\s+if|Feel\s+free\s+to|Would\s+you\s+like\s+me\s+to)[\s\S]*)$/i, "")
+        .trim();
+
+      // 4. Guard against empty response: fallback to original
+      if (!updatedContent || updatedContent.trim().length === 0) {
+        updatedContent = targetOriginal.content;
+      }
+
+      // 5. Cross-Section Contamination Guard:
+      // Strip any sentences copied from other sections that were not originally in this section
+      const otherSections = req.sections.filter((s) => s.heading !== targetOriginal.heading);
+      for (const other of otherSections) {
+        const otherSentences = (other.content || "")
+          .split(/(?<=[.!?])\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length >= 35);
+        for (const os of otherSentences) {
+          if (!targetOriginal.content.includes(os) && updatedContent.includes(os)) {
+            updatedContent = updatedContent.replace(os, "").replace(/\s{2,}/g, " ").trim();
           }
         }
       }
+
+      // 6. Deduplicate repeated consecutive sentences within updatedContent
+      const contentSentences = updatedContent.split(/(?<=[.!?])\s+/);
+      const seenSentencesInTarget = new Set<string>();
+      const dedupedSentences: string[] = [];
+      for (const cs of contentSentences) {
+        const norm = cs.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (norm.length > 25 && seenSentencesInTarget.has(norm)) {
+          continue;
+        }
+        if (norm.length > 25) {
+          seenSentencesInTarget.add(norm);
+        }
+        dedupedSentences.push(cs.trim());
+      }
+      updatedContent = dedupedSentences.join(" ");
+
+      // 7. Guarantee exact section list and order matches req.sections
+      sanitizedSections = req.sections.map((orig) => {
+        const norm = cleanHeading(orig.heading).toLowerCase();
+        const isTarget = norm === targetNorm || norm.includes(targetNorm) || targetNorm.includes(norm);
+        return {
+          heading: orig.heading,
+          content: isTarget ? updatedContent : orig.content,
+        };
+      });
     }
   }
 

@@ -28,8 +28,8 @@ export const AcademicInterestsSection = memo(function AcademicInterestsSection({
   
   if (!entries || entries.length === 0) return null;
 
-  const names = entries.map((e) => e.name).filter(Boolean).join(", ");
-  if (!names) return null;
+  const visible = entries.filter((e) => Boolean(e.name && e.name.trim()));
+  if (visible.length === 0) return null;
 
   const showTitle = title === undefined ? true : Boolean(title);
 
@@ -56,23 +56,27 @@ export const AcademicInterestsSection = memo(function AcademicInterestsSection({
         />
       )}
 
-      <p className={styles.aboutMeText}>
-        {isInteractive && onUpdate ? (
-          entries.map((interest, idx) => (
-            <span key={interest.id || idx}>
-              {idx > 0 && ", "}
-              <EditableText
-                value={interest.name ?? ""}
-                onChange={(v) => onUpdate(interest.id, { name: v })}
-                isInteractive={isInteractive}
-                placeholder="Academic interest"
-              />
+      <div className={styles.hobbiesBulletList}>
+        {visible.map((interest, idx) => (
+          <div key={interest.id || idx} className={styles.hobbiesBulletItem}>
+            <span className={styles.hobbiesBulletDot} aria-hidden="true">
+              •
             </span>
-          ))
-        ) : (
-          names
-        )}
-      </p>
+            <span className={styles.bulletText}>
+              {isInteractive && onUpdate ? (
+                <EditableText
+                  value={interest.name ?? ""}
+                  onChange={(v) => onUpdate(interest.id, { name: v })}
+                  isInteractive={isInteractive}
+                  placeholder="Academic interest"
+                />
+              ) : (
+                interest.name
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 });

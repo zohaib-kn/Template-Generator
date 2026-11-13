@@ -141,8 +141,8 @@ function isInformationalQuestion(prompt: string): boolean {
   const p = prompt.trim();
   const lower = p.toLowerCase();
 
-  // If starts with clear imperative edit words, it's not a pure question
-  if (/^(?:please\s+)?(?:add|set|update|change|replace|delete|remove|rewrite|make|polish|improve|create|insert|move|put)\b/i.test(lower)) {
+  // If prompt contains clear edit/humanize directives, it is an editing instruction, not a pure inquiry
+  if (/\b(?:humanize|rewrite|make\s+(?:it|this|them)?|polish|improve|rephrase|refine|edit|update|change|replace|add|delete|remove|insert|fix\s+grammar|correct\s+grammar)\b/i.test(lower)) {
     return false;
   }
 
@@ -217,28 +217,28 @@ export function findMatchingSection(
 
   // 2. Semantic keywords mapping to specific headings
   const KEYWORD_MAP: [RegExp, RegExp][] = [
-    [/(?:whys+(?:thiss+|chooses+)?(?:course|programme)|course|programme|degrees+program|curriculum)/i, /whys+(?:thiss+)?course|course/i],
-    [/(?:whys+(?:thiss+|chooses+)?(?:uni|university)|university|college|institution|targets+uni)/i, /whys+(?:thiss+)?(?:university|institution)|university/i],
-    [/(?:whys+(?:thiss+|chooses+)?(?:italy|country)|country|italy|destination)/i, /whys+(?:italy|thiss+country)|country|italy/i],
-    [/(?:futures+academics+plan|futures+study|futures+studies|masters?|phd)/i, /futures+academics+plan/i],
-    [/(?:careers+plan|careers+goals?|career|aspirations?|longs*terms*goals?)/i, /careers+plan|careers+goals|career/i],
-    [/(?:returns+(?:tos+)?home|returns+intent|tiess+tos+home|homes+country|comes+back)/i, /return|homes+country/i],
-    [/(?:finance|financial|loan|educations+loan|sponsor|funds|bank)/i, /financ|sponsor/i],
-    [/(?:academic|academics|education|school|priors+study|12th|bachelor)/i, /academics+background|education/i],
-    [/(?:intro|introduction|abouts+thes+student|bio|abouts+me)/i, /students+introduction|abouts+me/i],
-    [/(?:accommodation|stay|housing|residence)/i, /accommodation/i],
-    [/(?:insurance|policy)/i, /insurance/i],
-    [/(?:travel|flight|ticket|itinerary|arrival)/i, /travel/i],
-    [/(?:closings+statement|closing|conclusion|conclude)/i, /closing/i],
-    [/(?:signature|students+contact|contacts+details|signs*off)/i, /signature|contact/i],
-    [/(?:consulate|embassy|recipient|visas+officer)/i, /recipient|consulate/i],
-    [/(?:subject|subjects+line)/i, /subject/i],
-    [/(?:work|internship|job|experience)/i, /works+experience|internship/i],
-    [/(?:skills|digitals+skills|technicals+skills)/i, /digitals+skills|skills/i],
-    [/(?:language|languages)/i, /languages+skills|languages/i],
-    [/(?:projects?)/i, /projects?/i],
-    [/(?:achievements?|awards?)/i, /achievements?/i],
-    [/(?:certifications?|certificates?)/i, /certifications?/i],
+    [/\b(?:why\s+(?:this\s+|choose\s+)?(?:course|programme)|course|programme|degree\s+program|curriculum)\b/i, /why\s+(?:this\s+)?course|course/i],
+    [/\b(?:why\s+(?:this\s+|choose\s+)?(?:uni|university)|university|college|institution|target\s+uni)\b/i, /why\s+(?:this\s+)?(?:university|institution)|university/i],
+    [/\b(?:why\s+(?:italy|this\s+country)|country|italy|destination)\b/i, /why\s+(?:italy|this\s+country)|country|italy/i],
+    [/\b(?:future\s+academic\s+plan|future\s+study|future\s+studies|masters?|phd)\b/i, /future\s+academic\s+plan/i],
+    [/\b(?:career\s+plan|career\s+goals?|career|aspirations?|long\s*term\s*goals?)\b/i, /career\s+plan|career\s+goals|career/i],
+    [/\b(?:return\s+(?:to\s+)?home|return\s+intent|ties\s+to\s+home|home\s+country|comes?\s+back)\b/i, /return|home\s+country/i],
+    [/\b(?:finance|financial|loan|education\s+loan|sponsor|funds|bank)\b/i, /financ|sponsor/i],
+    [/\b(?:academic|academics|education|school|prior\s+study|12th|bachelor)\b/i, /academic\s+background|education/i],
+    [/\b(?:intro|introduction|about\s+the\s+student|bio|about\s+me)\b/i, /student\s+introduction|about\s+me/i],
+    [/\b(?:accommodation|stay|housing|residence)\b/i, /accommodation/i],
+    [/\b(?:insurance|policy)\b/i, /insurance/i],
+    [/\b(?:travel|flight|ticket|itinerary|arrival)\b/i, /travel/i],
+    [/\b(?:closing\s+statement|closing|conclusion|conclude)\b/i, /closing/i],
+    [/\b(?:signature|student\s+contact|contact\s+details|signs?\s*off)\b/i, /signature|contact/i],
+    [/\b(?:consulate|embassy|recipient|visa\s+officer)\b/i, /recipient|consulate/i],
+    [/\b(?:subject|subject\s+line)\b/i, /subject/i],
+    [/\b(?:work|internship|job|experience)\b/i, /work\s+experience|internship/i],
+    [/\b(?:skills|digital\s+skills|technical\s+skills)\b/i, /digital\s+skills|skills/i],
+    [/\b(?:language|languages)\b/i, /language\s+skills|languages/i],
+    [/\b(?:projects?)\b/i, /projects?/i],
+    [/\b(?:achievements?|awards?)\b/i, /achievements?/i],
+    [/\b(?:certifications?|certificates?)\b/i, /certifications?/i],
   ];
 
   for (const [promptRx, headingRx] of KEYWORD_MAP) {
@@ -466,10 +466,23 @@ function buildAiRoute(p: string, currentDoc: HydratedDocumentData): UnifiedProce
   const docType = currentDoc.docType;
   // ── 13. Route to OpenAI Intelligence Layer for Narrative Directives ─────────
   // Find target section from prompt keywords or anchors
-  const identifiedTargetSection = isDetailedBrief(p) ? undefined : findMatchingSection(p, currentDoc.sections);
+  const isBrief = isDetailedBrief(p);
+  const matchedSnippet = findSnippetInSections(p, currentDoc.sections);
+  const isHighConfidencePastedSnippet = Boolean(
+    matchedSnippet &&
+    matchedSnippet.confidence >= 0.85 &&
+    (matchedSnippet.matchedText.length >= 40 || p.includes(matchedSnippet.matchedText))
+  );
+
+  const matchedHeading = findMatchingSection(p, currentDoc.sections);
+  const identifiedTargetSection = isBrief
+    ? isHighConfidencePastedSnippet
+      ? matchedSnippet?.sectionHeading
+      : undefined
+    : matchedSnippet?.sectionHeading || matchedHeading;
 
   const enrichedAiPrompt = identifiedTargetSection
-    ? `The counsellor instruction is: "${p}". Rewrite, polish, and elevate ONLY the "${identifiedTargetSection}" section for clarity, flow, and professional impact while strictly preserving all facts, dates, names, and credentials. Leave all other sections 100% identical and unchanged.`
+    ? `The counsellor instruction is: "${p}". Rewrite, polish, and elevate ONLY the "${identifiedTargetSection}" section for clarity, flow, and professional impact while strictly preserving all facts, dates, names, and credentials. Leave all other sections 100% identical and unchanged. Do NOT create duplicate sections or repeat content.`
     : p;
 
   return {
@@ -481,7 +494,9 @@ function buildAiRoute(p: string, currentDoc: HydratedDocumentData): UnifiedProce
     route: "openai",
     needsAiRewrite: true,
     targetSection: identifiedTargetSection,
-    targetAnchor: identifiedTargetSection ? { heading: identifiedTargetSection, snippet: "" } : undefined,
+    targetAnchor: identifiedTargetSection
+      ? { heading: identifiedTargetSection, snippet: matchedSnippet ? matchedSnippet.matchedText : "" }
+      : undefined,
     aiPrompt: enrichedAiPrompt,
     diagnostic: {
       instruction: p,
@@ -957,9 +972,10 @@ export async function processUnifiedMessage(
     };
   }
 
-  // ── 7.4 Targeted Snippet Directive (Workflow 1): e.g. "I chose Italy..." humanize this ──
+  // ── 7.4 Explicit Quoted Snippet Targeting: e.g. '"I chose Italy..." humanize this' ──
+  const hasQuotedSnippet = /["“][^"”]{8,}["”]|['‘][^'’]{10,}['’]/.test(p);
   const snippetExtraction = extractUserDirectiveAndSnippet(p);
-  if (snippetExtraction.isSnippetProvided && snippetExtraction.snippet) {
+  if (hasQuotedSnippet && snippetExtraction.isSnippetProvided && snippetExtraction.snippet) {
     const snippetAnchor = findSnippetInSections(snippetExtraction.snippet, currentDoc.sections);
     if (snippetAnchor) {
       const directiveText = snippetExtraction.directive || "Rewrite, polish, and humanize this targeted text";
@@ -990,13 +1006,25 @@ export async function processUnifiedMessage(
     }
   }
 
-  // ── 7.5 Section Directive Matcher (Workflow 2): e.g. "Improve Why choose this university section and humanize it" ──
+  // ── 7.5 Section Directive Matcher: User named a section heading (e.g. "Humanize Why choose this university", "Future Academic Plan: make this...") ──
   const cleanPromptForSec = p.replace(/^["'“\s]+|["'”\s]+$/g, "");
-  const matchedSec = findMatchingSection(cleanPromptForSec, currentDoc.sections);
-  const isSectionDirective =
-    /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?(?:better|professional|impactful|compelling|formal|engaging)|improve|polish|rewrite|rephrase|refine|elevate|expand|shorten|elaborate|simplify|strengthen|fix)\b/i.test(pLower);
+  const colonIdx = cleanPromptForSec.indexOf(":");
+  let matchedSec = colonIdx > 2 && colonIdx < 80
+    ? findMatchingSection(cleanPromptForSec.slice(0, colonIdx).trim(), currentDoc.sections)
+    : undefined;
 
-  if (matchedSec && (isSectionDirective || /\bsection\b/i.test(pLower))) {
+  if (!matchedSec) {
+    matchedSec = findMatchingSection(cleanPromptForSec, currentDoc.sections);
+  }
+
+  const isSectionDirective =
+    /\b(enhance|humanize|make\s+(?:it|this\s+)?(?:more\s+)?(?:better|professional|impactful|compelling|formal|engaging|informative|convincing)|improve|polish|rewrite|rephrase|refine|elevate|expand|shorten|elaborate|simplify|strengthen|fix|correct|structure|readability)\b/i.test(pLower);
+
+  if (matchedSec && (isSectionDirective || /\bsection\b/i.test(pLower) || colonIdx !== -1)) {
+    let directiveInstruction = cleanPromptForSec;
+    if (colonIdx !== -1) {
+      directiveInstruction = cleanPromptForSec.slice(colonIdx + 1).trim() || cleanPromptForSec;
+    }
     return {
       success: true,
       reply: `Refining your **${matchedSec}** section for clarity, academic depth, and professional impact. All other sections remain unchanged...`,
@@ -1005,7 +1033,7 @@ export async function processUnifiedMessage(
       needsAiRewrite: true,
       targetSection: matchedSec,
       targetAnchor: { heading: matchedSec, snippet: "" },
-      aiPrompt: `The user wants to improve section "${matchedSec}": "${p}". Rewrite, polish, and elevate ONLY the "${matchedSec}" section for clarity, academic tone, and persuasive impact while strictly preserving all facts, institutions, and credentials. Leave all other sections 100% identical and unchanged.`,
+      aiPrompt: `The user wants to modify section "${matchedSec}". User instruction: "${directiveInstruction}". Rewrite, polish, and elevate ONLY the "${matchedSec}" section according to the instruction, while strictly preserving all facts, institutions, credentials, and dates. Leave all other sections 100% identical and unchanged. Do NOT create duplicate sections or extra paragraphs.`,
       diagnostic: {
         instruction: p,
         detectedIntent: "REWRITE_SECTION",
@@ -1016,6 +1044,76 @@ export async function processUnifiedMessage(
         proposedOperation: `Targeted rewrite of ${matchedSec}`,
         saveResult: "persisted",
         actualChangedFields: [matchedSec],
+      },
+    };
+  }
+
+  // ── 7.6 Missing Section Guard: User asks to rewrite a section that does not exist in currentDoc ──
+  const asksForSpecificSection = /\b(?:humanize|rewrite|modify|update|edit|improve|polish)\s+(?:the\s+)?(["'“]?[\w\s]{3,40}?[\w]["'”]?)\s+section\b/i.exec(p);
+  if (asksForSpecificSection && !matchedSec) {
+    const requestedName = asksForSpecificSection[1].replace(/["'“”]/g, "").trim();
+    const availableSections = currentDoc.sections.map((s) => `**${s.heading}**`).join(", ");
+    return {
+      success: true,
+      reply: `I couldn't find a section named "${requestedName}" in this document. The available sections are: ${availableSections}. Which one would you like me to update?`,
+      actionType: "CLARIFY",
+      route: "local",
+      needsAiRewrite: false,
+      diagnostic: {
+        instruction: p,
+        detectedIntent: "CLARIFY",
+        selectedDocument: docType,
+        clarificationNeeded: true,
+        processingRoute: "local",
+        proposedOperation: `Clarify target section for "${requestedName}"`,
+        saveResult: "unmodified",
+        actualChangedFields: [],
+      },
+    };
+  }
+
+  // ── 7.7 Targeted Snippet Directive: User pasted section text (e.g. "[Snippet]\nHumanize this") ──
+  let snippetAnchor = (snippetExtraction.isSnippetProvided && snippetExtraction.snippet)
+    ? findSnippetInSections(snippetExtraction.snippet, currentDoc.sections)
+    : null;
+
+  // Direct content match fallback if snippet was not parsed via quotation or colon
+  if (!snippetAnchor && p.length >= 45) {
+    snippetAnchor = findSnippetInSections(p, currentDoc.sections);
+  }
+
+  if (snippetAnchor && snippetAnchor.confidence >= 0.7) {
+    let directiveText = snippetExtraction.directive || "Rewrite, polish, and humanize this targeted text";
+    if (directiveText === p) {
+      const matchDirective = p.match(
+        /\b(humanize|make\s+(?:this|it)?\s*(?:more\s+)?(?:natural|professional|compelling|formal|informative|engaging|better|impactful)|improve(?:\s+the)?\s*(?:sentence\s+structure|readability|flow|tone)?|rewrite|rephrase|polish|elevate|expand|shorten|refine|fix\s+grammar|correct\s+gramm\w*|add\s+relevant\s+details)[\s\S]*/i
+      );
+      directiveText = matchDirective
+        ? matchDirective[0].trim()
+        : "Rewrite, polish, and humanize this section for natural flow and professional impact while strictly preserving all facts";
+    }
+    return {
+      success: true,
+      reply: `Refining your section **${snippetAnchor.sectionHeading}** based on your instruction. All other sections remain unchanged...`,
+      actionType: "REWRITE_SECTION",
+      route: "openai",
+      needsAiRewrite: true,
+      targetSection: snippetAnchor.sectionHeading,
+      targetAnchor: {
+        heading: snippetAnchor.sectionHeading,
+        snippet: snippetAnchor.matchedText,
+      },
+      aiPrompt: `The user wants to modify section "${snippetAnchor.sectionHeading}". Targeted text:\n"${snippetAnchor.matchedText}"\nUser instruction: "${directiveText}". Apply ONLY the requested modification to section "${snippetAnchor.sectionHeading}" in-place, while strictly preserving all facts, institutions, credentials, and dates. Keep all other sections 100% identical and unchanged. Do NOT create duplicate sections or repeat content.`,
+      diagnostic: {
+        instruction: p,
+        detectedIntent: "REWRITE_SECTION",
+        selectedDocument: docType,
+        targetSectionOrField: snippetAnchor.sectionHeading,
+        clarificationNeeded: false,
+        processingRoute: "openai",
+        proposedOperation: `In-place edit of ${snippetAnchor.sectionHeading}`,
+        saveResult: "persisted",
+        actualChangedFields: [snippetAnchor.sectionHeading],
       },
     };
   }

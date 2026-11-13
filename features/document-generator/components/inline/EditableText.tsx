@@ -2,6 +2,89 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 
+/**
+ * Parses inline rich-text markers (**bold**, *italic*, <u>underline</u>, ~~strike~~, <color:#hex>...</color>)
+ * into styled React elements so that formatting from the toolbar or keyboard shortcuts renders visually.
+ */
+export function renderRichInlineText(text: string): React.ReactNode {
+  if (!text) return text;
+  if (!text.includes("*") && !text.includes("~") && !text.includes("<") && !text.includes("\n")) {
+    return text;
+  }
+
+  const regex = /(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*[^*\n]+?\*|~~.*?~~|<u>.*?<\/u>|<s>.*?<\/s>|<color:[^>]+>.*?<\/color>|<span style="color:[^"]+">.*?<\/span>|\n)/g;
+  const parts = text.split(regex);
+  if (parts.length <= 1) return text;
+
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (part === "\n") {
+      return <br key={idx} />;
+    }
+    if (part.startsWith("***") && part.endsWith("***") && part.length >= 6) {
+      return (
+        <strong key={idx} style={{ fontWeight: 700 }}>
+          <em style={{ fontStyle: "italic" }}>
+            {renderRichInlineText(part.slice(3, -3))}
+          </em>
+        </strong>
+      );
+    }
+    if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+      return (
+        <strong key={idx} style={{ fontWeight: 700 }}>
+          {renderRichInlineText(part.slice(2, -2))}
+        </strong>
+      );
+    }
+    if (part.startsWith("~~") && part.endsWith("~~") && part.length >= 4) {
+      return (
+        <s key={idx} style={{ textDecoration: "line-through" }}>
+          {renderRichInlineText(part.slice(2, -2))}
+        </s>
+      );
+    }
+    if (part.startsWith("<u>") && part.endsWith("</u>") && part.length >= 7) {
+      return (
+        <u key={idx} style={{ textDecoration: "underline" }}>
+          {renderRichInlineText(part.slice(3, -4))}
+        </u>
+      );
+    }
+    if (part.startsWith("<s>") && part.endsWith("</s>") && part.length >= 7) {
+      return (
+        <s key={idx} style={{ textDecoration: "line-through" }}>
+          {renderRichInlineText(part.slice(3, -4))}
+        </s>
+      );
+    }
+    const colorMatch = part.match(/^<color:([^>]+)>(.*?)<\/color>$/s);
+    if (colorMatch) {
+      return (
+        <span key={idx} style={{ color: colorMatch[1] }}>
+          {renderRichInlineText(colorMatch[2])}
+        </span>
+      );
+    }
+    const spanColorMatch = part.match(/^<span style="color:([^"]+)">(.*?)<\/span>$/s);
+    if (spanColorMatch) {
+      return (
+        <span key={idx} style={{ color: spanColorMatch[1] }}>
+          {renderRichInlineText(spanColorMatch[2])}
+        </span>
+      );
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length >= 2 && !part.startsWith("**")) {
+      return (
+        <em key={idx} style={{ fontStyle: "italic" }}>
+          {renderRichInlineText(part.slice(1, -1))}
+        </em>
+      );
+    }
+    return part;
+  });
+}
+
 interface EditableTextProps {
   /** Current value to display / edit */
   value: string;
@@ -94,9 +177,9 @@ export function EditableText({
     onEditingChange?.(false);
   }, [localValue, onChange, onEditingChange]);
 
+  // Escape cancels and reverts to original value
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      // Escape cancels and reverts to original value
       if (e.key === "Escape") {
         setLocalValue(value);
         setIsEditing(false);
@@ -109,10 +192,88 @@ export function EditableText({
         onChange(localValue);
         setIsEditing(false);
         onEditingChange?.(false);
+        return;
+      }
+
+      // Keyboard shortcuts: Ctrl/Cmd + B (Bold), Ctrl/Cmd + I (Italic), Ctrl/Cmd + U (Underline)
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase();
+        let wrapPrefix = "";
+        let wrapSuffix = "";
+        if (key === "b") {
+          wrapPrefix = "**";
+          wrapSuffix = "**";
+        } else if (key === "i") {
+          wrapPrefix = "*";
+          wrapSuffix = "*";
+        } else if (key === "u") {
+          wrapPrefix = "<u>";
+          wrapSuffix = "</u>";
+        }
+
+        if (wrapPrefix) {
+          e.preventDefault();
+          const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+          const start = target.selectionStart ?? 0;
+          const end = target.selectionEnd ?? 0;
+          const selected = localValue.slice(start, end);
+
+          let nextVal = localValue;
+          let newStart = start;
+          let newEnd = end;
+
+          if (start !== end) {
+            if (
+              selected.startsWith(wrapPrefix) &&
+              selected.endsWith(wrapSuffix) &&
+              selected.length >= wrapPrefix.length + wrapSuffix.length
+            ) {
+              const unwrapped = selected.slice(wrapPrefix.length, -wrapSuffix.length);
+              nextVal = localValue.slice(0, start) + unwrapped + localValue.slice(end);
+              newStart = start;
+              newEnd = start + unwrapped.length;
+            } else if (
+              start >= wrapPrefix.length &&
+              end + wrapSuffix.length <= localValue.length &&
+              localValue.slice(start - wrapPrefix.length, start) === wrapPrefix &&
+              localValue.slice(end, end + wrapSuffix.length) === wrapSuffix
+            ) {
+              nextVal = localValue.slice(0, start - wrapPrefix.length) + selected + localValue.slice(end + wrapSuffix.length);
+              newStart = start - wrapPrefix.length;
+              newEnd = end - wrapPrefix.length;
+            } else {
+              nextVal = localValue.slice(0, start) + wrapPrefix + selected + wrapSuffix + localValue.slice(end);
+              newStart = start;
+              newEnd = end + wrapPrefix.length + wrapSuffix.length;
+            }
+          } else {
+            nextVal = localValue.slice(0, start) + wrapPrefix + wrapSuffix + localValue.slice(end);
+            newStart = start + wrapPrefix.length;
+            newEnd = newStart;
+          }
+
+          setLocalValue(nextVal);
+          onChange(nextVal);
+          requestAnimationFrame(() => {
+            if (inputRef.current) {
+              inputRef.current.focus();
+              try {
+                inputRef.current.setSelectionRange(newStart, newEnd);
+              } catch { }
+            }
+          });
+        }
       }
     },
     [localValue, multiline, submitOnEnter, onChange, onEditingChange, value]
   );
+
+  // Sync localValue with prop value when not editing
+  useEffect(() => {
+    if (!isEditing) {
+      setLocalValue(value);
+    }
+  }, [value, isEditing]);
 
   // ── Non-interactive / PDF mode ──────────────────────────────────────────
   if (!isInteractive) {
@@ -126,11 +287,11 @@ export function EditableText({
           rel="noreferrer"
           data-pdf-link={targetUrl}
         >
-          {value}
+          {renderRichInlineText(value)}
         </a>
       );
     }
-    return <Tag className={className}>{value}</Tag>;
+    return <Tag className={className}>{renderRichInlineText(value)}</Tag>;
   }
 
   // ── Edit mode ───────────────────────────────────────────────────────────
@@ -168,6 +329,16 @@ export function EditableText({
           style={{ ...sharedStyles, overflow: "hidden", minHeight: "1.2em" }}
           value={localValue}
           placeholder={placeholder}
+          onFocus={(e) => {
+            if (typeof window !== "undefined") {
+              (window as any).__lastActiveEditable = e.currentTarget;
+            }
+          }}
+          onSelect={(e) => {
+            if (typeof window !== "undefined") {
+              (window as any).__lastActiveEditable = e.currentTarget;
+            }
+          }}
           onChange={(e) => {
             e.target.style.height = "auto";
             e.target.style.height = `${e.target.scrollHeight}px`;
@@ -189,6 +360,16 @@ export function EditableText({
         style={sharedStyles}
         value={localValue}
         placeholder={placeholder}
+        onFocus={(e) => {
+          if (typeof window !== "undefined") {
+            (window as any).__lastActiveEditable = e.currentTarget;
+          }
+        }}
+        onSelect={(e) => {
+          if (typeof window !== "undefined") {
+            (window as any).__lastActiveEditable = e.currentTarget;
+          }
+        }}
         onChange={handleChange}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
@@ -221,7 +402,9 @@ export function EditableText({
         }}
         title="Click to edit link"
       >
-        {value || (
+        {value ? (
+          renderRichInlineText(value)
+        ) : (
           <span
             data-html2canvas-ignore="true"
             style={{ opacity: 0.35, fontStyle: "italic", userSelect: "none" }}
@@ -250,7 +433,9 @@ export function EditableText({
       }}
       title="Click to edit"
     >
-      {value || (
+      {value ? (
+        renderRichInlineText(value)
+      ) : (
         <span
           data-html2canvas-ignore="true"
           style={{ opacity: 0.35, fontStyle: "italic", userSelect: "none" }}

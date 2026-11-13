@@ -47,7 +47,8 @@ function cleanTextForPdf(raw: string): string {
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/•/g, "-")
-    // HTML tags to markdown
+    // HTML tags to markdown (unwrap underline, convert bold, strip tags)
+    .replace(/<u[^>]*>([\s\S]*?)<\/u>/gi, "$1")
     .replace(/<(?:strong|b)>([\s\S]*?)<\/(?:strong|b)>/gi, "**$1**")
     .replace(/<[^>]+>/g, "")
     // Grammar & Article smoothing

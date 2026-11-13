@@ -10,6 +10,8 @@ import type { DocumentData } from "@/types/document";
 import { getSampleRohanIyerSnapshot } from "@/lib/sampleStudents";
 import sampleStudentBSnapshot from "@/features/document-generator/utils/crmSnapshot_SampleStudentB.json";
 import type { CrmSnapshot } from "@/types/crmSnapshot";
+import { renderRichInlineText } from "@/features/document-generator/components/inline/EditableText";
+import React from "react";
 
 describe("Empty Sections Customization & Zero Fallbacks Policy", () => {
   it("leaves skills, hobbies, and certifications completely empty when student CRM profile lacks them", () => {
@@ -271,6 +273,136 @@ describe("syncSectionsToCvData Live Document Synchronization", () => {
 
     const synced = syncSectionsToCvData(sections, cvWithCerts);
     assert.deepEqual(synced.certifications, []);
+  });
+
+  it("does not confuse ENGLISH LANGUAGE CERTIFICATE with CERTIFICATIONS", () => {
+    const sections = [
+      {
+        heading: "ENGLISH LANGUAGE CERTIFICATE",
+        content: "IELTS Academic: Overall 7.5\nListening: 8.5\nReading: 8.5\nWriting: 7.5\nSpeaking: 7.0",
+      },
+      {
+        heading: "CERTIFICATIONS",
+        content: "Microsoft Excel – Beginner to Advanced\nIssued by: Microsoft Learning\nYear: 2024",
+      },
+    ];
+
+    const synced = syncSectionsToCvData(sections, baseCv);
+
+    assert.ok(synced.englishCertificate, "Expected englishCertificate to be populated");
+    assert.equal(synced.englishCertificate?.score, "7.5");
+
+    assert.ok(synced.certifications && synced.certifications.length === 1, "Expected exactly 1 certification");
+    assert.equal(synced.certifications[0].name, "Microsoft Excel – Beginner to Advanced");
+    assert.equal(synced.certifications[0].provider, "Microsoft Learning");
+    assert.equal(synced.certifications[0].completionDate, "2024");
+    assert.ok(synced.sectionOrder?.includes("certifications"));
+    assert.ok(synced.sectionOrder?.includes("englishCertificate"));
+  });
+
+  it("preserves academic interest phrases with 'and' without splitting them into words", () => {
+    const sections = [
+      {
+        heading: "ACADEMIC INTERESTS",
+        content:
+          "• Exploring emerging technologies and innovations.\n• Interest in programming and software development.\n• Learning data analysis and database management.\n• Understanding artificial intelligence and automation.\n• Developing problem-solving and analytical skills.",
+      },
+    ];
+
+    const synced = syncSectionsToCvData(sections, baseCv);
+
+    assert.equal(synced.academicInterests?.length, 5);
+    assert.equal(
+      synced.academicInterests?.[0].name,
+      "Exploring emerging technologies and innovations."
+    );
+    assert.equal(
+      synced.academicInterests?.[1].name,
+      "Interest in programming and software development."
+    );
+    assert.equal(
+      synced.academicInterests?.[2].name,
+      "Learning data analysis and database management."
+    );
+    assert.equal(
+      synced.academicInterests?.[3].name,
+      "Understanding artificial intelligence and automation."
+    );
+    assert.equal(
+      synced.academicInterests?.[4].name,
+      "Developing problem-solving and analytical skills."
+    );
+  });
+
+  describe("Rich Text Toolbar & Inline Formatting Engine", () => {
+    it("returns plain text unchanged when no formatting markers exist", () => {
+      const plain = "Simple plain sentence with no markdown";
+      const result = renderRichInlineText(plain);
+      assert.equal(result, plain);
+    });
+
+    it("parses **bold** into strong elements", () => {
+      const formatted = "This is **bold** text";
+      const result = renderRichInlineText(formatted) as React.ReactNode[];
+      assert.ok(Array.isArray(result));
+      const boldEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "strong"
+      ) as React.ReactElement;
+      assert.ok(boldEl, "Expected strong element");
+      assert.equal(boldEl.props.children, "bold");
+      assert.equal(boldEl.props.style?.fontWeight, 700);
+    });
+
+    it("parses *italic* into em elements", () => {
+      const formatted = "This is *italic* text";
+      const result = renderRichInlineText(formatted) as React.ReactNode[];
+      assert.ok(Array.isArray(result));
+      const emEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "em"
+      ) as React.ReactElement;
+      assert.ok(emEl, "Expected em element");
+      assert.equal(emEl.props.children, "italic");
+      assert.equal(emEl.props.style?.fontStyle, "italic");
+    });
+
+    it("parses <u>underline</u> and ~~strike~~ elements", () => {
+      const formatted = "Text with <u>underlined</u> and ~~struck~~ items";
+      const result = renderRichInlineText(formatted) as React.ReactNode[];
+      assert.ok(Array.isArray(result));
+      const uEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "u"
+      ) as React.ReactElement;
+      assert.ok(uEl, "Expected u element");
+      assert.equal(uEl.props.children, "underlined");
+
+      const sEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "s"
+      ) as React.ReactElement;
+      assert.ok(sEl, "Expected s element");
+      assert.equal(sEl.props.children, "struck");
+    });
+
+    it("parses custom inline color tags <color:#hex>...</color>", () => {
+      const formatted = "Highlighted <color:#1e3a8a>Deep Academic Navy</color> text";
+      const result = renderRichInlineText(formatted) as React.ReactNode[];
+      assert.ok(Array.isArray(result));
+      const spanEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "span"
+      ) as React.ReactElement;
+      assert.ok(spanEl, "Expected span element with color");
+      assert.equal(spanEl.props.children, "Deep Academic Navy");
+      assert.equal(spanEl.props.style?.color, "#1e3a8a");
+    });
+
+    it("handles newlines by inserting br elements", () => {
+      const formatted = "Line 1\nLine 2";
+      const result = renderRichInlineText(formatted) as React.ReactNode[];
+      assert.ok(Array.isArray(result));
+      const brEl = result.find(
+        (el: any) => el && typeof el === "object" && el.type === "br"
+      );
+      assert.ok(brEl, "Expected br element for newline");
+    });
   });
 });
 

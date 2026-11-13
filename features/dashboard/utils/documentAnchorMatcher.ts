@@ -69,6 +69,9 @@ export function extractUserDirectiveAndSnippet(prompt: string): ExtractedDirecti
       /\b(enhance|humanize|better|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine|fix|update|change|replace)\b/i.test(left) ||
       /\b(this\s+text|this\s+bullet|this\s+part|this\s+sentence|this\s+paragraph|this\s+experience)\b/i.test(left);
 
+    const isRightDirective =
+      /\b(enhance|humanize|better|improve|rephrase|rewrite|polish|elevate|expand|shorten|refine|fix|update|change|replace|more\s+professional|sound\s+natural|convincing|informative)\b/i.test(right);
+
     if (isDirective && right.length >= 8) {
       const cleanDirective = left
         .replace(/\s+(?:this\s+)?(?:text|bullet(?:\s*point)?|paragraph|sentence|part|section|description)\b/i, "")
@@ -77,6 +80,16 @@ export function extractUserDirectiveAndSnippet(prompt: string): ExtractedDirecti
         directive: cleanDirective || left,
         snippet: right,
         isSnippetProvided: true,
+      };
+    }
+
+    // Pattern 1B: Section heading on the left, directive on the right
+    // e.g., "Future Academic Plan: make this section more professional and convincing"
+    if (!isDirective && isRightDirective) {
+      return {
+        directive: right,
+        snippet: undefined,
+        isSnippetProvided: false,
       };
     }
   }
@@ -101,6 +114,66 @@ export function extractUserDirectiveAndSnippet(prompt: string): ExtractedDirecti
     return {
       directive: suffixMatch[2].trim(),
       snippet: suffixMatch[1].trim(),
+      isSnippetProvided: true,
+    };
+  }
+
+  // Pattern 4: Multiline input with directive at the beginning or end
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    const firstLine = lines[0];
+    const lastLine = lines[lines.length - 1];
+    const isDirectiveLine = (l: string) =>
+      /\b(humanize|make\s+(?:this|it)?\s*(?:more\s+)?(?:natural|professional|compelling|formal|informative|engaging|better|impactful)|improve(?:\s+the)?\s*(?:sentence\s+structure|readability|flow|tone)?|rewrite|rephrase|polish|elevate|expand|shorten|refine|fix\s+grammar|correct\s+gramm\w*)\b/i.test(l) &&
+      l.length < 160;
+
+    // Subpattern 4A: Last line is a directive
+    if (isDirectiveLine(lastLine)) {
+      const snippetLines = lines.slice(0, -1).join("\n").trim();
+      if (snippetLines.length >= 20) {
+        return {
+          directive: lastLine,
+          snippet: snippetLines,
+          isSnippetProvided: true,
+        };
+      }
+    }
+
+    // Subpattern 4B: First line is a directive
+    if (isDirectiveLine(firstLine)) {
+      const snippetLines = lines.slice(1).join("\n").trim();
+      if (snippetLines.length >= 20) {
+        return {
+          directive: firstLine,
+          snippet: snippetLines,
+          isSnippetProvided: true,
+        };
+      }
+    }
+  }
+
+  // Pattern 5: Single-block text ending with a directive sentence
+  // e.g. "I chose Italy because it is home to... Humanize this section and make it sound natural"
+  const trailingDirectiveMatch = trimmed.match(
+    /^([\s\S]{30,}?)[.\n\s]+((?:please\s+)?(?:humanize|rewrite|make\s+this|make\s+it|improve|polish|rephrase|refine|fix\s+grammar|correct\s+grammar)[\s\S]{4,140}\.?)$/i
+  );
+  if (trailingDirectiveMatch && trailingDirectiveMatch[1]?.trim()) {
+    return {
+      directive: trailingDirectiveMatch[2].trim(),
+      snippet: trailingDirectiveMatch[1].trim(),
+      isSnippetProvided: true,
+    };
+  }
+
+  // Pattern 6: Pure pasted text snippet (e.g. user pasted raw section text without directive)
+  // Substantial narrative text (>= 80 chars) that does not start with an imperative directive or question
+  if (
+    trimmed.length >= 80 &&
+    !/^(?:hi|hello|hey|help|who|what|why|how|when|can\s+you|could\s+you|please|is\s+there|show\s+me|improve|enhance|make|rewrite|rephrase|polish|fix|correct|change|update|add|remove|delete|insert|write|draft|proofread|format|shorten|expand|elaborate)\b/i.test(trimmed)
+  ) {
+    return {
+      directive: "Rewrite, polish, and humanize this section for natural flow and professional impact while preserving all facts",
+      snippet: trimmed,
       isSnippetProvided: true,
     };
   }
@@ -231,7 +304,10 @@ export function findSnippetInSections(
       for (const token of snippetTokens) {
         if (contentTokens.has(token)) overlap++;
       }
-      const score = overlap / Math.max(snippetTokens.length, 1);
+      const score = Math.max(
+        overlap / Math.max(snippetTokens.length, 1),
+        overlap / Math.max(contentTokens.size, 1)
+      );
       if (score > highestScore && score >= 0.5) {
         highestScore = score;
         bestMatch = {

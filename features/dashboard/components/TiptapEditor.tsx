@@ -9,6 +9,29 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import { FontFamily } from "@tiptap/extension-font-family";
 
+const CustomUnderline = Underline.extend({
+  addAttributes() {
+    return {
+      class: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("class"),
+        renderHTML: (attributes) => {
+          if (!attributes.class) return {};
+          return { class: attributes.class };
+        },
+      },
+      style: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("style"),
+        renderHTML: (attributes) => {
+          if (!attributes.style) return {};
+          return { style: attributes.style };
+        },
+      },
+    };
+  },
+});
+
 export interface FormattingState {
   isBold: boolean;
   isItalic: boolean;
@@ -68,7 +91,7 @@ export function TiptapEditor({
           levels: [1, 2, 3],
         },
       }),
-      Underline,
+      CustomUnderline,
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
@@ -210,6 +233,12 @@ export function TiptapEditor({
         .tiptap u {
           text-decoration: underline;
           text-underline-offset: 3px;
+        }
+        .tiptap u.ai-filled-detail {
+          text-decoration: underline !important;
+          text-decoration-color: #4f46e5 !important;
+          text-decoration-thickness: 2px !important;
+          text-underline-offset: 3.5px !important;
         }
         .tiptap s {
           text-decoration: line-through;

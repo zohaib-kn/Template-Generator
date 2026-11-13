@@ -213,7 +213,11 @@ function resolveSectionMeta(rawName: string): {
   }
   if (n.includes("certif")) {
     return {
-      matcher: (h: string) => h.toLowerCase().includes("certif"),
+      matcher: (h: string) =>
+        h.toLowerCase().includes("certif") &&
+        !h.toLowerCase().includes("english") &&
+        !h.toLowerCase().includes("ielts") &&
+        !h.toLowerCase().includes("toefl"),
       heading: "CERTIFICATIONS",
       sectionOrderId: "certifications",
       defaultContent: "• Professional Certification.",

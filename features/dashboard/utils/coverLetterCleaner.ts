@@ -722,7 +722,8 @@ function renderCleanReturnIntent(
   const home = homeCountry(ctx, ov);
   const returning = home ? `returning to **${home}**` : "returning to my home country";
   if (reason) {
-    return `${reason}, ${returning} is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
+    const cleanReason = reason.trim().replace(/[,.]\s*$/, "");
+    return `${cleanReason}. ${returning.charAt(0).toUpperCase()}${returning.slice(1)} is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
   }
   return `${returning.charAt(0).toUpperCase()}${returning.slice(1)} is also a personal priority, as I wish to build my future close to my family while making a meaningful contribution to my home country.`;
 }
@@ -1590,16 +1591,18 @@ export function updateCoverLetterSectionWithField(
       newContent = renderCleanStudentIntro(ctx, updatedOverrides);
     } else if (headingLower.includes("academic background")) {
       newContent = renderCleanAcademic(ctx, updatedOverrides);
-    } else if (headingLower.includes("why this course")) {
+    } else if (headingLower.includes("why this course") || headingLower.includes("why course")) {
       newContent = renderCleanWhyCourse(ctx, updatedOverrides);
-    } else if (headingLower.includes("why this university")) {
+    } else if (headingLower.includes("why this university") || headingLower.includes("why university")) {
       newContent = renderCleanWhyUniversity(ctx, updatedOverrides);
-    } else if (headingLower.includes("why italy") || headingLower.includes("country")) {
-      newContent = renderCleanWhyItaly(ctx, updatedOverrides);
-    } else if (headingLower.includes("future academic")) {
-      newContent = renderCleanFuturePlan(ctx, updatedOverrides);
     } else if (headingLower.includes("return")) {
       newContent = renderCleanReturnIntent(ctx, updatedOverrides);
+    } else if (headingLower.includes("future academic") || headingLower.includes("future plan")) {
+      newContent = renderCleanFuturePlan(ctx, updatedOverrides);
+    } else if (headingLower.includes("career")) {
+      newContent = renderCleanCareerPlan(ctx, updatedOverrides);
+    } else if (headingLower.includes("why italy") || headingLower.includes("why this country") || headingLower.includes("why country")) {
+      newContent = renderCleanWhyItaly(ctx, updatedOverrides);
     } else if (headingLower.includes("financial")) {
       newContent = renderCleanFinance(ctx, updatedOverrides);
     } else if (headingLower.includes("accommodation")) {
@@ -1608,6 +1611,8 @@ export function updateCoverLetterSectionWithField(
       newContent = renderCleanInsurance(ctx, updatedOverrides);
     } else if (headingLower.includes("travel")) {
       newContent = renderCleanTravel(ctx, updatedOverrides);
+    } else if (headingLower.includes("closing")) {
+      newContent = renderCleanClosing(ctx, updatedOverrides);
     } else if (headingLower.includes("signature") || headingLower.includes("contact")) {
       newContent = renderCleanSignature(ctx, updatedOverrides);
     }

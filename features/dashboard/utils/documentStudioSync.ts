@@ -274,26 +274,55 @@ export function syncSectionsToCvData(
   }
 
   // 6. Certifications
-  const certSec = sections.find((s) => s.heading?.toLowerCase().includes("certification"));
+  const certSec = sections.find(
+    (s) =>
+      (s.heading?.toLowerCase().includes("certification") || s.heading?.toLowerCase().includes("certificate")) &&
+      !s.heading?.toLowerCase().includes("english") &&
+      !s.heading?.toLowerCase().includes("ielts") &&
+      !s.heading?.toLowerCase().includes("toefl")
+  );
   if (certSec && certSec.content.trim()) {
-    const rawLines = certSec.content
-      .split("\n")
-      .map((l) => l.trim().replace(/^[•\s*-]+/, "").trim())
-      .filter(Boolean);
-    updatedCv.certifications = rawLines.map((line, idx) => {
-      // Extract date if present: [ 2023 ] or (2023)
-      const dateMatch = line.match(/\[\s*([^\]]+)\s*\]/) || line.match(/\((20\d\d)\)/);
-      const completionDate = dateMatch ? dateMatch[1].trim() : undefined;
-      const cleanLine = line.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").trim();
-
-      let name = cleanLine;
-      let provider: string | undefined = undefined;
-
-      const delimiterMatch = cleanLine.match(/\s*(?:–|—|-|\||\bby\b|\bfrom\b)\s*/i);
-      if (delimiterMatch && delimiterMatch.index !== undefined) {
-        name = cleanLine.slice(0, delimiterMatch.index).trim();
-        provider = cleanLine.slice(delimiterMatch.index + delimiterMatch[0].length).trim();
+    const rawChunks = certSec.content.split(/\n\s*\n+/).filter(Boolean);
+    const consolidatedEntries: string[] = [];
+    for (const chunk of rawChunks) {
+      const chunkLines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
+      let current = "";
+      for (const line of chunkLines) {
+        if (/^(?:issued\s*by|provider|platform|year|date|completion\s*date)[:=-]/i.test(line) && current) {
+          current += " " + line;
+        } else {
+          if (current) consolidatedEntries.push(current);
+          current = line;
+        }
       }
+      if (current) consolidatedEntries.push(current);
+    }
+
+    updatedCv.certifications = consolidatedEntries.map((line, idx) => {
+      // Extract date if present: [ 2023 ] or (2023) or Year: 2024
+      const yearLabelMatch = line.match(/(?:year|date|completed|completion\s*date)\s*[:=-]\s*([^\n,]+)/i);
+      const bracketMatch = line.match(/\[\s*([^\]]+)\s*\]/) || line.match(/\((20\d\d)\)/);
+      const completionDate = yearLabelMatch ? yearLabelMatch[1].trim() : (bracketMatch ? bracketMatch[1].trim() : undefined);
+      
+      let cleanLine = line;
+      if (yearLabelMatch) cleanLine = cleanLine.replace(yearLabelMatch[0], "");
+      cleanLine = cleanLine.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").trim();
+
+      const issuedByMatch = cleanLine.match(/(?:issued\s*by|provider|organization|platform|institution)\s*[:=-]\s*([^\n,]+)/i);
+      let provider: string | undefined = issuedByMatch ? issuedByMatch[1].trim() : undefined;
+      if (issuedByMatch) cleanLine = cleanLine.replace(issuedByMatch[0], "").trim();
+
+      let name = cleanLine.replace(/^[•\s*-]+/, "").trim();
+
+      if (!provider) {
+        const delimiterMatch = cleanLine.match(/\s*(?:–|—|-|\||\bby\b|\bfrom\b)\s*/i);
+        if (delimiterMatch && delimiterMatch.index !== undefined) {
+          name = cleanLine.slice(0, delimiterMatch.index).trim();
+          provider = cleanLine.slice(delimiterMatch.index + delimiterMatch[0].length).trim();
+        }
+      }
+
+      name = name.replace(/^[•\s*-]+/, "").replace(/^(?:certification|name|certificate)[:=-]\s*/i, "").trim();
 
       return {
         id: `cert-${idx}`,
@@ -483,8 +512,11 @@ export function syncSectionsToCvData(
       (s.heading?.toLowerCase().includes("interest") && !s.heading?.toLowerCase().includes("hobb"))
   );
   if (interestSec && interestSec.content.trim()) {
-    const entries = interestSec.content
-      .split(/[,•\n]+/)
+    const hasLines = /[\n•]/.test(interestSec.content);
+    const rawSplit = hasLines
+      ? interestSec.content.split(/[\n•]+/)
+      : interestSec.content.split(/[,;]+/);
+    const entries = rawSplit
       .map((l) => l.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
       .filter(Boolean);
     updatedCv.academicInterests = entries.map((name, idx) => ({ id: `interest-${idx}`, name }));
@@ -705,10 +737,25 @@ export function syncCvDataToSections(
   }
 
   // 6. Certifications
-  const certsIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("certificat"));
+  let certsIdx = sections.findIndex(
+    (s) =>
+      (s.heading?.toLowerCase().includes("certification") || s.heading?.toLowerCase().includes("certificate")) &&
+      !s.heading?.toLowerCase().includes("english") &&
+      !s.heading?.toLowerCase().includes("ielts") &&
+      !s.heading?.toLowerCase().includes("toefl")
+  );
+  if (cv.certifications && cv.certifications.length > 0 && certsIdx < 0) {
+    const declIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("declaration"));
+    const insertPos = declIdx >= 0 ? declIdx : sections.length;
+    sections.splice(insertPos, 0, { heading: "CERTIFICATIONS", content: "" });
+    certsIdx = insertPos;
+  }
   if (cv.certifications !== undefined && certsIdx >= 0) {
     sections[certsIdx].content = (cv.certifications || [])
-      .map((c) => (c.provider ? `${c.name} – ${c.provider}.` : `${c.name}.`))
+      .map((c) => {
+        const dateStr = c.completionDate ? ` [ ${c.completionDate} ]` : "";
+        return c.provider ? `${c.name} – ${c.provider}${dateStr}` : `${c.name}${dateStr}`;
+      })
       .join("\n");
   }
 
@@ -745,7 +792,10 @@ export function syncCvDataToSections(
   // 9. Academic Interests
   const intIdx = sections.findIndex((s) => s.heading?.toLowerCase().includes("academic interest") || (s.heading?.toLowerCase().includes("interest") && !s.heading?.toLowerCase().includes("hobb")));
   if (cv.academicInterests !== undefined && intIdx >= 0) {
-    sections[intIdx].content = (cv.academicInterests || []).map((i) => i.name).filter(Boolean).join(" • ");
+    sections[intIdx].content = (cv.academicInterests || [])
+      .map((i) => (i.name ? `• ${i.name.replace(/^[•\-*0-9.)\s]+/, "").trim()}` : ""))
+      .filter(Boolean)
+      .join("\n");
   }
 
   // 10. Achievements & Awards

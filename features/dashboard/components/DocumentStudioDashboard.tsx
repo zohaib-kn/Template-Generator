@@ -1131,7 +1131,10 @@ export function DocumentStudioDashboard() {
           case "skills":
             return h.includes("skill") && !h.includes("language");
           case "certifications":
-            return h.includes("certificat");
+            return (h.includes("certification") || h.includes("certificate")) &&
+              !h.includes("english") &&
+              !h.includes("ielts") &&
+              !h.includes("toefl");
           case "hobbies":
             return h.includes("hobbi") || h.includes("interest");
           case "academicProjects":
@@ -2070,7 +2073,8 @@ export function DocumentStudioDashboard() {
 
   // ── Inline Canvas & Input Formatting Helpers (Supports CV & Rich-Text) ────
   const applyInlineFormatToActiveSelection = (format: "bold" | "italic" | "underline" | "strike") => {
-    if (tiptapEditor) {
+    const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+    if (!isCvMode && tiptapEditor) {
       if (format === "bold") tiptapEditor.chain().focus().toggleBold().run();
       else if (format === "italic") tiptapEditor.chain().focus().toggleItalic().run();
       else if (format === "underline") tiptapEditor.chain().focus().toggleUnderline().run();
@@ -2079,7 +2083,10 @@ export function DocumentStudioDashboard() {
     }
 
     // In CV / Europass mode:
-    const activeEl = document.activeElement;
+    const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+      ? document.activeElement
+      : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+
     if (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) {
       const start = activeEl.selectionStart ?? 0;
       const end = activeEl.selectionEnd ?? 0;
@@ -2093,14 +2100,33 @@ export function DocumentStudioDashboard() {
       else if (format === "strike") { prefix = "~~"; suffix = "~~"; }
 
       let nextVal = val;
-      if (selected.length > 0) {
-        if (selected.startsWith(prefix) && selected.endsWith(suffix)) {
-          nextVal = val.slice(0, start) + selected.slice(prefix.length, -suffix.length) + val.slice(end);
+      let newStart = start;
+      let newEnd = end;
+
+      if (start !== end) {
+        if (selected.startsWith(prefix) && selected.endsWith(suffix) && selected.length >= prefix.length + suffix.length) {
+          const unwrapped = selected.slice(prefix.length, -suffix.length);
+          nextVal = val.slice(0, start) + unwrapped + val.slice(end);
+          newStart = start;
+          newEnd = start + unwrapped.length;
+        } else if (
+          start >= prefix.length &&
+          end + suffix.length <= val.length &&
+          val.slice(start - prefix.length, start) === prefix &&
+          val.slice(end, end + suffix.length) === suffix
+        ) {
+          nextVal = val.slice(0, start - prefix.length) + selected + val.slice(end + suffix.length);
+          newStart = start - prefix.length;
+          newEnd = end - prefix.length;
         } else {
           nextVal = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+          newStart = start;
+          newEnd = end + prefix.length + suffix.length;
         }
       } else {
         nextVal = val.slice(0, start) + prefix + suffix + val.slice(end);
+        newStart = start + prefix.length;
+        newEnd = newStart;
       }
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
@@ -2110,6 +2136,14 @@ export function DocumentStudioDashboard() {
       nativeSetter?.call(activeEl, nextVal);
       activeEl.dispatchEvent(new Event("input", { bubbles: true }));
       activeEl.focus();
+      try {
+        activeEl.setSelectionRange(newStart, newEnd);
+      } catch { }
+
+      if (format === "bold") setIsBold((prev) => !prev);
+      else if (format === "italic") setIsItalic((prev) => !prev);
+      else if (format === "underline") setIsUnderline((prev) => !prev);
+      else if (format === "strike") setIsStrikethrough((prev) => !prev);
       return;
     }
 
@@ -2125,20 +2159,75 @@ export function DocumentStudioDashboard() {
   };
 
   const handleListFormat = (type: "bullet" | "ordered") => {
-    if (tiptapEditor) {
+    const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+    if (!isCvMode && tiptapEditor) {
       if (type === "bullet") tiptapEditor.chain().focus().toggleBulletList().run();
       else tiptapEditor.chain().focus().toggleOrderedList().run();
       return;
     }
 
-    const activeEl = document.activeElement;
+    const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+      ? document.activeElement
+      : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+
     if (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement) {
       const start = activeEl.selectionStart ?? 0;
       const end = activeEl.selectionEnd ?? 0;
       const val = activeEl.value;
-      const bulletChar = type === "bullet" ? "• " : "1. ";
-      const nextVal = val.slice(0, start) + (start > 0 && val[start - 1] !== "\n" ? "\n" : "") + bulletChar + val.slice(end);
 
+      const lines = val.split("\n");
+      let charCount = 0;
+      let startLineIdx = 0;
+      let endLineIdx = lines.length - 1;
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineLen = lines[i].length + 1;
+        if (charCount + lineLen > start) {
+          startLineIdx = i;
+          break;
+        }
+        charCount += lineLen;
+      }
+
+      charCount = 0;
+      for (let i = 0; i < lines.length; i++) {
+        const lineLen = lines[i].length + 1;
+        if (charCount + lineLen >= end) {
+          endLineIdx = i;
+          break;
+        }
+        charCount += lineLen;
+      }
+
+      let orderNum = 1;
+      const newLines = lines.map((line, idx) => {
+        if (idx >= startLineIdx && idx <= endLineIdx) {
+          if (type === "bullet") {
+            if (line.startsWith("• ")) {
+              return line.slice(2);
+            } else if (/^\d+\.\s*/.test(line)) {
+              return "• " + line.replace(/^\d+\.\s*/, "");
+            } else {
+              return "• " + line;
+            }
+          } else {
+            if (/^\d+\.\s*/.test(line)) {
+              return line.replace(/^\d+\.\s*/, "");
+            } else if (line.startsWith("• ")) {
+              const res = `${orderNum}. ` + line.slice(2);
+              orderNum++;
+              return res;
+            } else {
+              const res = `${orderNum}. ` + line;
+              orderNum++;
+              return res;
+            }
+          }
+        }
+        return line;
+      });
+
+      const nextVal = newLines.join("\n");
       const nativeSetter = Object.getOwnPropertyDescriptor(
         activeEl instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
         "value"
@@ -2147,7 +2236,7 @@ export function DocumentStudioDashboard() {
       activeEl.dispatchEvent(new Event("input", { bubbles: true }));
       activeEl.focus();
     } else {
-      setAiToast({ message: "Tip: Click into any CV text field to insert bullets", type: "info" });
+      setAiToast({ message: "Tip: Click into any CV text field to insert bullets or numbers", type: "info" });
     }
   };
 
@@ -2222,6 +2311,13 @@ export function DocumentStudioDashboard() {
     setTimeout(() => {
       const paper = document.querySelector(".a4-paper-sheet");
       if (!paper) return;
+
+      // If an underlined AI detail already exists in canvas, scroll to it
+      const underlinedEl = paper.querySelector(".ai-filled-detail, u.ai-filled-detail");
+      if (underlinedEl) {
+        underlinedEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
 
       // 1. Remove previous sentence highlights cleanly
       paper.querySelectorAll(".ai-sentence-highlight, .ai-phrase-highlight").forEach((el) => {
@@ -2301,9 +2397,22 @@ export function DocumentStudioDashboard() {
   const handleClearAiHighlight = () => {
     setActiveAiHighlight(null);
     setActiveAiCvSectionKey(null);
+
+    // Strip visual AI underline tags from live Tiptap content
+    if (tiptapEditor) {
+      const currentHtml = tiptapEditor.getHTML();
+      if (currentHtml.includes("ai-filled-detail")) {
+        const cleanHtml = currentHtml.replace(/<u\s+class="ai-filled-detail"[^>]*>([\s\S]*?)<\/u>/gi, "$1");
+        if (cleanHtml !== currentHtml) {
+          tiptapEditor.commands.setContent(cleanHtml);
+          setTiptapHtml(cleanHtml);
+        }
+      }
+    }
+
     const paper = document.querySelector(".a4-paper-sheet");
     if (paper) {
-      paper.querySelectorAll(".ai-sentence-highlight, .ai-phrase-highlight").forEach((el) => {
+      paper.querySelectorAll(".ai-sentence-highlight, .ai-phrase-highlight, .ai-filled-detail").forEach((el) => {
         const parent = el.parentNode;
         if (parent) {
           parent.replaceChild(document.createTextNode(el.textContent || ""), el);
@@ -2322,6 +2431,14 @@ export function DocumentStudioDashboard() {
   };
 
   const handleJumpToAiHighlight = () => {
+    const paper = document.querySelector(".a4-paper-sheet");
+    if (paper) {
+      const target = paper.querySelector(".ai-filled-detail, u.ai-filled-detail, .ai-sentence-highlight");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+    }
     if (activeAiHighlight) {
       highlightChangedSentenceInCanvas(activeAiHighlight.sectionName, activeAiHighlight.phrase);
     }
@@ -4064,20 +4181,42 @@ export function DocumentStudioDashboard() {
         case "certifications": {
           formattedSectionHeading = "CERTIFICATIONS";
 
-          const dateMatch = cleanAnswer.match(/\[\s*([^\]]+)\s*\]/) || cleanAnswer.match(/\((20\d\d)\)/);
-          const completionDate = dateMatch ? dateMatch[1].trim() : undefined;
-          const cleanLine = cleanAnswer.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").trim();
+          // Intelligently parse multi-line or key-value entries (e.g. Issued by: ..., Year: 2024)
+          const issuedByMatch = cleanAnswer.match(/(?:issued\s*by|provider|organization|platform|institution|by)\s*[:=-]\s*([^\n]+)/i);
+          const yearMatch = cleanAnswer.match(/(?:year|date|completed|completion\s*date)\s*[:=-]\s*([^\n]+)/i) ||
+            cleanAnswer.match(/\[\s*([^\]]+)\s*\]/) ||
+            cleanAnswer.match(/\((20\d\d)\)/);
 
-          let name = cleanLine;
-          let provider: string | undefined = undefined;
-          const delimiterMatch = cleanLine.match(/\s*(?:–|—|-|\||\bby\b|\bfrom\b)\s*/i);
-          if (delimiterMatch && delimiterMatch.index !== undefined) {
-            name = cleanLine.slice(0, delimiterMatch.index).trim();
-            provider = cleanLine.slice(delimiterMatch.index + delimiterMatch[0].length).trim();
+          let provider = issuedByMatch ? issuedByMatch[1].trim() : undefined;
+          let completionDate = yearMatch ? yearMatch[1].trim() : undefined;
+
+          // Strip explicit labels to extract certification title
+          let cleanLine = cleanAnswer;
+          if (issuedByMatch) {
+            cleanLine = cleanLine.replace(issuedByMatch[0], "").trim();
+          }
+          if (yearMatch) {
+            cleanLine = cleanLine.replace(yearMatch[0], "").trim();
           }
 
-          name = name.replace(/^(?:certification|name|certificate)[:=-]\s*/i, "").trim() || cleanAnswer;
-          provider = provider?.replace(/^(?:provider|issued by)[:=-]\s*/i, "").trim();
+          cleanLine = cleanLine.replace(/\[\s*[^\]]+\s*\]/, "").replace(/\((20\d\d)\)/, "").trim();
+
+          const lines = cleanLine.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+          let name = lines[0] || cleanLine;
+
+          if (!provider) {
+            const delimiterMatch = name.match(/\s*(?:–|—|-|\||\bby\b|\bfrom\b)\s*/i);
+            if (delimiterMatch && delimiterMatch.index !== undefined) {
+              const possibleProvider = name.slice(delimiterMatch.index + delimiterMatch[0].length).trim();
+              name = name.slice(0, delimiterMatch.index).trim();
+              if (possibleProvider) provider = possibleProvider;
+            }
+          }
+
+          name = name.replace(/^(?:certification|name|certificate)[:=-]\s*/i, "").trim() || cleanAnswer.split("\n")[0].trim();
+          if (provider) {
+            provider = provider.replace(/^(?:provider|issued by)[:=-]\s*/i, "").trim();
+          }
 
           const formattedCert = provider
             ? `${name} – ${provider}${completionDate ? ` [ ${completionDate} ]` : ""}`
@@ -4181,9 +4320,13 @@ export function DocumentStudioDashboard() {
 
         case "academicInterests": {
           formattedSectionHeading = "ACADEMIC INTERESTS";
-          const items = cleanAnswer
-            .replace(/\band\b/gi, ",")
-            .split(/[,•\n]+/)
+          // If input has newlines or bullets, split by newlines/bullets to preserve phrases with "and" or internal commas.
+          // If single-line without newlines/bullets, split by comma or semicolon.
+          const hasLinesOrBullets = /[\n•]/.test(cleanAnswer);
+          const rawSplit = hasLinesOrBullets
+            ? cleanAnswer.split(/[\n•]+/)
+            : cleanAnswer.split(/[,;]+/);
+          const items = rawSplit
             .map((s) => s.trim().replace(/^[•\-*0-9.)\s]+/, "").trim())
             .filter(Boolean);
           const rawItems = items.length > 0 ? items : [cleanAnswer];
@@ -4348,7 +4491,7 @@ export function DocumentStudioDashboard() {
         (activeSectionPrompt.sectionKey === "recommendations" && (s.heading.toLowerCase().includes("recommendation") || s.heading.toLowerCase().includes("referee"))) ||
         (activeSectionPrompt.sectionKey === "hobbies" && s.heading.toLowerCase().includes("hobbies")) ||
         (activeSectionPrompt.sectionKey === "skills" && s.heading.toLowerCase().includes("skill") && !s.heading.toLowerCase().includes("language")) ||
-        (activeSectionPrompt.sectionKey === "certifications" && s.heading.toLowerCase().includes("certificat")) ||
+        (activeSectionPrompt.sectionKey === "certifications" && (s.heading.toLowerCase().includes("certification") || s.heading.toLowerCase().includes("certificate")) && !s.heading.toLowerCase().includes("english") && !s.heading.toLowerCase().includes("ielts") && !s.heading.toLowerCase().includes("toefl")) ||
         (activeSectionPrompt.sectionKey === "workExperience" && (s.heading.toLowerCase().includes("work") || s.heading.toLowerCase().includes("internship"))) ||
         (activeSectionPrompt.sectionKey === "education" && s.heading.toLowerCase().includes("education")) ||
         (activeSectionPrompt.sectionKey === "training" && (s.heading.toLowerCase().includes("training") || s.heading.toLowerCase().includes("education"))) ||
@@ -4359,9 +4502,9 @@ export function DocumentStudioDashboard() {
 
       // Determine proper entry separator
       const sectionSeparator =
-        activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies" || activeSectionPrompt.sectionKey === "academicInterests"
+        activeSectionPrompt.sectionKey === "skills" || activeSectionPrompt.sectionKey === "hobbies"
           ? " • "
-          : activeSectionPrompt.sectionKey === "certifications" || activeSectionPrompt.sectionKey === "achievements"
+          : activeSectionPrompt.sectionKey === "academicInterests" || activeSectionPrompt.sectionKey === "certifications" || activeSectionPrompt.sectionKey === "achievements"
             ? "\n"
             : activeSectionPrompt.sectionKey === "englishCertificate" || activeSectionPrompt.sectionKey === "aboutMe" || activeSectionPrompt.sectionKey === "about" || activeSectionPrompt.sectionKey === "languageSkills" || activeSectionPrompt.sectionKey === "languages"
               ? "REPLACE"
@@ -4518,7 +4661,12 @@ export function DocumentStudioDashboard() {
         const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
         const newHtml =
           editableDocContent.docType === "COVER_LETTER" && currentLiveHtml
-            ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, updatedSections)
+            ? updateLiveCoverLetterHtml(
+                currentLiveHtml,
+                editableDocContent.sections,
+                updatedSections,
+                multiMatch.map((m) => m.value)
+              )
             : docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
         setTiptapHtml(newHtml);
         if (tiptapEditor) {
@@ -4715,7 +4863,12 @@ export function DocumentStudioDashboard() {
       const currentLiveHtml = tiptapEditor ? tiptapEditor.getHTML() : tiptapHtml;
       const newHtml =
         editableDocContent.docType === "COVER_LETTER" && currentLiveHtml
-          ? updateLiveCoverLetterHtml(currentLiveHtml, editableDocContent.sections, updatedSections)
+          ? updateLiveCoverLetterHtml(
+              currentLiveHtml,
+              editableDocContent.sections,
+              updatedSections,
+              targetValue
+            )
           : docSectionsToHtml(updatedSections, updatedDoc.docType, updatedDoc.title);
       setTiptapHtml(newHtml);
       if (tiptapEditor) {
@@ -7217,6 +7370,7 @@ export function DocumentStudioDashboard() {
                   <div className="h-7.5 flex items-center gap-1 shrink-0">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setFontSize((f) => Math.max(10, f - 1))}
                       className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
                     >
@@ -7227,6 +7381,7 @@ export function DocumentStudioDashboard() {
                     </span>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setFontSize((f) => Math.min(32, f + 1))}
                       className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold text-xs cursor-pointer"
                     >
@@ -7240,6 +7395,7 @@ export function DocumentStudioDashboard() {
                   <div className="relative shrink-0" ref={colorMenuRef}>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setShowColorMenu(!showColorMenu);
                         setShowHeadingMenu(false);
@@ -7264,11 +7420,36 @@ export function DocumentStudioDashboard() {
                         ].map((c) => (
                           <div
                             key={c.color}
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                               setTextColor(c.color);
                               setShowColorMenu(false);
-                              if (tiptapEditor) {
+                              const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+                              if (!isCvMode && tiptapEditor) {
                                 tiptapEditor.chain().focus().setColor(c.color).run();
+                              } else {
+                                const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+                                  ? document.activeElement
+                                  : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+                                if (activeEl && activeEl.selectionStart !== activeEl.selectionEnd) {
+                                  const start = activeEl.selectionStart ?? 0;
+                                  const end = activeEl.selectionEnd ?? 0;
+                                  const val = activeEl.value;
+                                  const selected = val.slice(start, end);
+                                  const prefix = `<color:${c.color}>`;
+                                  const suffix = `</color>`;
+                                  const nextVal = val.slice(0, start) + prefix + selected + suffix + val.slice(end);
+                                  const nativeSetter = Object.getOwnPropertyDescriptor(
+                                    activeEl instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype,
+                                    "value"
+                                  )?.set;
+                                  nativeSetter?.call(activeEl, nextVal);
+                                  activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+                                  activeEl.focus();
+                                  try {
+                                    activeEl.setSelectionRange(start, end + prefix.length + suffix.length);
+                                  } catch { }
+                                }
                               }
                             }}
                             className={`w-5 h-5 rounded-full cursor-pointer border transition-transform hover:scale-110 ${textColor === c.color ? "ring-2 ring-indigo-500 scale-110" : "border-slate-300"
@@ -7286,6 +7467,7 @@ export function DocumentStudioDashboard() {
                   {/* B I U S formatting toggles (Targets active selection) */}
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyInlineFormatToActiveSelection("bold")}
                     className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs font-bold transition cursor-pointer shrink-0 ${isBoldActive || isBold ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                       }`}
@@ -7295,6 +7477,7 @@ export function DocumentStudioDashboard() {
                   </button>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyInlineFormatToActiveSelection("italic")}
                     className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs italic font-serif transition cursor-pointer shrink-0 ${isItalicActive || isItalic ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                       }`}
@@ -7304,6 +7487,7 @@ export function DocumentStudioDashboard() {
                   </button>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyInlineFormatToActiveSelection("underline")}
                     className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs underline transition cursor-pointer shrink-0 ${isUnderlineActive || isUnderline ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                       }`}
@@ -7313,6 +7497,7 @@ export function DocumentStudioDashboard() {
                   </button>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyInlineFormatToActiveSelection("strike")}
                     className={`w-6.5 h-6.5 rounded-md flex items-center justify-center text-xs line-through transition cursor-pointer shrink-0 ${isStrikeActive || isStrikethrough ? "bg-indigo-100 text-indigo-700 font-bold" : "text-slate-700 hover:bg-slate-100"
                       }`}
@@ -7327,9 +7512,20 @@ export function DocumentStudioDashboard() {
                   <div className="h-7.5 flex items-center gap-0.5 bg-slate-100/70 p-0.5 rounded-lg shrink-0">
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setTextAlign("left");
-                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("left").run();
+                        const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+                        if (!isCvMode && tiptapEditor) {
+                          tiptapEditor.chain().focus().setTextAlign("left").run();
+                        } else {
+                          const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+                            ? document.activeElement
+                            : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+                          if (activeEl) {
+                            activeEl.style.textAlign = "left";
+                          }
+                        }
                       }}
                       className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "left" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                         }`}
@@ -7343,9 +7539,20 @@ export function DocumentStudioDashboard() {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setTextAlign("center");
-                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("center").run();
+                        const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+                        if (!isCvMode && tiptapEditor) {
+                          tiptapEditor.chain().focus().setTextAlign("center").run();
+                        } else {
+                          const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+                            ? document.activeElement
+                            : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+                          if (activeEl) {
+                            activeEl.style.textAlign = "center";
+                          }
+                        }
                       }}
                       className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "center" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                         }`}
@@ -7359,9 +7566,20 @@ export function DocumentStudioDashboard() {
                     </button>
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         setTextAlign("right");
-                        if (tiptapEditor) tiptapEditor.chain().focus().setTextAlign("right").run();
+                        const isCvMode = editableDocContent?.docType === "CV" && cvViewMode === "europass";
+                        if (!isCvMode && tiptapEditor) {
+                          tiptapEditor.chain().focus().setTextAlign("right").run();
+                        } else {
+                          const activeEl = (document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLInputElement)
+                            ? document.activeElement
+                            : (typeof window !== "undefined" && (window as any).__lastActiveEditable?.isConnected ? (window as any).__lastActiveEditable : null);
+                          if (activeEl) {
+                            activeEl.style.textAlign = "right";
+                          }
+                        }
                       }}
                       className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition ${textAlign === "right" ? "bg-white text-indigo-600 shadow-2xs font-bold" : "text-slate-600 hover:bg-white/60"
                         }`}
@@ -7380,6 +7598,7 @@ export function DocumentStudioDashboard() {
                   {/* Bullet List Icon */}
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleListFormat("bullet")}
                     className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                     title="Bullet List"
@@ -7397,6 +7616,7 @@ export function DocumentStudioDashboard() {
                   {/* Ordered List Icon */}
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleListFormat("ordered")}
                     className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-slate-700 hover:bg-slate-100 cursor-pointer shrink-0"
                     title="Numbered List"
@@ -7797,9 +8017,12 @@ export function DocumentStudioDashboard() {
                         transformOrigin: "top left",
                         fontFamily,
                         color: textColor,
+                        textAlign,
                         "--europass-font-family": fontFamily,
                         "--europass-font-size-base": `${fontSize}pt`,
+                        "--europass-text": textColor,
                         "--europass-text-dark": textColor,
+                        "--europass-text-align": textAlign,
                       } as React.CSSProperties}
                     >
                       {(() => {
