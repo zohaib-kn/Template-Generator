@@ -58,7 +58,7 @@ export function renderRichInlineText(text: string): React.ReactNode {
         </s>
       );
     }
-    const colorMatch = part.match(/^<color:([^>]+)>(.*?)<\/color>$/s);
+    const colorMatch = part.match(/^<color:([^>]+)>([\s\S]*?)<\/color>$/);
     if (colorMatch) {
       return (
         <span key={idx} style={{ color: colorMatch[1] }}>
@@ -66,7 +66,7 @@ export function renderRichInlineText(text: string): React.ReactNode {
         </span>
       );
     }
-    const spanColorMatch = part.match(/^<span style="color:([^"]+)">(.*?)<\/span>$/s);
+    const spanColorMatch = part.match(/^<span style="color:([^"]+)">([\s\S]*?)<\/span>$/);
     if (spanColorMatch) {
       return (
         <span key={idx} style={{ color: spanColorMatch[1] }}>

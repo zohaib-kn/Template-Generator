@@ -1066,7 +1066,7 @@ export async function processUnifiedMessage(
         clarificationNeeded: true,
         processingRoute: "local",
         proposedOperation: `Clarify target section for "${requestedName}"`,
-        saveResult: "unmodified",
+        saveResult: "not_applicable",
         actualChangedFields: [],
       },
     };

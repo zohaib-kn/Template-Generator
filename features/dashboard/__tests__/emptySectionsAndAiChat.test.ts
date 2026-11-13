@@ -347,7 +347,7 @@ describe("syncSectionsToCvData Live Document Synchronization", () => {
       assert.ok(Array.isArray(result));
       const boldEl = result.find(
         (el: any) => el && typeof el === "object" && el.type === "strong"
-      ) as React.ReactElement;
+      ) as React.ReactElement<any>;
       assert.ok(boldEl, "Expected strong element");
       assert.equal(boldEl.props.children, "bold");
       assert.equal(boldEl.props.style?.fontWeight, 700);
@@ -359,7 +359,7 @@ describe("syncSectionsToCvData Live Document Synchronization", () => {
       assert.ok(Array.isArray(result));
       const emEl = result.find(
         (el: any) => el && typeof el === "object" && el.type === "em"
-      ) as React.ReactElement;
+      ) as React.ReactElement<any>;
       assert.ok(emEl, "Expected em element");
       assert.equal(emEl.props.children, "italic");
       assert.equal(emEl.props.style?.fontStyle, "italic");
@@ -371,13 +371,13 @@ describe("syncSectionsToCvData Live Document Synchronization", () => {
       assert.ok(Array.isArray(result));
       const uEl = result.find(
         (el: any) => el && typeof el === "object" && el.type === "u"
-      ) as React.ReactElement;
+      ) as React.ReactElement<any>;
       assert.ok(uEl, "Expected u element");
       assert.equal(uEl.props.children, "underlined");
 
       const sEl = result.find(
         (el: any) => el && typeof el === "object" && el.type === "s"
-      ) as React.ReactElement;
+      ) as React.ReactElement<any>;
       assert.ok(sEl, "Expected s element");
       assert.equal(sEl.props.children, "struck");
     });
@@ -388,7 +388,7 @@ describe("syncSectionsToCvData Live Document Synchronization", () => {
       assert.ok(Array.isArray(result));
       const spanEl = result.find(
         (el: any) => el && typeof el === "object" && el.type === "span"
-      ) as React.ReactElement;
+      ) as React.ReactElement<any>;
       assert.ok(spanEl, "Expected span element with color");
       assert.equal(spanEl.props.children, "Deep Academic Navy");
       assert.equal(spanEl.props.style?.color, "#1e3a8a");
